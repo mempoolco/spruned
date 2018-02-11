@@ -23,7 +23,7 @@ class ChainSoService(RPCAPIService):
         tx = deserialize(data['data']['tx_hex'])
         tx['segwit'] = True
         for vin in tx['ins']:
-            if vin.get('txinwitness', '0' * 64) == 0 * 64:
+            if vin.get('txinwitness', '0' * 64) == '0' * 64:
                 vin['txinwitness'] = ''
         tx = serialize(tx)
         return {
@@ -59,7 +59,7 @@ class ChainSoService(RPCAPIService):
             'mediantime': None,
             'nonce': None,
             'bits': None,
-            'difficulty': d['mining_difficulty'],
+            'difficulty': int(float(d['mining_difficulty'])),
             'chainwork': None,
             'previousblockhash': d['previous_blockhash'],
             'nextblockhash': d['next_blockhash'],

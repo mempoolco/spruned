@@ -32,10 +32,10 @@ class SprunedVOService(RPCAPIService):
                 if i < len(_dd) - 2:
                     if _k == 'time':
                         assert abs(x - _dd[i+1]) < self.MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES, (x, _dd[i+1])
-                    elif _k == 'source':
-                        pass
                     elif _k == 'confirmations':
                         return max([x, _dd[i+1]])
+                    elif _k == 'source':
+                        pass
                     else:
                         assert x == _dd[i+1], (x, _dd[i+1], data)
             return _dd and _dd[0] or None
@@ -49,6 +49,7 @@ class SprunedVOService(RPCAPIService):
                 res[k] = _get_key(k, data[1:])
             else:
                 assert v == _get_key(k, data[1:])
+        res['source'] = ', '.join(x['source'] for x in data)
         return res
 
     def _get_from_cache(self, *a):

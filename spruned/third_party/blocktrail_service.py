@@ -35,6 +35,7 @@ class BlocktrailService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
+
         url = self.BASE + self.coin + 'block/' + blockhash + '?api_key=' + self.api_key
         response = self.client.get(url)
         response.raise_for_status()
@@ -58,7 +59,7 @@ class BlocktrailService(RPCAPIService):
             'mediantime': None,
             'nonce': None,
             'bits': None,
-            'difficulty': d['difficulty'],
+            'difficulty': int(float(d['difficulty'])),
             'chainwork': None,
             'previousblockhash': d['prev_block'],
             'nextblockhash': d['next_block'],

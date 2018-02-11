@@ -23,9 +23,9 @@ class BitGoService(RPCAPIService):
         epoch_time = int((utc_time - self._e_d).total_seconds())
         tx = deserialize(data['hex'])
         tx['segwit'] = True
-        for vin in tx['ins']:
-            if vin.get('txinwitness', '0'*64) == 0*64:
-                vin['txinwitness'] = ''
+        for i, vin in enumerate(tx['ins']):
+            if vin.get('txinwitness', '0'*64) == '0'*64:
+                tx['ins'][i]['txinwitness'] = ''
         tx = serialize(tx)
         return {
             'rawtx': tx,
@@ -33,7 +33,7 @@ class BitGoService(RPCAPIService):
             'blockheight': data['height'],
             'confirmations': data['confirmations'],
             'time': epoch_time,
-            'size': len(tx) / 2,
+            'size': None,
             'txid': data['id'],
             'source': 'bitgo'
         }

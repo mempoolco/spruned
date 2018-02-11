@@ -36,12 +36,13 @@ class BlockCypherService(RPCAPIService):
             'blockheight': data['block_height'],
             'confirmations': data['confirmations'],
             'time': epoch_time,
-            'size': data['size'],
+            'size': None,
             'txid': txid,
             'source': 'blockcypher'
         }
 
     def getblock(self, blockhash):
+        print('getblock from blockcypher')
         _s = 0
         _l = 500
         d = None
