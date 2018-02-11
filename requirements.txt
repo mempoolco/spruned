@@ -1,2 +1,3 @@
 requests
 merkle
+git+https://github.com/Conio/pybitcointools.git

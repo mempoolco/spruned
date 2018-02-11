@@ -1,4 +1,6 @@
 import requests
+from bitcoin import deserialize, serialize
+
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 
@@ -18,8 +20,11 @@ class ChainSoService(RPCAPIService):
         response.raise_for_status()
         data = response.json()
         assert data['status'] == 'success', data
+        tx = deserialize(data['data']['tx_hex'])
+        tx['segwit'] = True
+        tx = serialize(tx)
         return {
-            'rawtx': data['data']['tx_hex'],
+            'rawtx': tx,
             'blockhash': data['data']['blockhash'],
             'blockheight': None,
             'confirmations': data['data']['confirmations'],

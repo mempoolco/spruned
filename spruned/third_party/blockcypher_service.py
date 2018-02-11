@@ -1,4 +1,6 @@
 import requests
+from bitcoin import deserialize, serialize
+
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
@@ -25,8 +27,11 @@ class BlockCypherService(RPCAPIService):
         _c = data['confirmed'].split('.')[0]
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
         epoch_time = int((utc_time - self._e_d).total_seconds())
+        tx = deserialize(data['hex'])
+        tx['segwit'] = True
+        tx = serialize(tx)
         return {
-            'rawtx': data['hex'],
+            'rawtx': tx,
             'blockhash': data['block_hash'],
             'blockheight': data['block_height'],
             'confirmations': data['confirmations'],

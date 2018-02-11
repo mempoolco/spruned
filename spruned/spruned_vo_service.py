@@ -16,7 +16,7 @@ def maybe_cached(method):
 
 
 class SprunedVOService(RPCAPIService):
-    MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES = 10
+    MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES = 60
 
     def __init__(self, min_sources=3, bitcoind=None):
         self.sources = []
@@ -31,7 +31,7 @@ class SprunedVOService(RPCAPIService):
             for i, x in enumerate(_dd):
                 if i < len(_dd) - 2:
                     if _k == 'time':
-                        assert abs(x - _dd[i+1]) < self.MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES
+                        assert abs(x - _dd[i+1]) < self.MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES, (x, _dd[i+1])
                     else:
                         assert x == _dd[i+1], (x, _dd[i+1], data)
             return _dd and _dd[0] or None
@@ -83,7 +83,7 @@ class SprunedVOService(RPCAPIService):
         blockhash = self.bitcoind.getblockhash(transaction['blockheight'])
         assert blockhash == transaction['blockhash']
         block = self.getblock(blockhash)
-        assert transaction['txid'] in block['tx']
+        assert transaction['txid'] in block['tx'] # FIXME add merkle proof on local headers
         return 1
 
     @maybe_cached('getblock')
