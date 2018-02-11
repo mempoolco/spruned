@@ -55,7 +55,7 @@ class BitGoService(RPCAPIService):
             'size': None,
             'weight': None,
             'height': d['height'],
-            'version': d['version'],
+            'version': str(d['version']),
             'versionHex': None,
             'merkleroot': d['merkleRoot'],
             'tx': d['transactions'],

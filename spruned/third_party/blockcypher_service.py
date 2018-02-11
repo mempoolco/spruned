@@ -71,7 +71,7 @@ class BlockCypherService(RPCAPIService):
             'size': d['size'],
             'weight': None,
             'height': d['height'],
-            'version': d['ver'],
+            'version': str(d['ver']),
             'versionHex': None,
             'merkleroot': d['mrkl_root'],
             'tx': d['txids'],

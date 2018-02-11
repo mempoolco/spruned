@@ -51,7 +51,7 @@ class BlocktrailService(RPCAPIService):
             'size': d['byte_size'],
             'weight': None,
             'height': None,
-            'version': d['version'],
+            'version': str(d['version']),
             'versionHex': None,
             'merkleroot': d['merkleroot'],
             'tx': None,

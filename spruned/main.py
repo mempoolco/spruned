@@ -3,6 +3,7 @@ from spruned import settings, spruned_vo_service
 from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
 
 from spruned.third_party.bitgo_service import BitGoService
+from spruned.third_party.bitpay_service import BitpayService
 from spruned.third_party.blockexplorer_service import BlockexplorerService
 from spruned.third_party.blocktrail_service import BlocktrailService
 from spruned.third_party.chainflyer_service import ChainFlyerService
@@ -19,6 +20,7 @@ blockcypher = BlockCypherService(settings.NETWORK, api_token=settings.BLOCKCYPHE
 bitgo = BitGoService(settings.NETWORK)
 chainflyer = ChainFlyerService(settings.NETWORK)
 blockexplorer = BlockexplorerService(settings.NETWORK)
+bitpay = BitpayService(settings.NETWORK)
 
 service = spruned_vo_service.SprunedVOService(min_sources=settings.MIN_DATA_SOURCES, bitcoind=bitcoind)
 service.add_primary_source(chainso)
@@ -27,6 +29,7 @@ service.add_source(blockexplorer)
 service.add_source(blockcypher)
 blocktrail and service.add_source(blocktrail)
 service.add_source(chainflyer)
+service.add_source(bitpay)
 
 
 def jsonprint(d):

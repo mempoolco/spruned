@@ -22,7 +22,7 @@ class BlockexplorerService(RPCAPIService):
             'blockheight': data['blockheight'],
             'confirmations': data['confirmations'],
             'time': data['time'],
-            'size': data['size'],
+            'size': None,
             'txid': txid,
             'source': 'blockexplorer.com'
         }
@@ -40,7 +40,7 @@ class BlockexplorerService(RPCAPIService):
             'size': d['size'],
             'weight': None,
             'height': d['height'],
-            'version': d['version'],
+            'version': str(d['version']),
             'versionHex': None,
             'merkleroot': d['merkleroot'],
             'tx': None,

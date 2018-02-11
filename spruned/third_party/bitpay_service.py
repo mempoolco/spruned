@@ -1,15 +1,14 @@
 import requests
-
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
 
 
-class ChainFlyerService(RPCAPIService):
+class BitpayService(RPCAPIService):
     def __init__(self, coin):
         self.client = requests.Session()
+        self.BASE = 'https://insight.bitpay.com/api/'
         assert coin == settings.Network.BITCOIN
-        self.BASE = 'https://chainflyer.bitflyer.jp/v1/'
         self._e_d = datetime(1970, 1, 1)
 
     def getrawtransaction(self, txid, **_):
@@ -19,13 +18,13 @@ class ChainFlyerService(RPCAPIService):
         data = response.json()
         return {
             'rawtx': None,
-            'blockhash': None,
-            'blockheight': data['block_height'],
-            'confirmations': data['confirmed'],
-            'time': None,
-            'size': data['size'],
-            'txid': data['tx_hash'],
-            'source': 'chainflyer'
+            'blockhash': data['blockhash'],
+            'blockheight': data['blockheight'],
+            'confirmations': data['confirmations'],
+            'time': data['time'],
+            'size': None,
+            'txid': txid,
+            'source': 'insight.bitpay.com'
         }
 
     def getblock(self, blockhash):
@@ -34,29 +33,26 @@ class ChainFlyerService(RPCAPIService):
         response.raise_for_status()
         data = response.json()
         d = data
-        _c = data['timestamp']
-        utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%SZ")
-        epoch_time = int((utc_time - self._e_d).total_seconds())
         return {
-            'hash': d['block_hash'],
-            'confirmations': None,
+            'hash': d['hash'],
+            'confirmations': d['confirmations'],
             'strippedsize': None,
-            'size': None,
+            'size': d['size'],
             'weight': None,
             'height': d['height'],
             'version': str(d['version']),
             'versionHex': None,
-            'merkleroot': d['merkle_root'],
-            'tx': d['tx_hashes'],
-            'time': epoch_time,
+            'merkleroot': d['merkleroot'],
+            'tx': None,
+            'time': d['time'],
             'mediantime': None,
             'nonce': d['nonce'],
             'bits': d['bits'],
-            'difficulty': None,
+            'difficulty': int(float(d['difficulty'])),
             'chainwork': None,
-            'previousblockhash': d['prev_block'],
-            'nextblockhash': None,
-            'source': 'chainflyer'
+            'previousblockhash': d['previousblockhash'],
+            'nextblockhash': d.get('nextblockhash'),
+            'source': 'blockexplorer.com'
         }
 
     def getblockheader(self, blockhash):
