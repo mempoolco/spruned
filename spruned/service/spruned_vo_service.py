@@ -101,6 +101,6 @@ class SprunedVOService(RPCAPIService):
         return transaction['rawtx']
 
     @maybe_cached('getblockheader')
-    def getblockheader(self, blockhash):
+    def getblockheader(self, blockhash, verbose=True):
         raise NotImplementedError
 
