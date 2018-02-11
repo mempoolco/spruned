@@ -37,7 +37,8 @@ class BlockCypherService(RPCAPIService):
             'confirmations': data['confirmations'],
             'time': epoch_time,
             'size': data['size'],
-            'txid': txid
+            'txid': txid,
+            'source': 'blockcypher'
         }
 
     def getblock(self, blockhash):
@@ -80,7 +81,8 @@ class BlockCypherService(RPCAPIService):
             'difficulty': None,
             'chainwork': None,
             'previousblockhash': d['prev_block'],
-            'nextblockhash': None
+            'nextblockhash': None,
+            'source': 'blockcypher'
         }
 
     def getblockheader(self, blockhash):

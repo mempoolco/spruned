@@ -22,6 +22,9 @@ class ChainSoService(RPCAPIService):
         assert data['status'] == 'success', data
         tx = deserialize(data['data']['tx_hex'])
         tx['segwit'] = True
+        for vin in tx['ins']:
+            if vin.get('txinwitness', '0' * 64) == 0 * 64:
+                vin['txinwitness'] = ''
         tx = serialize(tx)
         return {
             'rawtx': tx,
@@ -29,8 +32,9 @@ class ChainSoService(RPCAPIService):
             'blockheight': None,
             'confirmations': data['data']['confirmations'],
             'time': data['data']['time'],
-            'size': data['data']['size'],
-            'txid': txid
+            'size': len(tx) / 2,
+            'txid': txid,
+            'source': 'chainso'
         }
 
     def getblock(self, blockhash):
@@ -58,7 +62,8 @@ class ChainSoService(RPCAPIService):
             'difficulty': d['mining_difficulty'],
             'chainwork': None,
             'previousblockhash': d['previous_blockhash'],
-            'nextblockhash': d['next_blockhash']
+            'nextblockhash': d['next_blockhash'],
+            'source': 'chainso'
         }
 
     def getblockheader(self, blockhash):

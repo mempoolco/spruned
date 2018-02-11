@@ -1,16 +1,15 @@
 import requests
-from bitcoin import deserialize, serialize
 
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
 
 
-class BitGoService(RPCAPIService):
+class ChainFlyerService(RPCAPIService):
     def __init__(self, coin):
         self.client = requests.Session()
         assert coin == settings.Network.BITCOIN
-        self.BASE = 'https://www.bitgo.com/api/v1/'
+        self.BASE = 'https://chainflyer.bitflyer.jp/v1/'
         self._e_d = datetime(1970, 1, 1)
 
     def getrawtransaction(self, txid, **_):
@@ -18,24 +17,15 @@ class BitGoService(RPCAPIService):
         response = self.client.get(url)
         response.raise_for_status()
         data = response.json()
-        _c = data['date'].split('.')[0]
-        utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
-        epoch_time = int((utc_time - self._e_d).total_seconds())
-        tx = deserialize(data['hex'])
-        tx['segwit'] = True
-        for vin in tx['ins']:
-            if vin.get('txinwitness', '0'*64) == 0*64:
-                vin['txinwitness'] = ''
-        tx = serialize(tx)
         return {
-            'rawtx': tx,
-            'blockhash': data['blockhash'],
-            'blockheight': data['height'],
-            'confirmations': data['confirmations'],
-            'time': epoch_time,
-            'size': len(tx) / 2,
-            'txid': data['id'],
-            'source': 'bitgo'
+            'rawtx': None,
+            'blockhash': None,
+            'blockheight': data['block_height'],
+            'confirmations': data['confirmed'],
+            'time': None,
+            'size': data['size'],
+            'txid': data['tx_hash'],
+            'source': 'chainflyer'
         }
 
     def getblock(self, blockhash):
@@ -44,12 +34,11 @@ class BitGoService(RPCAPIService):
         response.raise_for_status()
         data = response.json()
         d = data
-        _c = data['date'].split('.')[0]
-        utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
+        _c = data['timestamp']
+        utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%SZ")
         epoch_time = int((utc_time - self._e_d).total_seconds())
         return {
-            'source': 'bitgo',
-            'hash': d['id'],
+            'hash': d['block_hash'],
             'confirmations': None,
             'strippedsize': None,
             'size': None,
@@ -57,16 +46,17 @@ class BitGoService(RPCAPIService):
             'height': d['height'],
             'version': d['version'],
             'versionHex': None,
-            'merkleroot': d['merkleRoot'],
-            'tx': d['transactions'],
+            'merkleroot': d['merkle_root'],
+            'tx': d['tx_hashes'],
             'time': epoch_time,
             'mediantime': None,
             'nonce': d['nonce'],
-            'bits': None,
+            'bits': d['bits'],
             'difficulty': None,
-            'chainwork': d['chainWork'],
-            'previousblockhash': d['previous'],
-            'nextblockhash': None
+            'chainwork': None,
+            'previousblockhash': d['prev_block'],
+            'nextblockhash': None,
+            'source': 'chainflyer'
         }
 
     def getblockheader(self, blockhash):

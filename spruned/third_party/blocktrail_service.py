@@ -30,7 +30,8 @@ class BlocktrailService(RPCAPIService):
             'confirmations': data['confirmations'],
             'time': epoch_time,
             'size': None,
-            'txid': txid
+            'txid': txid,
+            'source': 'blocktrail'
         }
 
     def getblock(self, blockhash):
@@ -60,7 +61,8 @@ class BlocktrailService(RPCAPIService):
             'difficulty': d['difficulty'],
             'chainwork': None,
             'previousblockhash': d['prev_block'],
-            'nextblockhash': d['next_block']
+            'nextblockhash': d['next_block'],
+            'source': 'blocktrail'
         }
 
     def getblockheader(self, blockhash):
