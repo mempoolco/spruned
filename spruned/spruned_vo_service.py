@@ -1,9 +1,7 @@
 import functools
 import typing
 import random
-
-from spruned.cache import CacheInterface
-from spruned.service.abstract import RPCAPIService
+from spruned.service.abstract import RPCAPIService, CacheInterface
 
 
 def maybe_cached(method):
@@ -20,11 +18,12 @@ def maybe_cached(method):
 class SprunedVOService(RPCAPIService):
     MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES = 10
 
-    def __init__(self, min_sources=3):
-        self.services = []
+    def __init__(self, min_sources=3, bitcoind=None):
+        self.sources = []
         self.primary = []
         self.cache = None
         self.min_sources = min_sources
+        self.bitcoind = bitcoind
 
     def _join_data(self, data: typing.List[typing.Dict]) -> typing.Dict:
         def _get_key(_k, _data):
@@ -58,40 +57,53 @@ class SprunedVOService(RPCAPIService):
         assert isinstance(cache, CacheInterface)
         self.cache = cache
 
-    def add_service(self, service: RPCAPIService):
+    def add_source(self, service: RPCAPIService):
         assert isinstance(service, RPCAPIService)
-        self.services.append(service)
+        self.sources.append(service)
 
-    def add_primary_service(self, service: RPCAPIService):
+    def add_primary_source(self, service: RPCAPIService):
         assert isinstance(service, RPCAPIService)
         self.primary.append(service)
 
-    def _pick_services(self):
+    def _pick_sources(self):
         res = []
         max = 50
         i = 0
         while len(res) + len(self.primary) < self.min_sources:
             i += 1
             assert i < max
-            _c = random.choice(self.services)
+            _c = random.choice(self.sources)
             _c not in res and res.append(_c)
         return res + self.primary
 
+    def _verify_transaction(self, transaction: dict):
+        if not self.bitcoind:
+            return 1
+        assert transaction['blockheight']
+        blockhash = self.bitcoind.getblockhash(transaction['blockheight'])
+        assert blockhash == transaction['blockhash']
+        block = self.getblock(blockhash)
+        assert transaction['txid'] in block['tx']
+        return 1
+
     @maybe_cached('getblock')
     def getblock(self, blockhash: str):
-        res = []
-        for service in self._pick_services():
-            res.append(service.getblock(blockhash))
-        block = self._join_data(res)
+        block = self.bitcoind and self.bitcoind.getblock(blockhash)
+        if not block:
+            res = []
+            for service in self._pick_sources():
+                res.append(service.getblock(blockhash))
+            block = self._join_data(res)
         block['confirmations'] > 3 and self.cache and self.cache.set('getblock', blockhash, block)
         return block
 
     @maybe_cached('getrawtransaction')
     def getrawtransaction(self, txid: str, verbose=False):
         res = []
-        for service in self._pick_services():
+        for service in self._pick_sources():
             res.append(service.getrawtransaction(txid))
         transaction = self._join_data(res)
+        transaction['blockhash'] and self._verify_transaction(transaction)
         self.cache and \
             transaction['blockhash'] and \
             self.cache.get('getblock', transaction['blockhash']) and \

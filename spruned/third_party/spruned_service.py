@@ -1,4 +1,4 @@
-from pip._vendor import requests
+import requests
 from spruned.service.abstract import RPCAPIService
 from spruned import settings
 

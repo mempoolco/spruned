@@ -1,4 +1,4 @@
-from pip._vendor import requests
+import requests
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
@@ -30,6 +30,7 @@ class BlocktrailService(RPCAPIService):
             'confirmations': data['confirmations'],
             'time': epoch_time,
             'size': None,
+            'txid': txid
         }
 
     def getblock(self, blockhash):

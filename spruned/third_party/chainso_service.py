@@ -1,4 +1,4 @@
-from pip._vendor import requests
+import requests
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 
@@ -21,9 +21,11 @@ class ChainSoService(RPCAPIService):
         return {
             'rawtx': data['data']['tx_hex'],
             'blockhash': data['data']['blockhash'],
+            'blockheight': None,
             'confirmations': data['data']['confirmations'],
             'time': data['data']['time'],
             'size': data['data']['size'],
+            'txid': txid
         }
 
     def getblock(self, blockhash):

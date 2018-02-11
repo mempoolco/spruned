@@ -1,11 +1,12 @@
-from pip._vendor import requests
+import requests
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
+import time
 
 
 class BlockCypherService(RPCAPIService):
-    def __init__(self, coin):
+    def __init__(self, coin, api_token=None):
         self.client = requests.Session()
         self.BASE = 'https://api.blockcypher.com/v1/'
         self.coin = {
@@ -13,9 +14,11 @@ class BlockCypherService(RPCAPIService):
             settings.Network.BITCOIN_TESTNET: 'btc/testnet/'
         }[coin]
         self._e_d = datetime(1970, 1, 1)
+        self.api_token = api_token
 
     def getrawtransaction(self, txid, **_):
         url = self.BASE + self.coin + 'txs/' + txid + '?includeHex=1&limit=1'
+        url = self.api_token and url + '&token=%s' % self.api_token or url
         response = self.client.get(url)
         response.raise_for_status()
         data = response.json()
@@ -29,6 +32,7 @@ class BlockCypherService(RPCAPIService):
             'confirmations': data['confirmations'],
             'time': epoch_time,
             'size': data['size'],
+            'txid': txid
         }
 
     def getblock(self, blockhash):
@@ -37,6 +41,9 @@ class BlockCypherService(RPCAPIService):
         d = None
         while 1:
             url = self.BASE + self.coin + 'blocks/' + blockhash + '?txstart=%s&limit=%s' % (_s, _l)
+            url = self.api_token and url + '&token=%s' % self.api_token or url
+            if not self.api_token:
+                time.sleep(0.5)
             response = self.client.get(url)
             response.raise_for_status()
             res = response.json()

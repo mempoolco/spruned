@@ -1,21 +1,22 @@
 import json
 
-from spruned.service import spruned_vo_service
+from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
 from spruned.third_party.blocktrail_service import BlocktrailService
 from spruned.third_party.chainso_service import ChainSoService
 from spruned.third_party.blockcypher_service import BlockCypherService
-from spruned import settings
+from spruned import settings, spruned_vo_service
 from spruned.third_party.spruned_service import SprunedHTTPService
 
 spruned_http_service = SprunedHTTPService(settings.NETWORK, settings.SPRUNED_SERVICE_URL)
 chainso = ChainSoService(settings.NETWORK)
 blocktrail = settings.BLOCKTRAIL_API_KEY and BlocktrailService(settings.NETWORK, api_key=settings.BLOCKTRAIL_API_KEY)
-blockcypher = BlockCypherService(settings.NETWORK)
+blockcypher = BlockCypherService(settings.NETWORK, api_token=settings.BLOCKCYPHER_API_TOKEN)
+bitcoind = BitcoindRPCClient(settings.BITCOIND_USER, settings.BITCOIND_PASS, settings.BITCOIND_URL)
 
-service = spruned_vo_service.SprunedVOService(min_sources=1)
-service.add_primary_service(chainso)
-blocktrail and service.add_service(blocktrail)
-service.add_service(blockcypher)
+service = spruned_vo_service.SprunedVOService(min_sources=3, bitcoind=bitcoind)
+service.add_primary_source(chainso)
+blocktrail and service.add_source(blocktrail)
+service.add_source(blockcypher)
 
 
 def jsonprint(d):
