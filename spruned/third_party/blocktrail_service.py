@@ -61,3 +61,6 @@ class BlocktrailService(RPCAPIService):
             'previousblockhash': d['prev_block'],
             'nextblockhash': d['next_block']
         }
+
+    def getblockheader(self, blockhash):
+        raise NotImplementedError

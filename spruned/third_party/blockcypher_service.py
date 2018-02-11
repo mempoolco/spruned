@@ -70,3 +70,6 @@ class BlockCypherService(RPCAPIService):
             'previousblockhash': d['prev_block'],
             'nextblockhash': None
         }
+
+    def getblockheader(self, blockhash):
+        raise NotImplementedError

@@ -9,12 +9,12 @@ from spruned.third_party.spruned_service import SprunedHTTPService
 
 spruned_http_service = SprunedHTTPService(settings.NETWORK, settings.SPRUNED_SERVICE_URL)
 chainso = ChainSoService(settings.NETWORK)
-blocktrail = BlocktrailService(settings.NETWORK, api_key=settings.BLOCKTRAIL_API_KEY)
+blocktrail = settings.BLOCKTRAIL_API_KEY and BlocktrailService(settings.NETWORK, api_key=settings.BLOCKTRAIL_API_KEY)
 blockcypher = BlockCypherService(settings.NETWORK)
 
-service = spruned_vo_service.SprunedVOService(min_sources=2)
+service = spruned_vo_service.SprunedVOService(min_sources=1)
 service.add_primary_service(chainso)
-service.add_service(blocktrail)
+blocktrail and service.add_service(blocktrail)
 service.add_service(blockcypher)
 
 

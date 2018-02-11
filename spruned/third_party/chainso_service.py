@@ -53,3 +53,6 @@ class ChainSoService(RPCAPIService):
             'previousblockhash': d['previous_blockhash'],
             'nextblockhash': d['next_blockhash']
         }
+
+    def getblockheader(self, blockhash):
+        raise NotImplementedError
