@@ -43,3 +43,6 @@ if __name__ == '__main__':
     jsonprint(
         service.getblock('00000000000000000051c5e3c951e4874f28245a191fe4d06abce1edff9631c1')
     )
+    jsonprint(
+        service.getrawtransaction('6e52a2b72cf65dcde87fcccf1d19eb9cc45ea9cf554068039a17cb68bae2da8d', verbose=1)
+    )

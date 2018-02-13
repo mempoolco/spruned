@@ -35,3 +35,7 @@ class BitcoindRPCClient:
     def getblock(self, blockhash):
         res = self._call('getblock', blockhash)
         return None  # FIXME
+
+    def decoderawtransaction(self, txid):
+        res = self._call('decoderawtransaction', txid)
+        return res

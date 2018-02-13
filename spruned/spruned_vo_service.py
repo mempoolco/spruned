@@ -114,7 +114,7 @@ class SprunedVOService(RPCAPIService):
             self.cache.get('getblock', transaction['blockhash']) and \
             self.cache.set('getrawtransaction', txid, transaction)
         if verbose:
-            raise NotImplementedError
+            return self.bitcoind.decoderawtransaction(transaction['rawtx'])
         return transaction['rawtx']
 
     @maybe_cached('getblockheader')
