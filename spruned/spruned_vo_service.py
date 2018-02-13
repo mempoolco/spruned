@@ -5,23 +5,25 @@ from spruned.service.abstract import RPCAPIService, CacheInterface
 
 
 def maybe_cached(method):
-    @functools.wraps
-    def wrapper(*args, **kwargs):
-        if args[0].cache:
-            _d = args[0].cache.get(method, ''.join(args[1:]))
-            if _d:
-                return _d
-        return wrapper(args, kwargs)
-    return wrapper
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **_):
+            if args[0].cache:
+                _d = args[0].cache.get(method, ''.join(args[1:]))
+                if _d:
+                    return _d
+            return func(*args)
+        return wrapper
+    return decorator
 
 
 class SprunedVOService(RPCAPIService):
     MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES = 60
 
-    def __init__(self, min_sources=3, bitcoind=None):
+    def __init__(self, min_sources=3, bitcoind=None, cache=None):
         self.sources = []
         self.primary = []
-        self.cache = None
+        self.cache = cache
         self.min_sources = min_sources
         self.bitcoind = bitcoind
 
@@ -37,7 +39,7 @@ class SprunedVOService(RPCAPIService):
                     elif _k == 'source':
                         pass
                     else:
-                        assert x == _dd[i+1], (x, _dd[i+1], data)
+                        assert x == _dd[i+1], (_k, x, _dd[i+1], data)
             return _dd and _dd[0] or None
 
         assert len(data) >= self.min_sources

@@ -1,6 +1,7 @@
 import json
 from spruned import settings, spruned_vo_service
 from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
+from spruned.service.file_cache_interface import FileCacheInterface
 
 from spruned.third_party.bitgo_service import BitGoService
 from spruned.third_party.bitpay_service import BitpayService
@@ -13,6 +14,7 @@ from spruned.third_party.blockcypher_service import BlockCypherService
 #from spruned.third_party.spruned_service import SprunedHTTPService
 #spruned_http_service = SprunedHTTPService(settings.NETWORK, settings.SPRUNED_SERVICE_URL)
 
+cache = FileCacheInterface(settings.CACHE_ADDRESS)
 bitcoind = BitcoindRPCClient(settings.BITCOIND_USER, settings.BITCOIND_PASS, settings.BITCOIND_URL)
 chainso = ChainSoService(settings.NETWORK)
 blocktrail = settings.BLOCKTRAIL_API_KEY and BlocktrailService(settings.NETWORK, api_key=settings.BLOCKTRAIL_API_KEY)
@@ -22,7 +24,7 @@ chainflyer = ChainFlyerService(settings.NETWORK)
 blockexplorer = BlockexplorerService(settings.NETWORK)
 bitpay = BitpayService(settings.NETWORK)
 
-service = spruned_vo_service.SprunedVOService(min_sources=settings.MIN_DATA_SOURCES, bitcoind=bitcoind)
+service = spruned_vo_service.SprunedVOService(min_sources=settings.MIN_DATA_SOURCES, bitcoind=bitcoind, cache=cache)
 service.add_primary_source(chainso)
 service.add_source(bitgo)
 service.add_source(blockexplorer)
@@ -38,10 +40,10 @@ def jsonprint(d):
 
 if __name__ == '__main__':
     jsonprint(
-        service.getrawtransaction('6e52a2b72cf65dcde87fcccf1d19eb9cc45ea9cf554068039a17cb68bae2da8d')
+        service.getblock('00000000000000000051c5e3c951e4874f28245a191fe4d06abce1edff9631c1')
     )
     jsonprint(
-        service.getblock('00000000000000000051c5e3c951e4874f28245a191fe4d06abce1edff9631c1')
+        service.getrawtransaction('6e52a2b72cf65dcde87fcccf1d19eb9cc45ea9cf554068039a17cb68bae2da8d')
     )
     jsonprint(
         service.getrawtransaction('6e52a2b72cf65dcde87fcccf1d19eb9cc45ea9cf554068039a17cb68bae2da8d', verbose=1)
