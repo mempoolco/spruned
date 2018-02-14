@@ -1,7 +1,10 @@
+import concurrent
 import functools
 import typing
 import random
 from spruned.service.abstract import RPCAPIService, CacheInterface
+import asyncio
+import concurrent.futures
 
 
 def maybe_cached(method):
@@ -26,6 +29,22 @@ class SprunedVOService(RPCAPIService):
         self.cache = cache
         self.min_sources = min_sources
         self.bitcoind = bitcoind
+
+    @staticmethod
+    async def _async_call(services, call, blockhash, responses):
+        calls = [getattr(service, call) for service in services]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            loop = asyncio.get_event_loop()
+            futures = [
+                loop.run_in_executor(
+                    executor,
+                    call,
+                    blockhash
+                )
+                for call in calls
+            ]
+            for response in await asyncio.gather(*futures):
+                responses.append(response)
 
     def _join_data(self, data: typing.List[typing.Dict]) -> typing.Dict:
         def _get_key(_k, _data):
@@ -94,12 +113,13 @@ class SprunedVOService(RPCAPIService):
         return 1
 
     @maybe_cached('getblock')
-    def getblock(self, blockhash: str):
-        block = self.bitcoind and self.bitcoind.getblock(blockhash)
+    def getblock(self, blockhash: str, try_from_bitcoind=False):
+        block = self.bitcoind and try_from_bitcoind and self.bitcoind.getblock(blockhash)
         if not block:
+            services = self._pick_sources()
             res = []
-            for service in self._pick_sources():
-                res.append(service.getblock(blockhash))
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(self._async_call(services, 'getblock', blockhash, res))
             block = self._join_data(res)
         block['confirmations'] > 3 and self.cache and self.cache.set('getblock', blockhash, block)
         return block
@@ -107,8 +127,9 @@ class SprunedVOService(RPCAPIService):
     @maybe_cached('getrawtransaction')
     def getrawtransaction(self, txid: str, verbose=False):
         res = []
-        for service in self._pick_sources():
-            res.append(service.getrawtransaction(txid))
+        services = self._pick_sources()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self._async_call(services, 'getrawtransaction', txid, res))
         transaction = self._join_data(res)
         transaction['blockhash'] and self._verify_transaction(transaction)
         self.cache and \

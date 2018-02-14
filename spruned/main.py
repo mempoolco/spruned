@@ -39,6 +39,7 @@ def jsonprint(d):
 
 
 if __name__ == '__main__':
+    cache.purge()
     jsonprint(
         service.getblock('00000000000000000051c5e3c951e4874f28245a191fe4d06abce1edff9631c1')
     )
