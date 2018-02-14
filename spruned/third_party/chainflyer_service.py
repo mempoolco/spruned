@@ -1,4 +1,6 @@
+import bitcoin
 import requests
+import struct
 
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
@@ -51,7 +53,7 @@ class ChainFlyerService(RPCAPIService):
             'time': epoch_time,
             'mediantime': None,
             'nonce': d['nonce'],
-            'bits': d['bits'],
+            'bits': bitcoin.safe_hexlify(struct.pack('l', d['bits'])[:4][::-1]),
             'difficulty': None,
             'chainwork': None,
             'previousblockhash': d['prev_block'],
