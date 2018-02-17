@@ -58,12 +58,17 @@ class SprunedVOService(RPCAPIService):
                         return max([x, _dd[i+1]])
                     elif _k == 'source':
                         pass
+                    elif _k == 'size' and data[i].get('hash'):
+                        # Some explorers have segwit adjusted size, some not, until we're sure we can always
+                        # obtain this data
+                        # we skip the segwit block size
+                        return min([x, _dd[i + 1]])
                     else:
                         try:
                             assert x == _dd[i+1], \
                                 (_k, x, _dd[i+1], data[i]['source'], data[i+1]['source'])
                         except AssertionError:
-                            json.dumps(data, indent=4)
+                            print(json.dumps(data, indent=4))
                             raise
             return _dd and _dd[0] or None
 
