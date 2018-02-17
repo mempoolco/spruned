@@ -1,24 +1,19 @@
 import bitcoin
-import requests
 import struct
-
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
+from spruned.third_party.http_client import HTTPClient
 
 
 class ChainFlyerService(RPCAPIService):
     def __init__(self, coin):
-        self.client = requests.Session()
         assert coin == settings.Network.BITCOIN
-        self.BASE = 'https://chainflyer.bitflyer.jp/v1/'
         self._e_d = datetime(1970, 1, 1)
+        self.client = HTTPClient(baseurl='https://chainflyer.bitflyer.jp/v1/')
 
     def getrawtransaction(self, txid, **_):
-        url = self.BASE + 'tx/' + txid
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = self.client.get('tx/' + txid)
         return {
             'rawtx': None,
             'blockhash': None,
@@ -31,12 +26,8 @@ class ChainFlyerService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
-        url = self.BASE + 'block/' + blockhash
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
-        d = data
-        _c = data['timestamp']
+        d = self.client.get('block/' + blockhash)
+        _c = d['timestamp']
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%SZ")
         epoch_time = int((utc_time - self._e_d).total_seconds())
         return {

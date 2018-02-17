@@ -1,31 +1,24 @@
-import requests
-from bitcoin import deserialize, serialize
-
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
-
-from spruned.tools import purge_from_empty_segwit
+from spruned.third_party.http_client import HTTPClient
+from spruned.tools import normalize_transaction
 
 
 class BitGoService(RPCAPIService):
-    def __init__(self, coin):
-        self.client = requests.Session()
+    def __init__(self, coin, http_client=HTTPClient):
         assert coin == settings.Network.BITCOIN
-        self.BASE = 'https://www.bitgo.com/api/v1/'
         self._e_d = datetime(1970, 1, 1)
+        self.client = http_client(baseurl='https://www.bitgo.com/api/v1/')
 
     def getrawtransaction(self, txid, **_):
-        url = self.BASE + 'tx/' + txid
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = self.client.get('tx/' + txid)
         _c = data['date'].split('.')[0]
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
         epoch_time = int((utc_time - self._e_d).total_seconds())
 
         return {
-            'rawtx': purge_from_empty_segwit(data['hex']),
+            'rawtx': normalize_transaction(data['hex']),
             'blockhash': data['blockhash'],
             'blockheight': data['height'],
             'confirmations': data['confirmations'],
@@ -36,10 +29,7 @@ class BitGoService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
-        url = self.BASE + 'block/' + blockhash
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = self.client.get('block/' + blockhash)
         d = data
         _c = data['date'].split('.')[0]
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")

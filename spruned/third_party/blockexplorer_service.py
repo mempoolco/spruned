@@ -3,19 +3,17 @@ from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
 
+from spruned.third_party.http_client import HTTPClient
+
 
 class BlockexplorerService(RPCAPIService):
-    def __init__(self, coin):
-        self.client = requests.Session()
-        self.BASE = 'https://blockexplorer.com/api/'
+    def __init__(self, coin, httpclient=HTTPClient):
         assert coin == settings.Network.BITCOIN
         self._e_d = datetime(1970, 1, 1)
+        self.client = httpclient(baseurl='https://blockexplorer.com/api/')
 
     def getrawtransaction(self, txid, **_):
-        url = self.BASE + 'tx/' + txid
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = self.client.get('tx/' + txid)
         return {
             'rawtx': None,
             'blockhash': data['blockhash'],
@@ -28,11 +26,7 @@ class BlockexplorerService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
-        url = self.BASE + 'block/' + blockhash
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
-        d = data
+        d = self.client.get('block/' + blockhash)
         return {
             'hash': d['hash'],
             'confirmations': d['confirmations'],

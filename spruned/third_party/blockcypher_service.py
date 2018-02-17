@@ -1,39 +1,32 @@
 import bitcoin
-import requests
 import struct
-from bitcoin import deserialize, serialize
-
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
 import time
+from spruned.third_party.http_client import HTTPClient
+from spruned.tools import normalize_transaction
 
 
 class BlockCypherService(RPCAPIService):
-    def __init__(self, coin, api_token=None):
-        self.client = requests.Session()
-        self.BASE = 'https://api.blockcypher.com/v1/'
-        self.coin = {
+    def __init__(self, coin, api_token=None, httpclient=HTTPClient):
+        coin_url = {
             settings.Network.BITCOIN: 'btc/main/',
             settings.Network.BITCOIN_TESTNET: 'btc/testnet/'
         }[coin]
+        self.client = httpclient(baseurl='https://api.blockcypher.com/v1/' + coin_url)
         self._e_d = datetime(1970, 1, 1)
         self.api_token = api_token
 
     def getrawtransaction(self, txid, **_):
-        url = self.BASE + self.coin + 'txs/' + txid + '?includeHex=1&limit=1'
-        url = self.api_token and url + '&token=%s' % self.api_token or url
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        query = '?includeHex=1&limit=1'
+        query = self.api_token and query + '&token=%s' % self.api_token or query
+        data = self.client.get('txs/' + txid + query)
         _c = data['confirmed'].split('.')[0]
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
         epoch_time = int((utc_time - self._e_d).total_seconds())
-        tx = deserialize(data['hex'])
-        tx['segwit'] = True
-        tx = serialize(tx)
         return {
-            'rawtx': tx,
+            'rawtx': normalize_transaction(data['hex']),
             'blockhash': data['block_hash'],
             'blockheight': data['block_height'],
             'confirmations': data['confirmations'],
@@ -49,13 +42,11 @@ class BlockCypherService(RPCAPIService):
         _l = 500
         d = None
         while 1:
-            url = self.BASE + self.coin + 'blocks/' + blockhash + '?txstart=%s&limit=%s' % (_s, _l)
-            url = self.api_token and url + '&token=%s' % self.api_token or url
+            query = '?txstart=%s&limit=%s' % (_s, _l)
+            query = self.api_token and query + '&token=%s' % self.api_token or query
+            res = self.client.get('txs/' + blockhash + query)
             if not self.api_token:
                 time.sleep(0.5)
-            response = self.client.get(url)
-            response.raise_for_status()
-            res = response.json()
             if d is None:
                 d = res
             else:

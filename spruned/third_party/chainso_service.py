@@ -1,47 +1,33 @@
-import requests
-from bitcoin import deserialize, serialize
-
 from spruned import settings
 from spruned.service.abstract import RPCAPIService
+from spruned.third_party.http_client import HTTPClient
+from spruned.tools import normalize_transaction
 
 
 class ChainSoService(RPCAPIService):
     def __init__(self, coin):
-        self.client = requests.Session()
-        self.BASE = 'https://chain.so/api/v2/'
-        self.coins = {
+        self._coin_url = {
             settings.Network.BITCOIN: 'BTC/'
-        }
-        self.coin = self.coins[coin]
+        }[coin]
+        self.client = HTTPClient(baseurl='https://chain.so/api/v2/')
 
     def getrawtransaction(self, txid, **_):
-        url = self.BASE + 'get_tx/' + self.coin + txid
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = self.client.get('get_tx/' + self._coin_url + txid)
         assert data['status'] == 'success', data
-        tx = deserialize(data['data']['tx_hex'])
-        tx['segwit'] = True
-        for vin in tx['ins']:
-            if vin.get('txinwitness', '0' * 64) == '0' * 64:
-                vin['txinwitness'] = ''
-        tx = serialize(tx)
-        return {
-            'rawtx': tx,
+        _r = {
+            'rawtx': normalize_transaction(data['data']['tx_hex']),
             'blockhash': data['data']['blockhash'],
             'blockheight': None,
             'confirmations': data['data']['confirmations'],
             'time': data['data']['time'],
-            'size': len(tx) / 2,
             'txid': txid,
             'source': 'chainso'
         }
+        _r['size'] = len(_r['rawtx'])
+        return _r
 
     def getblock(self, blockhash):
-        url = self.BASE + 'get_block/' + self.coin + blockhash
-        response = self.client.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = self.client.get('get_block/' + self._coin_url + blockhash)
         assert data['status'] == 'success', data
         d = data['data']
         return {
