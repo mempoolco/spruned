@@ -5,6 +5,8 @@ from spruned import settings
 from spruned.service.abstract import RPCAPIService
 from datetime import datetime
 
+from spruned.tools import purge_from_empty_segwit
+
 
 class BitGoService(RPCAPIService):
     def __init__(self, coin):
@@ -21,14 +23,9 @@ class BitGoService(RPCAPIService):
         _c = data['date'].split('.')[0]
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
         epoch_time = int((utc_time - self._e_d).total_seconds())
-        tx = deserialize(data['hex'])
-        tx['segwit'] = True
-        for i, vin in enumerate(tx['ins']):
-            if vin.get('txinwitness', '0'*64) == '0'*64:
-                tx['ins'][i]['txinwitness'] = ''
-        tx = serialize(tx)
+
         return {
-            'rawtx': tx,
+            'rawtx': purge_from_empty_segwit(data['hex']),
             'blockhash': data['blockhash'],
             'blockheight': data['height'],
             'confirmations': data['confirmations'],

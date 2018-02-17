@@ -25,7 +25,7 @@ blockexplorer = BlockexplorerService(settings.NETWORK)
 bitpay = BitpayService(settings.NETWORK)
 
 service = spruned_vo_service.SprunedVOService(min_sources=settings.MIN_DATA_SOURCES, bitcoind=bitcoind, cache=cache)
-service.add_primary_source(chainso)
+service.add_source(chainso)
 service.add_source(bitgo)
 service.add_source(blockexplorer)
 service.add_source(blockcypher)
