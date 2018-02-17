@@ -77,10 +77,7 @@ class SprunedVOService(RPCAPIService):
             assert isinstance(k, dict), k
         res = data[0]
         for k, v in res.items():
-            if v is None:
-                res[k] = _get_key(k, data[1:])
-            else:
-                assert v == _get_key(k, data[1:])
+            res[k] = _get_key(k, data)
         res['source'] = ', '.join(x['source'] for x in data)
         return res
 
