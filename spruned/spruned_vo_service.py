@@ -1,5 +1,6 @@
 import concurrent
 import functools
+import json
 import typing
 import random
 from spruned.service.abstract import RPCAPIService, CacheInterface
@@ -58,7 +59,12 @@ class SprunedVOService(RPCAPIService):
                     elif _k == 'source':
                         pass
                     else:
-                        assert x == _dd[i+1], (_k, x, _dd[i+1], data)
+                        try:
+                            assert x == _dd[i+1], \
+                                (_k, x, _dd[i+1], data[i]['source'], data[i+1]['source'])
+                        except AssertionError:
+                            json.dumps(data, indent=4)
+                            raise
             return _dd and _dd[0] or None
 
         assert len(data) >= self.min_sources
