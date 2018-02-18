@@ -13,13 +13,12 @@ class ChainSoService(RPCAPIService):
 
     def getrawtransaction(self, txid, **_):
         data = self.client.get('get_tx/' + self._coin_url + txid)
+        if not data:
+            return
         assert data['status'] == 'success', data
         _r = {
             'rawtx': normalize_transaction(data['data']['tx_hex']),
             'blockhash': data['data']['blockhash'],
-            'blockheight': None,
-            'confirmations': data['data']['confirmations'],
-            'time': data['data']['time'],
             'txid': txid,
             'source': 'chainso'
         }
@@ -29,28 +28,14 @@ class ChainSoService(RPCAPIService):
     def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
         data = self.client.get('get_block/' + self._coin_url + blockhash)
+        if not data:
+            return
         assert data['status'] == 'success', data
         d = data['data']
         return {
+            'source': 'chainso',
             'hash': d['blockhash'],
-            'confirmations': d['confirmations'],
-            'strippedsize': None,
-            'size': d['size'],
-            'weight': None,
-            'height': None,
-            'version': None,
-            'versionHex': None,
-            'merkleroot': d['merkleroot'],
-            'tx': d['txs'],
-            'time': d['time'],
-            'mediantime': None,
-            'nonce': None,
-            'bits': None,
-            'difficulty': int(float(d['mining_difficulty'])),
-            'chainwork': None,
-            'previousblockhash': d['previous_blockhash'],
-            'nextblockhash': d['next_blockhash'],
-            'source': 'chainso'
+            'tx': d['txs']
         }
 
     def getblockheader(self, blockhash):

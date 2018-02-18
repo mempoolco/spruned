@@ -22,15 +22,11 @@ class BlockCypherService(RPCAPIService):
         query = '?includeHex=1&limit=1'
         query = self.api_token and query + '&token=%s' % self.api_token or query
         data = self.client.get('txs/' + txid + query)
-        _c = data['confirmed'].split('.')[0]
-        utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%S")
-        epoch_time = int((utc_time - self._e_d).total_seconds())
+        if not data:
+            return
         return {
             'rawtx': normalize_transaction(data['hex']),
             'blockhash': data['block_hash'],
-            'blockheight': data['block_height'],
-            'confirmations': data['confirmations'],
-            'time': epoch_time,
             'size': None,
             'txid': txid,
             'source': 'blockcypher'
@@ -45,6 +41,8 @@ class BlockCypherService(RPCAPIService):
             query = '?txstart=%s&limit=%s' % (_s, _l)
             query = self.api_token and query + '&token=%s' % self.api_token or query
             res = self.client.get('blocks/' + blockhash + query)
+            if not res:
+                return
             if not self.api_token:
                 time.sleep(0.5)
             if d is None:
@@ -55,29 +53,8 @@ class BlockCypherService(RPCAPIService):
                 break
             _s += 500
             _l += 500
-        utc_time = datetime.strptime(d['time'], "%Y-%m-%dT%H:%M:%SZ")
-        epoch_time = int((utc_time - self._e_d).total_seconds())
         return {
+            'source': 'blockcypher',
             'hash': d['hash'],
-            'confirmations': None,
-            'strippedsize': None,
-            'size': d['size'],
-            'weight': None,
-            'height': d['height'],
-            'version': str(d['ver']),
-            'versionHex': None,
-            'merkleroot': d['mrkl_root'],
-            'tx': d['txids'],
-            'time': epoch_time,
-            'mediantime': None,
-            'nonce': d['nonce'],
-            'bits': bitcoin.safe_hexlify(struct.pack('l', d['bits'])[:4][::-1]),
-            'difficulty': None,
-            'chainwork': None,
-            'previousblockhash': d['prev_block'],
-            'nextblockhash': None,
-            'source': 'blockcypher'
+            'tx': d['txids']
         }
-
-    def getblockheader(self, blockhash):
-        raise NotImplementedError

@@ -16,20 +16,16 @@ class FileCacheInterface(CacheInterface):
         if ttl:
             raise NotImplementedError
         args = list(a)[:-1]
-        print('Set: %s' % str(args))
         file = self.directory + '.'.join(args) + '.bin'
         with open(file, 'wb') as pointer:
             pickle.dump(a[-1], pointer)
-        print('Set done %s' % str(args))
 
     def get(self, *a):
         file = self.directory + '.'.join(a) + '.bin'
-        print('get: %s' % str(a))
         try:
             with open(file, 'rb') as pointer:
                 res = pickle.load(pointer)
         except FileNotFoundError:
-            print('Cache miss for %s' % str(a))
             return None
         return res
 

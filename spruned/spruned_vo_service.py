@@ -8,16 +8,48 @@ import asyncio
 import concurrent.futures
 
 
-def update_confirmations(func):
+def cache_block(func):
     @functools.wraps(func)
-    def wrapper(*args, **_):
+    def wrapper(*args, **kwargs):
         bitcoind = args[0].bitcoind
-        res = func(*args)
+        res = func(*args, **kwargs)
         best_height = bitcoind.getbestheight()
-        height = res['height']
-        res['confirmations'] = best_height - height
         args[0].current_best_height = best_height
+
+        # block case
+        if res.get('height'):
+            height = res['height']
+            res['confirmations'] = best_height - height
+            if res['confirmations'] > 3:
+                args[0].cache.set('getblock', res['hash'], res)
         return res
+    return wrapper
+
+
+def cache_transaction(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bitcoind = args[0].bitcoind
+        res = func(*args, **kwargs)
+        best_height = bitcoind.getbestheight()
+        args[0].current_best_height = best_height
+        confirmed = False
+        if res.get('blockhash'):
+            blockheader = bitcoind.getblockheader(res['blockhash'])
+            if blockheader.get('height'):
+                res['confirmations'] = best_height - blockheader['height']
+                if res['confirmations'] > 3:
+                    args[0].cache.set('getrawtransaction', res['txid'], res)
+                    confirmed = True
+
+        if kwargs.get('verbose'):
+            data = bitcoind.decoderawtransaction(res['rawtx'])
+            if confirmed:
+                data['confirmations'] = blockheader['confirmations']
+                data['time'] = blockheader['time']
+            return data
+        else:
+            return res['rawtx']
     return wrapper
 
 
@@ -59,23 +91,17 @@ class SprunedVOService(RPCAPIService):
                 for call in calls
             ]
             for response in await asyncio.gather(*futures):
-                responses.append(response)
+                response and responses.append(response)
 
-    def _join_data(self, data: typing.List[typing.Dict]) -> typing.Dict:
+    @staticmethod
+    def _join_data(data: typing.List[typing.Dict]) -> typing.Dict:
         def _get_key(_k, _data):
             _dd = [x[_k] for x in data if x.get(_k) is not None]
             for i, x in enumerate(_dd):
                 if i < len(_dd) - 2:
-                    if _k == 'time':
-                        assert abs(x - _dd[i+1]) < self.MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES, (x, _dd[i+1])
-                    elif _k == 'confirmations':
-                        return max([x, _dd[i+1]])
-                    elif _k == 'source':
+                    if _k in ('source', 'time', 'confirmations'):
                         pass
                     elif _k == 'size' and data[i].get('hash'):
-                        # Some explorers have segwit adjusted size, some not, until we're sure we can always
-                        # obtain this data
-                        # we skip the segwit block size
                         return min([x, _dd[i + 1]])
                     else:
                         try:
@@ -86,7 +112,6 @@ class SprunedVOService(RPCAPIService):
                             raise
             return _dd and _dd[0] or None
 
-        assert len(data) >= self.min_sources
         for k in data:
             assert isinstance(k, dict), k
         res = data[0]
@@ -98,8 +123,8 @@ class SprunedVOService(RPCAPIService):
     @staticmethod
     def _is_complete(data):
         if data.get('txid'):
-            # transaction case
-            pass
+            if not data.get('blockhash') or not data.get('rawtx'):
+                return False
         elif data.get('hash'):
             if not data.get('tx'):
                 return False
@@ -124,7 +149,7 @@ class SprunedVOService(RPCAPIService):
         self.primary.append(service)
 
     def _pick_sources(self, _exclude_services=None):
-        excluded = [x.__class__.__name__ for x in _exclude_services]
+        excluded = _exclude_services and [x.__class__.__name__ for x in _exclude_services] or []
         res = []
         maxiter = 50
         i = 0
@@ -148,12 +173,10 @@ class SprunedVOService(RPCAPIService):
         assert transaction['txid'] in block['tx']
         return 1
 
-    @update_confirmations
+    @cache_block
     @maybe_cached('getblock')
     def getblock(self, blockhash: str, try_from_bitcoind=False):
         block = self._getblock(blockhash, try_from_bitcoind)
-        self.current_best_height - block['height'] > 3 and \
-            self.cache and self.cache.set('getblock', blockhash, block)
         return block
 
     def _verify_block_with_local_header(self, block):
@@ -168,6 +191,9 @@ class SprunedVOService(RPCAPIService):
         block['difficulty'] = header['difficulty']
         block['chainwork'] = header['chainwork']
         block['previousblockhash'] = header['previousblockhash']
+
+        if header.get('height'):
+            block['height'] = header['height']
         if header.get('nextblockhash'):
             block['nextblockhash'] = header['nextblockhash']
         block.pop('confirmations', None)
@@ -196,23 +222,18 @@ class SprunedVOService(RPCAPIService):
             self._verify_block_with_local_header(block)
         return block
 
+    @cache_transaction
     @maybe_cached('getrawtransaction')
     def getrawtransaction(self, txid: str, verbose=False):
-        res = []
-        services = self._pick_sources()
+        return self._getrawtransaction(txid, verbose=verbose)
+
+    def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
+        res = _res or []
+        services = self._pick_sources(_exclude_services)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._async_call(services, 'getrawtransaction', txid, res))
         transaction = self._join_data(res)
-        transaction['blockhash'] and self._verify_transaction(transaction)
-        self.cache and \
-            transaction['blockhash'] and \
-            self.cache.get('getblock', transaction['blockhash']) and \
-            self.cache.set('getrawtransaction', txid, transaction)
-        if verbose:
-            return self.bitcoind.decoderawtransaction(transaction['rawtx'])
-        return transaction['rawtx']
-
-    @maybe_cached('getblockheader')
-    def getblockheader(self, blockhash, verbose=True):
-        raise NotImplementedError
-
+        if not self._is_complete(transaction):
+            return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=services)
+        assert transaction['rawtx']
+        return transaction
