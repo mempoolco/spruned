@@ -2,7 +2,6 @@ import json
 from spruned import settings, spruned_vo_service
 from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
 from spruned.service.file_cache_interface import FileCacheInterface
-
 from spruned.third_party.bitgo_service import BitGoService
 from spruned.third_party.bitpay_service import BitpayService
 from spruned.third_party.blockexplorer_service import BlockexplorerService

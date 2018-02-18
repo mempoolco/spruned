@@ -44,7 +44,7 @@ class BlockCypherService(RPCAPIService):
         while 1:
             query = '?txstart=%s&limit=%s' % (_s, _l)
             query = self.api_token and query + '&token=%s' % self.api_token or query
-            res = self.client.get('txs/' + blockhash + query)
+            res = self.client.get('blocks/' + blockhash + query)
             if not self.api_token:
                 time.sleep(0.5)
             if d is None:
