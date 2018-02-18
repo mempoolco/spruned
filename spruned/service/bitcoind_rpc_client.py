@@ -39,3 +39,11 @@ class BitcoindRPCClient:
     def decoderawtransaction(self, txid):
         res = self._call('decoderawtransaction', txid)
         return res
+
+    def getbestheight(self):
+        res = self._call('getblockchaininfo')
+        return res['headers']
+
+    def getblockheader(self, blockhash):
+        return self._call('getblockheader', blockhash)
+

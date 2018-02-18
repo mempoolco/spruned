@@ -8,6 +8,19 @@ import asyncio
 import concurrent.futures
 
 
+def update_confirmations(func):
+    @functools.wraps(func)
+    def wrapper(*args, **_):
+        bitcoind = args[0].bitcoind
+        res = func(*args)
+        best_height = bitcoind.getbestheight()
+        height = res['height']
+        res['confirmations'] = best_height - height
+        args[0].current_best_height = best_height
+        return res
+    return wrapper
+
+
 def maybe_cached(method):
     def decorator(func):
         @functools.wraps(func)
@@ -30,6 +43,7 @@ class SprunedVOService(RPCAPIService):
         self.cache = cache
         self.min_sources = min_sources
         self.bitcoind = bitcoind
+        self.current_best_height = self.bitcoind.getbestheight()
 
     @staticmethod
     async def _async_call(services, call, blockhash, responses):
@@ -87,9 +101,7 @@ class SprunedVOService(RPCAPIService):
             # transaction case
             pass
         elif data.get('hash'):
-            if data.get('confirmations', None) is None or not data.get('tx') or not \
-                    data.get('merkleroot') or data.get('size', None) is None or not \
-                    data.get('previousblockhash'):
+            if not data.get('tx'):
                 return False
         return data
 
@@ -133,12 +145,33 @@ class SprunedVOService(RPCAPIService):
         blockhash = self.bitcoind.getblockhash(transaction['blockheight'])
         assert blockhash == transaction['blockhash']
         block = self.getblock(blockhash)
-        assert transaction['txid'] in block['tx']  # FIXME add merkle proof on local headers
+        assert transaction['txid'] in block['tx']
         return 1
 
+    @update_confirmations
     @maybe_cached('getblock')
     def getblock(self, blockhash: str, try_from_bitcoind=False):
-        return self._getblock(blockhash, try_from_bitcoind)
+        block = self._getblock(blockhash, try_from_bitcoind)
+        self.current_best_height - block['height'] > 3 and \
+            self.cache and self.cache.set('getblock', blockhash, block)
+        return block
+
+    def _verify_block_with_local_header(self, block):
+        # TODO, validate txs list with local merkle root
+        header = self.bitcoind.getblockheader(block['hash'])
+        block['version'] = header['version']
+        block['time'] = header['time']
+        block['versionHex'] = header['versionHex']
+        block['mediantime'] = header['mediantime']
+        block['nonce'] = header['nonce']
+        block['bits'] = header['bits']
+        block['difficulty'] = header['difficulty']
+        block['chainwork'] = header['chainwork']
+        block['previousblockhash'] = header['previousblockhash']
+        if header.get('nextblockhash'):
+            block['nextblockhash'] = header['nextblockhash']
+        block.pop('confirmations', None)
+        return block
 
     def _getblock(self, blockhash: str, try_from_bitcoind=False, _res=None, _exclude_services=None, _r=0):
         assert _r < 10
@@ -160,7 +193,7 @@ class SprunedVOService(RPCAPIService):
             if not self._is_complete(block):
                 _exclude_services.extend(services)
                 self._getblock(blockhash, _res=res, _exclude_services=services)
-        block['confirmations'] > 3 and self.cache and self.cache.set('getblock', blockhash, block)
+            self._verify_block_with_local_header(block)
         return block
 
     @maybe_cached('getrawtransaction')
