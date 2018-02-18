@@ -113,7 +113,7 @@ class SprunedVOService(RPCAPIService):
                                 (_k, x, _dd[i+1], data[i]['source'], data[i+1]['source'])
                         except AssertionError:
                             print(json.dumps(data, indent=4))
-                            raise
+                            return None
             return _dd and _dd[0] or None
 
         for k in data:
@@ -211,18 +211,14 @@ class SprunedVOService(RPCAPIService):
             services = self._pick_sources(_exclude_services)
             res = _res or []
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(
-                self._async_call(
-                    services,
-                    'getblock',
-                    blockhash,
-                    res
-                )
-            )
+            loop.run_until_complete(self._async_call(services, 'getblock', blockhash, res))
+            if not res:
+                _exclude_services.extend(services)
+                return self._getblock(blockhash, _res=res, _exclude_services=services)
             block = self._join_data(res)
             if not self._is_complete(block):
                 _exclude_services.extend(services)
-                self._getblock(blockhash, _res=res, _exclude_services=services)
+                return self._getblock(blockhash, _res=res, _exclude_services=services)
             self._verify_block_with_local_header(block)
         return block
 
@@ -233,11 +229,16 @@ class SprunedVOService(RPCAPIService):
 
     def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
         res = _res or []
+        _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._async_call(services, 'getrawtransaction', txid, res))
+        if not res:
+            _exclude_services.extend(services)
+            return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=_exclude_services)
         transaction = self._join_data(res)
         if not self._is_complete(transaction):
-            return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=services)
+            _exclude_services.extend(services)
+            return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=_exclude_services)
         assert transaction['rawtx']
         return transaction

@@ -11,7 +11,7 @@ TESTNET = 0
 CACHE = 1024
 NETWORK = Network.BITCOIN
 SPRUNED_SERVICE_URL = 'https://spruned.mempool.co/data/'
-MIN_DATA_SOURCES = 3
+MIN_DATA_SOURCES = 1
 
 
 # secrets
