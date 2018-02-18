@@ -16,12 +16,16 @@ class FileCacheInterface(CacheInterface):
         if ttl:
             raise NotImplementedError
         args = list(a)[:-1]
-        file = self.directory + '.'.join(args) + '.bin'
+        prefix = a[1].lstrip('0')[:2] + '/'
+        if not os.path.exists(self.directory + prefix):
+            os.makedirs(self.directory + prefix)
+        file = self.directory + prefix + '.'.join(args) + '.bin'
         with open(file, 'wb') as pointer:
             pickle.dump(a[-1], pointer)
 
     def get(self, *a):
-        file = self.directory + '.'.join(a) + '.bin'
+        prefix = a[1].lstrip('0')[:2] + '/'
+        file = self.directory + prefix + '.'.join(a) + '.bin'
         try:
             with open(file, 'rb') as pointer:
                 res = pickle.load(pointer)
@@ -30,7 +34,8 @@ class FileCacheInterface(CacheInterface):
         return res
 
     def remove(self, *a, may_fail=True):
-        file = self.directory + '.'.join(a) + '.bin'
+        prefix = a[1].lstrip('0')[:2] + '/'
+        file = self.directory + prefix + '.'.join(a) + '.bin'
         try:
             os.remove(file)
         except OSError:
