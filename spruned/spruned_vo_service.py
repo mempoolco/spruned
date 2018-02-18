@@ -81,6 +81,18 @@ class SprunedVOService(RPCAPIService):
         res['source'] = ', '.join(x['source'] for x in data)
         return res
 
+    @staticmethod
+    def _is_complete(data):
+        if data.get('txid'):
+            # transaction case
+            pass
+        elif data.get('hash'):
+            if data.get('confirmations', None) is None or not data.get('tx') or not \
+                    data.get('merkleroot') or data.get('size', None) is None or not \
+                    data.get('previousblockhash'):
+                return False
+        return data
+
     def _get_from_cache(self, *a):
         if self.cache:
             data = self.cache.get(a[0], a[1])
@@ -99,16 +111,20 @@ class SprunedVOService(RPCAPIService):
         assert isinstance(service, RPCAPIService)
         self.primary.append(service)
 
-    def _pick_sources(self):
+    def _pick_sources(self, _exclude_services=None):
+        excluded = [x.__class__.__name__ for x in _exclude_services]
         res = []
-        max = 50
+        maxiter = 50
         i = 0
-        while len(res) + len(self.primary) < self.min_sources:
+        while len(res) < self.min_sources:
             i += 1
-            assert i < max
-            _c = random.choice(self.sources)
-            _c not in res and res.append(_c)
-        return res + self.primary
+            if i > maxiter:
+                return res
+            c = random.choice(self.sources)
+            c not in res and (not excluded or c.__class__.__name__ not in excluded) and res.append(c)
+        for p in self.primary:
+            excluded is None or (p.__class__.__name__ not in excluded) and res.append(p)
+        return res
 
     def _verify_transaction(self, transaction: dict):
         if not self.bitcoind:
@@ -117,18 +133,33 @@ class SprunedVOService(RPCAPIService):
         blockhash = self.bitcoind.getblockhash(transaction['blockheight'])
         assert blockhash == transaction['blockhash']
         block = self.getblock(blockhash)
-        assert transaction['txid'] in block['tx'] # FIXME add merkle proof on local headers
+        assert transaction['txid'] in block['tx']  # FIXME add merkle proof on local headers
         return 1
 
     @maybe_cached('getblock')
     def getblock(self, blockhash: str, try_from_bitcoind=False):
+        return self._getblock(blockhash, try_from_bitcoind)
+
+    def _getblock(self, blockhash: str, try_from_bitcoind=False, _res=None, _exclude_services=None, _r=0):
+        assert _r < 10
+        _exclude_services = _exclude_services or []
         block = self.bitcoind and try_from_bitcoind and self.bitcoind.getblock(blockhash)
         if not block:
-            services = self._pick_sources()
-            res = []
+            services = self._pick_sources(_exclude_services)
+            res = _res or []
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(self._async_call(services, 'getblock', blockhash, res))
+            loop.run_until_complete(
+                self._async_call(
+                    services,
+                    'getblock',
+                    blockhash,
+                    res
+                )
+            )
             block = self._join_data(res)
+            if not self._is_complete(block):
+                _exclude_services.extend(services)
+                self._getblock(blockhash, _res=res, _exclude_services=services)
         block['confirmations'] > 3 and self.cache and self.cache.set('getblock', blockhash, block)
         return block
 

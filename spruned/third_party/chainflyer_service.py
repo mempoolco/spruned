@@ -26,6 +26,7 @@ class ChainFlyerService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
+        print('getblock from %s' % self.__class__)
         d = self.client.get('block/' + blockhash)
         _c = d['timestamp']
         utc_time = datetime.strptime(_c, "%Y-%m-%dT%H:%M:%SZ")

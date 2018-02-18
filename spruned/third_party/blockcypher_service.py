@@ -37,7 +37,7 @@ class BlockCypherService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
-        print('getblock from blockcypher')
+        print('getblock from %s' % self.__class__)
         _s = 0
         _l = 500
         d = None

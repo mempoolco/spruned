@@ -26,6 +26,7 @@ class BlockexplorerService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
+        print('getblock from %s' % self.__class__)
         d = self.client.get('block/' + blockhash)
         return {
             'hash': d['hash'],

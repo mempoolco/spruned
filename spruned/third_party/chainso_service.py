@@ -27,6 +27,7 @@ class ChainSoService(RPCAPIService):
         return _r
 
     def getblock(self, blockhash):
+        print('getblock from %s' % self.__class__)
         data = self.client.get('get_block/' + self._coin_url + blockhash)
         assert data['status'] == 'success', data
         d = data['data']

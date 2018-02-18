@@ -1,4 +1,7 @@
 import json
+
+import time
+
 from spruned import settings, spruned_vo_service
 from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
 from spruned.service.file_cache_interface import FileCacheInterface
@@ -38,14 +41,9 @@ def jsonprint(d):
 
 
 if __name__ == '__main__':
-    for x in range(10):
-        cache.purge()
-        jsonprint(
-            service.getblock('00000000000000000051c5e3c951e4874f28245a191fe4d06abce1edff9631c1')
-        )
-        jsonprint(
-            service.getrawtransaction('6e52a2b72cf65dcde87fcccf1d19eb9cc45ea9cf554068039a17cb68bae2da8d')
-        )
-        jsonprint(
-            service.getrawtransaction('6e52a2b72cf65dcde87fcccf1d19eb9cc45ea9cf554068039a17cb68bae2da8d', verbose=1)
-        )
+    blockhash = "00000000000000000051c5e3c951e4874f28245a191fe4d06abce1edff9631c1"
+    while 1:
+        block = service.getblock(blockhash)
+        print(block)
+        blockhash = block['previousblockhash']
+        time.sleep(1)

@@ -29,6 +29,7 @@ class BitGoService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
+        print('getblock from %s' % self.__class__)
         data = self.client.get('block/' + blockhash)
         d = data
         _c = data['date'].split('.')[0]

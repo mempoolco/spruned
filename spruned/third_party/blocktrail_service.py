@@ -32,6 +32,7 @@ class BlocktrailService(RPCAPIService):
         }
 
     def getblock(self, blockhash):
+        print('getblock from %s' % self.__class__)
         url = 'block/' + blockhash + '?api_key=' + self.api_key
         d = self.client.get(url)
         _c = d['block_time'].split('+')[0]
