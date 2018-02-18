@@ -71,8 +71,6 @@ def maybe_cached(method):
 
 
 class SprunedVOService(RPCAPIService):
-    MAX_TIME_DIVERGENCE_TOLERANCE_BETWEEN_SERVICES = 60
-
     def __init__(self, min_sources=3, bitcoind=None, cache=None):
         self.sources = []
         self.primary = []
