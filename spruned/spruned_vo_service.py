@@ -58,9 +58,13 @@ def maybe_cached(method):
         @functools.wraps(func)
         def wrapper(*args, **_):
             if args[0].cache:
-                _d = args[0].cache.get(method, ''.join(args[1:]))
+                cacheargs = ''.join(args[1:])
+                _d = args[0].cache.get(method, cacheargs)
                 if _d:
+                    print('Cache hit for %s - %s' % (method, cacheargs))
                     return _d
+                else:
+                    print('Cache miss for %s - %s' % (method, cacheargs))
             return func(*args)
         return wrapper
     return decorator

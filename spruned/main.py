@@ -49,6 +49,6 @@ if __name__ == '__main__':
         block = service.getblock(blockhash)
         for txid in block['tx'][:10]:
             print(service.getrawtransaction(txid, verbose=1))
-            time.sleep(0.1)
+        blockhash = block['previousblockhash']
         time.sleep(0.5)
 
