@@ -2,15 +2,19 @@ import os
 import pickle
 import shutil
 from spruned.service.abstract import CacheInterface
+import gzip
 
 
 class FileCacheInterface(CacheInterface):
-    def __init__(self, directory, cache_limit=None):
+    def __init__(self, directory, cache_limit=None, compress=True):
         self.directory = directory
         if not os.path.exists(directory):
             os.makedirs(directory)
         if cache_limit:
             raise NotImplementedError
+        self._compress = compress
+        self._interface = compress and gzip.open or open
+        self._file_extension = compress and '.bin.gz' or '.bin'
 
     def set(self, *a, ttl=None):
         if ttl:
@@ -19,15 +23,15 @@ class FileCacheInterface(CacheInterface):
         prefix = a[1].lstrip('0')[:2] + '/'
         if not os.path.exists(self.directory + prefix):
             os.makedirs(self.directory + prefix)
-        file = self.directory + prefix + '.'.join(args) + '.bin'
-        with open(file, 'wb') as pointer:
+        file = self.directory + prefix + '.'.join(args) + self._file_extension
+        with self._interface(file, 'wb') as pointer:
             pickle.dump(a[-1], pointer)
 
     def get(self, *a):
         prefix = a[1].lstrip('0')[:2] + '/'
-        file = self.directory + prefix + '.'.join(a) + '.bin'
+        file = self.directory + prefix + '.'.join(a) + self._file_extension
         try:
-            with open(file, 'rb') as pointer:
+            with self._interface(file, 'rb') as pointer:
                 res = pickle.load(pointer)
         except FileNotFoundError:
             return None
@@ -35,7 +39,7 @@ class FileCacheInterface(CacheInterface):
 
     def remove(self, *a, may_fail=True):
         prefix = a[1].lstrip('0')[:2] + '/'
-        file = self.directory + prefix + '.'.join(a) + '.bin'
+        file = self.directory + prefix + '.'.join(a) + self._file_extension
         try:
             os.remove(file)
         except OSError:
