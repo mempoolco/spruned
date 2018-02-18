@@ -22,9 +22,7 @@ class BlockCypherService(RPCAPIService):
         query = '?includeHex=1&limit=1'
         query = self.api_token and query + '&token=%s' % self.api_token or query
         data = self.client.get('txs/' + txid + query)
-        if not data:
-            return
-        return {
+        return data and {
             'rawtx': normalize_transaction(data['hex']),
             'blockhash': data['block_hash'],
             'size': None,

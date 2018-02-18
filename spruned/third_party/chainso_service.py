@@ -13,30 +13,19 @@ class ChainSoService(RPCAPIService):
 
     def getrawtransaction(self, txid, **_):
         data = self.client.get('get_tx/' + self._coin_url + txid)
-        if not data:
-            return
-        assert data['status'] == 'success', data
-        _r = {
+        return data and {
             'rawtx': normalize_transaction(data['data']['tx_hex']),
             'blockhash': data['data']['blockhash'],
             'txid': txid,
             'source': 'chainso'
         }
-        _r['size'] = len(_r['rawtx'])
-        return _r
 
     def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
         data = self.client.get('get_block/' + self._coin_url + blockhash)
-        if not data:
-            return
-        assert data['status'] == 'success', data
-        d = data['data']
-        return {
+        return data and {
             'source': 'chainso',
-            'hash': d['blockhash'],
-            'tx': d['txs']
+            'hash': data['blockhash'],
+            'tx': data['txs']
         }
 
-    def getblockheader(self, blockhash):
-        raise NotImplementedError

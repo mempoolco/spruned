@@ -10,9 +10,7 @@ class ChainFlyerService(RPCAPIService):
 
     def getrawtransaction(self, txid, **_):
         data = self.client.get('tx/' + txid)
-        if not data:
-            return
-        return {
+        return data and {
             'rawtx': None,
             'blockhash': None,
             'size': data['size'],
@@ -23,9 +21,7 @@ class ChainFlyerService(RPCAPIService):
     def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
         data = self.client.get('block/' + blockhash)
-        if not data:
-            return
-        return {
+        return data and {
             'source': 'chainflyer',
             'hash': data['block_hash'],
             'tx': data['tx_hashes'],

@@ -10,9 +10,7 @@ class BlockexplorerService(RPCAPIService):
 
     def getrawtransaction(self, txid, **_):
         data = self.client.get('tx/' + txid)
-        if not data:
-            return
-        return {
+        return data and {
             'rawtx': None,
             'blockhash': data['blockhash'],
             'txid': txid,
@@ -22,9 +20,7 @@ class BlockexplorerService(RPCAPIService):
     def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
         data = self.client.get('block/' + blockhash)
-        if not data:
-            return
-        return {
+        return data and {
             'source': 'blockexplorer.com',
             'hash': data['hash'],
             'tx': None

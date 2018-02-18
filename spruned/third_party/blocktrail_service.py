@@ -15,9 +15,7 @@ class BlocktrailService(RPCAPIService):
     def getrawtransaction(self, txid, **_):
         url = 'transaction/' + txid + '?api_key=' + self.api_key
         data = self.client.get(url)
-        if not data:
-            return
-        return {
+        return data and {
             'source': 'blocktrail',
             'rawtx': None,
             'blockhash': data['block_hash'],
@@ -28,9 +26,7 @@ class BlocktrailService(RPCAPIService):
         print('getblock from %s' % self.__class__)
         url = 'block/' + blockhash + '?api_key=' + self.api_key
         data = self.client.get(url)
-        if not data:
-            return
-        return {
+        return data and {
             'source': 'blocktrail',
             'hash': data['hash'],
             'confirmations': data['confirmations'],

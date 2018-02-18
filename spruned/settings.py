@@ -2,6 +2,7 @@ from enum import Enum
 import os
 from pathlib import Path
 
+
 class Network(Enum):
     BITCOIN = 1
     BITCOIN_TESTNET = 2
