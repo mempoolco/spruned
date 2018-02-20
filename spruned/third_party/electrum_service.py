@@ -4,14 +4,108 @@ import time
 from async_timeout import timeout
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
-from spruned import settings
 import random
 import logging
-import sys
 import binascii
 import os
 import threading
 
+
+ELECTRUM_SERVERS = [
+    ["134.119.179.55", "s"],
+    ["165.227.22.180", "s"],
+    ["176.9.155.246", "s"],
+    ["185.64.116.15", "s"],
+    ["46.166.165.18", "s"],
+    ["E-X.not.fyi", "s"],
+    ["Electrum.GlowHost.com", "s"],
+    ["VPS.hsmiths.com", "s"],
+    ["alviss.coinjoined.com", "s"],
+    ["aspinall.io", "s"],
+    ["bitcoin.cluelessperson.com", "s"],
+    ["bitcoin.maeyanie.com", "s"],
+    ["bitcoins.sk", "s"],
+    ["btc.cihar.com", "s"],
+    ["btc.pr0xima.de", "s"],
+    ["cryptohead.de", "s"],
+    ["daedalus.bauerj.eu", "s"],
+    ["e-1.claudioboxx.com", "s"],
+    ["e-2.claudioboxx.com", "s"],
+    ["e-3.claudioboxx.com", "s"],
+    ["e.keff.org", "s"],
+    ["ele.lightningnetwork.xyz", "s"],
+    ["ele.nummi.it", "s"],
+    ["elec.luggs.co", "s"],
+    ["electrum-server.ninja", "s"],
+    ["electrum.achow101.com", "s"],
+    ["electrum.akinbo.org", "s"],
+    ["electrum.anduck.net", "s"],
+    ["electrum.antumbra.se", "s"],
+    ["electrum.backplanedns.org", "s"],
+    ["electrum.be", "s"],
+    ["electrum.coinucopia.io", "s"],
+    ["electrum.cutie.ga", "s"],
+    ["electrum.festivaldelhumor.org", "s"],
+    ["electrum.hsmiths.com", "s"],
+    ["electrum.infinitum-nihil.com", "s"],
+    ["electrum.leblancnet.us", "s"],
+    ["electrum.mindspot.org", "s"],
+    ["electrum.nute.net", "s"],
+    ["electrum.petrkr.net", "s"],
+    ["electrum.poorcoding.com", "s"],
+    ["electrum.qtornado.com", "s"],
+    ["electrum.taborsky.cz", "s"],
+    ["electrum.villocq.com", "s"],
+    ["electrum.vom-stausee.de", "s"],
+    ["electrum0.snel.it", "s"],
+    ["electrum2.everynothing.net", "s"],
+    ["electrum2.villocq.com", "s"],
+    ["electrum3.hachre.de", "s"],
+    ["electrumx-core.1209k.com", "s"],
+    ["electrumx.adminsehow.com", "s"],
+    ["electrumx.bot.nu", "s"],
+    ["electrumx.donsomhong.net", "s"],
+    ["electrumx.gigelf.eu", "s"],
+    ["electrumx.kekku.li", "s"],
+    ["electrumx.nmdps.net", "s"],
+    ["electrumx.schneemensch.net", "s"],
+    ["electrumx.soon.it", "s"],
+    ["electrumx.westeurope.cloudapp.azure.com", "s"],
+    ["elx01.knas.systems", "s"],
+    ["elx2018.mooo.com", "s"],
+    ["enode.duckdns.org", "s"],
+    ["erbium1.sytes.net", "s"],
+    ["helicarrier.bauerj.eu", "s"],
+    ["icarus.tetradrachm.net", "s"],
+    ["ip101.ip-54-37-91.eu", "s"],
+    ["ip119.ip-54-37-91.eu", "s"],
+    ["ip120.ip-54-37-91.eu", "s"],
+    ["ip239.ip-54-36-234.eu", "s"],
+    ["kirsche.emzy.de", "s"],
+    ["mdw.ddns.net", "s"],
+    ["mooo.not.fyi", "s"],
+    ["ndnd.selfhost.eu", "s"],
+    ["node.ispol.sk", "s"],
+    ["node.xbt.eu", "s"],
+    ["noserver4u.de", "s"],
+    ["orannis.com", "s"],
+    ["qmebr.spdns.org", "s"],
+    ["rbx.curalle.ovh", "s"],
+    ["shogoth.no-ip.info", "s"],
+    ["songbird.bauerj.eu", "s"],
+    ["spv.48.org", "s"],
+    ["such.ninja", "s"],
+    ["sumBTC.mooo.com", "s"],
+    ["tardis.bauerj.eu", "s"],
+    ["technetium.network", "s"],
+    ["us01.hamster.science", "s"],
+    ["v25437.1blu.de", "s"],
+    ["vps-m-01.donsomhong.net", "s"],
+    ["walle.dedyn.io", "s"]
+]
+
+import logging
+import sys
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -27,15 +121,15 @@ class ConnectrumService:
     def __init__(self, coin, loop, concurrency=5, max_retries_on_discordancy=5, connections_concurrency_ratio=5):
         self.loop = loop
         assert coin == settings.Network.BITCOIN
-        self.connections = []
+        self._peers = []
         self.concurrency = concurrency
         self.blacklisted = []
         self._keepalive = True
         self._cmd_queue = None  # type: queue.Queue
         self._res_queue = None  # type: queue.Queue
+        self._status_queue = None  # type: queue.Queue
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
-
 
     def killpill(self):
         self._keepalive = False
@@ -43,6 +137,7 @@ class ConnectrumService:
     def connect(self):
         self._cmd_queue = queue.Queue(maxsize=1)
         self._res_queue = queue.Queue(maxsize=1)
+        self._status_queue = queue.Queue(maxsize=1)
         t = threading.Thread(
             target=loop.run_until_complete, args=[self._connect(self._cmd_queue, self._res_queue)]
         )
@@ -61,30 +156,24 @@ class ConnectrumService:
                 return response
         return self._resolve_cmd(command_artifact, retry + 1)
 
-    async def _connect(self, cmdq, resq):
-        while 1:
-            try:
-                cmd = cmdq.get_nowait()
-                if cmd:
-                    try:
-                        response = await self._resolve_cmd(cmd)
-                        resq.put({'response': response})
-                    except RecursionError as e:
-                        resq.put({'error': str(e)})
-            except queue.Empty:
-                pass
+    def _update_status(self, status):
+        self._status_queue.queue.clear()
+        self._status_queue.put_nowait(status)
 
+    async def _connect(self, cmdq, resq):
+        self._update_status('stopped')
+        while 1:
             if not self._keepalive:
-                for connection in self.connections:
-                    connection.close()
+                for peer in self._peers:
+                    peer.close()
                 break
 
-            if len(self.connections) < self.concurrency * self._connections_concurrency_ratio:
+            if len(self._peers) < self.concurrency * self._connections_concurrency_ratio:
                 _server = None
                 i = 0
                 while not _server:
                     i += 1
-                    _server = random.choice(settings.ELECTRUM_SERVERS)
+                    _server = random.choice(ELECTRUM_SERVERS)
                     _server = _server not in self.blacklisted and _server or None
                     assert i < 50
 
@@ -98,27 +187,40 @@ class ConnectrumService:
                     with timeout(1):
                         await conn.connect(_server_info, disable_cert_verify=True)
                         banner = await conn.RPC('server.banner')
-                        banner and self.connections.append(conn)
+                        banner and self._peers.append(conn)
+                        self._update_status('populating, %s' % len(self._peers))
                         banner and logging.debug('Connected to %s, banner', _server[0])
                 except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
                     self.blacklisted.append(_server)
+            else:
+                self._update_status('connected, %s' % len(self._peers))
+            try:
+                cmd = cmdq.get_nowait()
+                if cmd:
+                    try:
+                        response = await self._resolve_cmd(cmd)
+                        resq.put({'response': response}, timeout=3)
+                    except RecursionError as e:
+                        resq.put({'error': str(e)}, timeout=3)
+            except queue.Empty:
+                pass
 
-    def _pick_connections(self):
+    def _pick_peers(self):
         i = 0
-        connections = []
+        peers = []
         while 1:
             i += 1
             if i > 100:
                 break
-            connection = random.choice(self.connections)
-            connection not in connections and connections.append(connection)
-            if len(connections) == self.concurrency:
+            peer = random.choice(self._peers)
+            peer not in peers and peers.append(peer)
+            if len(peers) == self.concurrency:
                 break
-        return connections
+        return peers
 
     async def _getrawtransaction_frompool(self, txid: str, responses):
         futures = [
-            connection.RPC('blockchain.transaction.get', txid) for connection in self._pick_connections()
+            peer.RPC('blockchain.transaction.get', txid) for peer in self._pick_peers()
         ]
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
@@ -139,16 +241,41 @@ class ConnectrumService:
             return
         return response['response']
 
+    @property
+    def status(self):
+        try:
+            res = self._status_queue.get(timeout=0.2)
+            self._status_queue.put(res)
+            return res
+        except queue.Empty:
+            return
+
+    def is_connected(self) -> bool:
+        return 'connected' in self.status
+
+    @property
+    def connections(self):
+        try:
+            status = self.status
+            if 'connected' in status or 'populating' in status:
+                x, y = status.split(',')
+                return int(y.strip())
+        except queue.Empty:
+            return 0
+        return 0
+
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
+    from spruned import settings
     electrum = ConnectrumService(settings.NETWORK, loop, concurrency=3)
     electrum.connect()
     finished = False
     while not finished:
-        if electrum.concurrency > len(electrum.connections):
-            print('not enough connections: %s'.format(len(electrum.connections)))
-            time.sleep(5)
+        connections = electrum.connections
+        if electrum.concurrency > connections:
+            print('not enough connections: %s' % connections)
+            time.sleep(1)
         else:
             res = electrum.getrawtransaction('5029394b46e48dfdcf2eaf0bbaad97735a7fa44f2cf51007aa69584c2476fb27')
             print(res)
