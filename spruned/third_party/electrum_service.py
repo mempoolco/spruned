@@ -24,7 +24,7 @@ root.addHandler(ch)
 
 
 class ConnectrumService:
-    def __init__(self, coin, loop, concurrency=5, max_retries_on_discordancy=5):
+    def __init__(self, coin, loop, concurrency=5, max_retries_on_discordancy=5, connections_concurrency_ratio=5):
         self.loop = loop
         assert coin == settings.Network.BITCOIN
         self.connections = []
@@ -34,6 +34,8 @@ class ConnectrumService:
         self._cmd_queue = None  # type: queue.Queue
         self._res_queue = None  # type: queue.Queue
         self._max_retries_on_discordancy = max_retries_on_discordancy
+        self._connections_concurrency_ratio = connections_concurrency_ratio
+
 
     def killpill(self):
         self._keepalive = False
@@ -77,7 +79,7 @@ class ConnectrumService:
                     connection.close()
                 break
 
-            if len(self.connections) < self.concurrency * 5:
+            if len(self.connections) < self.concurrency * self._connections_concurrency_ratio:
                 _server = None
                 i = 0
                 while not _server:
