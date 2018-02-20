@@ -24,7 +24,7 @@ root.addHandler(ch)
 
 
 class ConnectrumService:
-    def __init__(self, coin, loop, concurrency=5):
+    def __init__(self, coin, loop, concurrency=5, max_retries_on_discordancy=5):
         self.loop = loop
         assert coin == settings.Network.BITCOIN
         self.connections = []
@@ -33,31 +33,42 @@ class ConnectrumService:
         self._keepalive = True
         self._cmd_queue = None  # type: queue.Queue
         self._res_queue = None  # type: queue.Queue
+        self._max_retries_on_discordancy = max_retries_on_discordancy
 
     def killpill(self):
         self._keepalive = False
 
     def connect(self):
-        self._cmd_queue = queue.Queue()
-        self._res_queue = queue.Queue()
-        t = threading.Thread(target=loop.run_until_complete, args=[self._connect(self._cmd_queue, self._res_queue)])
+        self._cmd_queue = queue.Queue(maxsize=1)
+        self._res_queue = queue.Queue(maxsize=1)
+        t = threading.Thread(
+            target=loop.run_until_complete, args=[self._connect(self._cmd_queue, self._res_queue)]
+        )
         t.start()
 
-    async def _resolve_cmd(self, command_artifact):
+    async def _resolve_cmd(self, command_artifact, retry=0):
+        if retry >= self._max_retries_on_discordancy:
+            raise RecursionError
         cmds = {
             'getrawtransaction': self._getrawtransaction_frompool
         }
-        response = []
-        await cmds[command_artifact['cmd']](*command_artifact['args'], response)
-        return response
+        responses = []
+        await cmds[command_artifact['cmd']](*command_artifact['args'], responses)
+        for response in responses:
+            if responses.count(response) > len(responses) / 2 + .1:
+                return response
+        return self._resolve_cmd(command_artifact, retry + 1)
 
     async def _connect(self, cmdq, resq):
         while 1:
             try:
                 cmd = cmdq.get_nowait()
                 if cmd:
-                    res = await self._resolve_cmd(cmd)
-                    resq.put(res)
+                    try:
+                        response = await self._resolve_cmd(cmd)
+                        resq.put({'response': response})
+                    except RecursionError as e:
+                        resq.put({'error': str(e)})
             except queue.Empty:
                 pass
 
@@ -66,7 +77,7 @@ class ConnectrumService:
                     connection.close()
                 break
 
-            if len(self.connections) < self.concurrency:
+            if len(self.connections) < self.concurrency * 5:
                 _server = None
                 i = 0
                 while not _server:
@@ -90,26 +101,46 @@ class ConnectrumService:
                 except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
                     self.blacklisted.append(_server)
 
+    def _pick_connections(self):
+        i = 0
+        connections = []
+        while 1:
+            i += 1
+            if i > 100:
+                break
+            connection = random.choice(self.connections)
+            connection not in connections and connections.append(connection)
+            if len(connections) == self.concurrency:
+                break
+        return connections
+
     async def _getrawtransaction_frompool(self, txid: str, responses):
         futures = [
-            connection.RPC('blockchain.transaction.get', txid) for connection in self.connections
+            connection.RPC('blockchain.transaction.get', txid) for connection in self._pick_connections()
         ]
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
 
-    def getrawtransaction(self, txid: str):
-        cmd = {
+    def getrawtransaction(self, txid: str, retry=0):
+        if retry > 3:
+            raise ValueError
+        payload = {
             'cmd': 'getrawtransaction',
             'args': [txid]
         }
-
-        self._cmd_queue.put(cmd)
-        return self._res_queue.get(timeout=3)
+        self._cmd_queue.put(payload)
+        try:
+            response = self._res_queue.get(timeout=5)
+        except queue.Empty:
+            return
+        if response.get('error'):
+            return
+        return response['response']
 
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    electrum = ConnectrumService(settings.NETWORK, loop, concurrency=5)
+    electrum = ConnectrumService(settings.NETWORK, loop, concurrency=3)
     electrum.connect()
     finished = False
     while not finished:
@@ -118,6 +149,6 @@ if __name__ == '__main__':
             time.sleep(5)
         else:
             res = electrum.getrawtransaction('5029394b46e48dfdcf2eaf0bbaad97735a7fa44f2cf51007aa69584c2476fb27')
-            print([x for x in res])
+            print(res)
             finished = True
     electrum.killpill()
