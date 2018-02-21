@@ -120,7 +120,7 @@ root.addHandler(ch)
 
 
 class ConnectrumService(RPCAPIService):
-    def __init__(self, coin, loop=None, concurrency=3, max_retries_on_discordancy=5, connections_concurrency_ratio=5):
+    def __init__(self, coin, loop=None, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
         self.loop = loop or asyncio.get_event_loop()
         assert coin.value == 1
         self._peers = []
@@ -347,22 +347,3 @@ class ConnectrumService(RPCAPIService):
     @property
     def available(self):
         return self.is_connected()
-
-
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    from spruned import settings
-    electrum = ConnectrumService(settings.NETWORK, concurrency=1, connections_concurrency_ratio=2)
-    electrum.connect()
-    finished = False
-    time.sleep(5)
-    while not finished:
-        connections = electrum.connections
-        if electrum.concurrency > connections:
-            print('not enough connections: %s' % connections)
-            time.sleep(1)
-        else:
-            res = electrum.getrawtransaction('fcc470d07a12686d979e06534330e4056afddc7420de37cbab6e87fb17cca4d6')
-            print(res)
-            finished = True
-    electrum.killpill()
