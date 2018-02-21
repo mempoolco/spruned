@@ -32,7 +32,7 @@ service.add_source(blockcypher)
 blocktrail and service.add_source(blocktrail)
 service.add_source(chainflyer)
 service.add_source(bitpay)
-electrum and service.add_source(electrum)
+service.electrum = electrum
 
 
 def jsonprint(d):
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         while 1:
             block = service.getblock(blockhash)
             for txid in block['tx'][:10]:
-                print(service.getrawtransaction(txid, verbose=1))
+                print(service.getrawtransaction(txid))
             blockhash = block['previousblockhash']
             time.sleep(0.5)
     finally:

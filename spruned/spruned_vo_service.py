@@ -6,6 +6,7 @@ import random
 from spruned.service.abstract import RPCAPIService, CacheInterface
 import asyncio
 import concurrent.futures
+from spruned.third_party.electrum_service import ConnectrumService
 
 
 def cache_block(func):
@@ -78,6 +79,7 @@ class SprunedVOService(RPCAPIService):
         self.min_sources = min_sources
         self.bitcoind = bitcoind
         self.current_best_height = self.bitcoind.getbestheight()
+        self.electrum = None  # type: ConnectrumService
 
     def available(self):
         raise NotImplementedError
@@ -238,6 +240,11 @@ class SprunedVOService(RPCAPIService):
             _exclude_services.extend(services)
             return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=_exclude_services)
         transaction = self._join_data(res)
+        if not transaction.get('rawtx') and self.electrum:
+            rawtransaction = self.electrum.getrawtransaction(txid)
+            if rawtransaction:
+                transaction['rawtx'] = rawtransaction['rawtx']
+                transaction['source'] += ', electrum'
         if not self._is_complete(transaction):
             _exclude_services.extend(services)
             return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=_exclude_services)

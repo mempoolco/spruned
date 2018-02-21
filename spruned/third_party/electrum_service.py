@@ -1,7 +1,6 @@
 import asyncio
 import queue
 import time
-import bitcoin
 from async_timeout import timeout
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
@@ -267,33 +266,6 @@ class ConnectrumService(RPCAPIService):
         response = self._call(payload)
         return response
 
-    def _get_blockhash_for_transaction(self, rawtx: str, txid: str, i=0, decoded=None):
-        #
-        # This code is bad. Electrum is not usable for the purpose.
-        #
-        """
-        decoded = bitcoin.deserialize() output
-        """
-        decoded = decoded or bitcoin.deserialize(rawtx)
-        _script = decoded['outs'][i]['script']
-        if len(_script) == 50:
-            # case standard p2pkh
-            address = bitcoin.script_to_address(_script)
-        else:
-            if len(decoded['outs']) - 1 < i:
-                return self._get_blockhash_for_transaction(rawtx, txid, i+1, decoded=decoded)
-            else:
-                return None
-        address_history = self._get_address_history(address)
-        height = None
-        if address_history and address_history.get('response'):
-            for entry in address_history['response']:
-                if entry['tx_hash'] == txid:
-                    height = entry['height']
-                    break
-        header = height and self._get_block_header(height + 1)
-        return header and header['response']['prev_block_hash']
-
     def _get_block_header(self, height: int):
         payload = {
             'cmd': 'getblockheader',
@@ -302,18 +274,14 @@ class ConnectrumService(RPCAPIService):
         response = self._call(payload)
         return response
 
-    def getrawtransaction(self, txid: str, retry=0):
-        if retry > 3:
-            raise ValueError
+    def getrawtransaction(self, txid: str, **_):
         payload = {
             'cmd': 'getrawtransaction',
             'args': [txid]
         }
         response = self._call(payload)
-        blockhash = response and self._get_blockhash_for_transaction(response['response'], txid)
         return response and {
             'rawtx': response['response'],
-            'blockhash': blockhash,
             'txid': txid,
             'source': 'electrum'
         }
