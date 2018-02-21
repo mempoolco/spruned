@@ -32,3 +32,7 @@ class BlocktrailService(RPCAPIService):
             'confirmations': data['confirmations'],
             'tx': None
         }
+
+    @property
+    def available(self):
+        return True

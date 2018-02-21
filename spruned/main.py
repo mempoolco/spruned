@@ -10,9 +10,7 @@ from spruned.third_party.blocktrail_service import BlocktrailService
 from spruned.third_party.chainflyer_service import ChainFlyerService
 from spruned.third_party.chainso_service import ChainSoService
 from spruned.third_party.blockcypher_service import BlockCypherService
-
-#from spruned.third_party.spruned_service import SprunedHTTPService
-#spruned_http_service = SprunedHTTPService(settings.NETWORK, settings.SPRUNED_SERVICE_URL)
+from spruned.third_party.electrum_service import ConnectrumService
 
 cache = FileCacheInterface(settings.CACHE_ADDRESS)
 bitcoind = BitcoindRPCClient(settings.BITCOIND_USER, settings.BITCOIND_PASS, settings.BITCOIND_URL)
@@ -23,6 +21,8 @@ bitgo = BitGoService(settings.NETWORK)
 chainflyer = ChainFlyerService(settings.NETWORK)
 blockexplorer = BlockexplorerService(settings.NETWORK)
 bitpay = BitpayService(settings.NETWORK)
+electrum = settings.ENABLE_ELECTRUM and ConnectrumService(settings.NETWORK)
+
 
 service = spruned_vo_service.SprunedVOService(min_sources=settings.MIN_DATA_SOURCES, bitcoind=bitcoind, cache=cache)
 service.add_source(chainso)
@@ -32,6 +32,7 @@ service.add_source(blockcypher)
 blocktrail and service.add_source(blocktrail)
 service.add_source(chainflyer)
 service.add_source(bitpay)
+electrum and service.add_source(electrum)
 
 
 def jsonprint(d):
@@ -39,12 +40,16 @@ def jsonprint(d):
 
 
 if __name__ == '__main__':
-    cache.purge()
-    blockhash = "0000000000000000000e5b215c3b4704fcc7b9c8b1eccbcad1251061f20b91a8"
-    block = service.getblock(blockhash)
-    while 1:
+    try:
+        electrum and electrum.connect()
+        cache.purge()
+        blockhash = "0000000000000000000e5b215c3b4704fcc7b9c8b1eccbcad1251061f20b91a8"
         block = service.getblock(blockhash)
-        for txid in block['tx'][:10]:
-            print(service.getrawtransaction(txid, verbose=1))
-        blockhash = block['previousblockhash']
-        time.sleep(0.5)
+        while 1:
+            block = service.getblock(blockhash)
+            for txid in block['tx'][:10]:
+                print(service.getrawtransaction(txid, verbose=1))
+            blockhash = block['previousblockhash']
+            time.sleep(0.5)
+    finally:
+        electrum and electrum.killpill()

@@ -1,14 +1,16 @@
 import asyncio
 import queue
 import time
+import bitcoin
 from async_timeout import timeout
+from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 import random
-import logging
 import binascii
 import os
 import threading
+from spruned.service.abstract import RPCAPIService
 
 
 ELECTRUM_SERVERS = [
@@ -117,10 +119,10 @@ ch.setFormatter(formatter)
 root.addHandler(ch)
 
 
-class ConnectrumService:
-    def __init__(self, coin, loop, concurrency=5, max_retries_on_discordancy=5, connections_concurrency_ratio=5):
-        self.loop = loop
-        assert coin == settings.Network.BITCOIN
+class ConnectrumService(RPCAPIService):
+    def __init__(self, coin, loop=None, concurrency=3, max_retries_on_discordancy=5, connections_concurrency_ratio=5):
+        self.loop = loop or asyncio.get_event_loop()
+        assert coin.value == 1
         self._peers = []
         self.concurrency = concurrency
         self.blacklisted = []
@@ -130,6 +132,7 @@ class ConnectrumService:
         self._status_queue = None  # type: queue.Queue
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
+        self._current_status = None
 
     def killpill(self):
         self._keepalive = False
@@ -139,7 +142,7 @@ class ConnectrumService:
         self._res_queue = queue.Queue(maxsize=1)
         self._status_queue = queue.Queue(maxsize=1)
         t = threading.Thread(
-            target=loop.run_until_complete, args=[self._connect(self._cmd_queue, self._res_queue)]
+            target=self.loop.run_until_complete, args=[self._connect(self._cmd_queue, self._res_queue)]
         )
         t.start()
 
@@ -147,21 +150,25 @@ class ConnectrumService:
         if retry >= self._max_retries_on_discordancy:
             raise RecursionError
         cmds = {
-            'getrawtransaction': self._getrawtransaction_frompool
+            'getrawtransaction': self._electrum_getrawtransaction,
+            'getaddresshistory': self._electrum_getaddresshistory,
+            'getblockheader': self._electrum_getblockheader
         }
         responses = []
         await cmds[command_artifact['cmd']](*command_artifact['args'], responses)
         for response in responses:
-            if responses.count(response) > len(responses) / 2 + .1:
+            if len(responses) == 1 or responses.count(response) > len(responses) / 2 + .1:
                 return response
         return self._resolve_cmd(command_artifact, retry + 1)
 
     def _update_status(self, status):
-        self._status_queue.queue.clear()
-        self._status_queue.put_nowait(status)
+        if status != self._current_status:
+            self._status_queue.queue.clear()
+            self._status_queue.put_nowait(status)
+            self._current_status = status
 
     async def _connect(self, cmdq, resq):
-        self._update_status('stopped')
+        self._update_status('s')
         while 1:
             if not self._keepalive:
                 for peer in self._peers:
@@ -188,12 +195,12 @@ class ConnectrumService:
                         await conn.connect(_server_info, disable_cert_verify=True)
                         banner = await conn.RPC('server.banner')
                         banner and self._peers.append(conn)
-                        self._update_status('populating, %s' % len(self._peers))
+                        self._update_status('p, %s' % len(self._peers))
                         banner and logging.debug('Connected to %s, banner', _server[0])
                 except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
                     self.blacklisted.append(_server)
             else:
-                self._update_status('connected, %s' % len(self._peers))
+                self._update_status('c, %s' % len(self._peers))
             try:
                 cmd = cmdq.get_nowait()
                 if cmd:
@@ -203,7 +210,7 @@ class ConnectrumService:
                     except RecursionError as e:
                         resq.put({'error': str(e)}, timeout=3)
             except queue.Empty:
-                pass
+                time.sleep(0.05)
 
     def _pick_peers(self):
         i = 0
@@ -218,12 +225,82 @@ class ConnectrumService:
                 break
         return peers
 
-    async def _getrawtransaction_frompool(self, txid: str, responses):
+    async def _electrum_getrawtransaction(self, txid: str, responses):
         futures = [
             peer.RPC('blockchain.transaction.get', txid) for peer in self._pick_peers()
         ]
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
+
+    async def _electrum_getaddresshistory(self, scripthash: str, responses):
+        futures = [
+            peer.RPC('blockchain.address.get_history', scripthash) for peer in self._pick_peers()
+        ]
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse as e:
+            return
+
+    async def _electrum_getblockheader(self, scripthash: str, responses):
+        futures = [
+            peer.RPC('blockchain.block.get_header', scripthash) for peer in self._pick_peers()
+        ]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+
+    def _call(self, payload):
+        self._cmd_queue.put(payload, timeout=2)
+        try:
+            response = self._res_queue.get(timeout=5)
+        except queue.Empty:
+            return
+        if response.get('error'):
+            return
+        return response
+
+    def _get_address_history(self, address):
+        payload = {
+            'cmd': 'getaddresshistory',
+            'args': [address]
+        }
+        response = self._call(payload)
+        return response
+
+    def _get_blockhash_for_transaction(self, rawtx: str, txid: str, i=0, decoded=None):
+        #
+        # This code is bad. Electrum is not usable for the purpose.
+        #
+        """
+        decoded = bitcoin.deserialize() output
+        """
+        decoded = decoded or bitcoin.deserialize(rawtx)
+        _script = decoded['outs'][i]['script']
+        if len(_script) == 50:
+            # case standard p2pkh
+            address = bitcoin.script_to_address(_script)
+        else:
+            if len(decoded['outs']) - 1 < i:
+                return self._get_blockhash_for_transaction(rawtx, txid, i+1, decoded=decoded)
+            else:
+                return None
+        address_history = self._get_address_history(address)
+        height = None
+        if address_history and address_history.get('response'):
+            for entry in address_history['response']:
+                if entry['tx_hash'] == txid:
+                    height = entry['height']
+                    break
+        header = height and self._get_block_header(height + 1)
+        return header and header['response']['prev_block_hash']
+
+    def _get_block_header(self, height: int):
+        payload = {
+            'cmd': 'getblockheader',
+            'args': [height]
+        }
+        response = self._call(payload)
+        return response
 
     def getrawtransaction(self, txid: str, retry=0):
         if retry > 3:
@@ -232,14 +309,17 @@ class ConnectrumService:
             'cmd': 'getrawtransaction',
             'args': [txid]
         }
-        self._cmd_queue.put(payload)
-        try:
-            response = self._res_queue.get(timeout=5)
-        except queue.Empty:
-            return
-        if response.get('error'):
-            return
-        return response['response']
+        response = self._call(payload)
+        blockhash = response and self._get_blockhash_for_transaction(response['response'], txid)
+        return response and {
+            'rawtx': response['response'],
+            'blockhash': blockhash,
+            'txid': txid,
+            'source': 'electrum'
+        }
+
+    def getblock(self, _):
+        return
 
     @property
     def status(self):
@@ -251,33 +331,38 @@ class ConnectrumService:
             return
 
     def is_connected(self) -> bool:
-        return 'connected' in self.status
+        return 'c' in self.status
 
     @property
     def connections(self):
         try:
             status = self.status
-            if 'connected' in status or 'populating' in status:
+            if 'c' in status or 'p' in status:
                 x, y = status.split(',')
                 return int(y.strip())
         except queue.Empty:
             return 0
         return 0
 
+    @property
+    def available(self):
+        return self.is_connected()
+
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     from spruned import settings
-    electrum = ConnectrumService(settings.NETWORK, loop, concurrency=3)
+    electrum = ConnectrumService(settings.NETWORK, concurrency=1, connections_concurrency_ratio=2)
     electrum.connect()
     finished = False
+    time.sleep(5)
     while not finished:
         connections = electrum.connections
         if electrum.concurrency > connections:
             print('not enough connections: %s' % connections)
             time.sleep(1)
         else:
-            res = electrum.getrawtransaction('5029394b46e48dfdcf2eaf0bbaad97735a7fa44f2cf51007aa69584c2476fb27')
+            res = electrum.getrawtransaction('fcc470d07a12686d979e06534330e4056afddc7420de37cbab6e87fb17cca4d6')
             print(res)
             finished = True
     electrum.killpill()

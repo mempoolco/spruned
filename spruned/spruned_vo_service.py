@@ -79,6 +79,9 @@ class SprunedVOService(RPCAPIService):
         self.bitcoind = bitcoind
         self.current_best_height = self.bitcoind.getbestheight()
 
+    def available(self):
+        raise NotImplementedError
+
     @staticmethod
     async def _async_call(services, call, blockhash, responses):
         calls = [getattr(service, call) for service in services]
@@ -160,7 +163,7 @@ class SprunedVOService(RPCAPIService):
             if i > maxiter:
                 return res
             c = random.choice(self.sources)
-            c not in res and (not excluded or c.__class__.__name__ not in excluded) and res.append(c)
+            c not in res and (not excluded or c.__class__.__name__ not in excluded) and c.available and res.append(c)
         for p in self.primary:
             excluded is None or (p.__class__.__name__ not in excluded) and res.append(p)
         return res
@@ -208,7 +211,7 @@ class SprunedVOService(RPCAPIService):
         if not block:
             services = self._pick_sources(_exclude_services)
             res = _res or []
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
             loop.run_until_complete(self._async_call(services, 'getblock', blockhash, res))
             if not res:
                 _exclude_services.extend(services)
@@ -229,7 +232,7 @@ class SprunedVOService(RPCAPIService):
         res = _res or []
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         loop.run_until_complete(self._async_call(services, 'getrawtransaction', txid, res))
         if not res:
             _exclude_services.extend(services)

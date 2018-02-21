@@ -10,6 +10,11 @@ class RPCAPIService(metaclass=abc.ABCMeta):
     def getrawtransaction(self, txid, **kwargs):
         pass  # pragma: no cover
 
+    @property
+    @abc.abstractmethod
+    def available(self) -> bool:
+        pass  # pragma: no cover
+
 
 class CacheInterface(metaclass=abc.ABCMeta):
     def set(self, *a, ttl: int=0):

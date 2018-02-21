@@ -25,3 +25,7 @@ class BlockexplorerService(RPCAPIService):
             'hash': data['hash'],
             'tx': None
         }
+
+    @property
+    def available(self):
+        return True

@@ -27,3 +27,7 @@ class BitGoService(RPCAPIService):
             'hash': data['id'],
             'tx': data['transactions'],
         }
+
+    @property
+    def available(self):
+        return True

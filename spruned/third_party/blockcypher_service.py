@@ -56,3 +56,7 @@ class BlockCypherService(RPCAPIService):
             'hash': d['hash'],
             'tx': d['txids']
         }
+
+    @property
+    def available(self):
+        return True

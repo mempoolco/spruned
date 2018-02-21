@@ -23,3 +23,5 @@ BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')
 BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
 CACHE_ADDRESS = '%s/.spruned/cache/' % Path.home()
+
+ENABLE_ELECTRUM = False

@@ -26,3 +26,7 @@ class ChainFlyerService(RPCAPIService):
             'hash': data['block_hash'],
             'tx': data['tx_hashes'],
         }
+
+    @property
+    def available(self):
+        return True

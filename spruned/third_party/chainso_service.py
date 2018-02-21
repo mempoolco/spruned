@@ -29,3 +29,6 @@ class ChainSoService(RPCAPIService):
             'tx': data['data']['txs']
         }
 
+    @property
+    def available(self):
+        return True
