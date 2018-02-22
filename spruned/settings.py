@@ -24,4 +24,5 @@ BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
 CACHE_ADDRESS = '%s/.spruned/cache/' % Path.home()
 
-ENABLE_ELECTRUM = False
+ENABLE_ELECTRUM = True
+

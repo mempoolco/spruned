@@ -1,5 +1,7 @@
 import json
+
 import time
+
 from spruned import settings, spruned_vo_service
 from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
 from spruned.service.file_cache_interface import FileCacheInterface
@@ -10,7 +12,7 @@ from spruned.third_party.blocktrail_service import BlocktrailService
 from spruned.third_party.chainflyer_service import ChainFlyerService
 from spruned.third_party.chainso_service import ChainSoService
 from spruned.third_party.blockcypher_service import BlockCypherService
-from spruned.third_party.electrum_service import ConnectrumService
+from spruned.service.connectrum_service import ConnectrumService
 
 cache = FileCacheInterface(settings.CACHE_ADDRESS)
 bitcoind = BitcoindRPCClient(settings.BITCOIND_USER, settings.BITCOIND_PASS, settings.BITCOIND_URL)
@@ -42,14 +44,15 @@ def jsonprint(d):
 if __name__ == '__main__':
     try:
         electrum and electrum.connect()
-        cache.purge()
+        print(service.getrawtransaction('991789bbe7f09bb06d5539b0aae6e194e4f09e42819861c81bee1d81e2021a8d', verbose=1))
         blockhash = "0000000000000000000e5b215c3b4704fcc7b9c8b1eccbcad1251061f20b91a8"
+        blockhash = "00000000000000000029b786fd3da3c2859a9be4807104d7e80112cdd5a33407"
         block = service.getblock(blockhash)
         while 1:
             block = service.getblock(blockhash)
             for txid in block['tx'][:10]:
                 print(service.getrawtransaction(txid))
             blockhash = block['previousblockhash']
-            time.sleep(0.5)
     finally:
-        electrum and electrum.killpill()
+        electrum and electrum.disconnect()
+

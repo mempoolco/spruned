@@ -6,7 +6,7 @@ import random
 from spruned.service.abstract import RPCAPIService, CacheInterface
 import asyncio
 import concurrent.futures
-from spruned.third_party.electrum_service import ConnectrumService
+from spruned.service.connectrum_service import ConnectrumService
 
 
 def cache_block(func):
@@ -78,7 +78,7 @@ class SprunedVOService(RPCAPIService):
         self.cache = cache
         self.min_sources = min_sources
         self.bitcoind = bitcoind
-        self.current_best_height = self.bitcoind.getbestheight()
+        self.current_best_height = None
         self.electrum = None  # type: ConnectrumService
 
     def available(self):

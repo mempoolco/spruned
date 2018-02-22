@@ -8,8 +8,6 @@ from connectrum.svr_info import ServerInfo
 import random
 import binascii
 import os
-import threading
-from spruned.service.abstract import RPCAPIService
 
 
 ELECTRUM_SERVERS = [
@@ -118,8 +116,14 @@ ch.setFormatter(formatter)
 root.addHandler(ch)
 
 
-class ConnectrumService(RPCAPIService):
-    def __init__(self, coin, loop=None, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
+class ConnectrumClient():
+    def __init__(
+            self,
+            coin,
+            loop=None,
+            concurrency=1,
+            max_retries_on_discordancy=3,
+            connections_concurrency_ratio=3):
         self.loop = loop or asyncio.get_event_loop()
         assert coin.value == 1
         self._peers = []
@@ -133,22 +137,11 @@ class ConnectrumService(RPCAPIService):
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
 
-    def killpill(self):
-        self._keepalive = False
-
-    def connect(self):
-        self._cmd_queue = queue.Queue(maxsize=1)
-        self._res_queue = queue.Queue(maxsize=1)
-        self._status_queue = queue.Queue(maxsize=1)
-        t = threading.Thread(
-            target=self.loop.run_until_complete, args=[self._connect(self._cmd_queue, self._res_queue)]
-        )
-        t.start()
-
     async def _resolve_cmd(self, command_artifact, retry=0):
         if retry >= self._max_retries_on_discordancy:
             raise RecursionError
         cmds = {
+            'die': self._electrum_disconnect,
             'getrawtransaction': self._electrum_getrawtransaction,
             'getaddresshistory': self._electrum_getaddresshistory,
             'getblockheader': self._electrum_getblockheader
@@ -166,7 +159,11 @@ class ConnectrumService(RPCAPIService):
             self._status_queue.put_nowait(status)
             self._current_status = status
 
-    async def _connect(self, cmdq, resq):
+    def _electrum_disconnect(self):
+        self._keepalive = False
+
+    async def connect(self, cmdq, resq, statusq):
+        self._status_queue = statusq
         self._update_status('s')
         while 1:
             if not self._keepalive:
@@ -273,45 +270,3 @@ class ConnectrumService(RPCAPIService):
         }
         response = self._call(payload)
         return response
-
-    def getrawtransaction(self, txid: str, **_):
-        payload = {
-            'cmd': 'getrawtransaction',
-            'args': [txid]
-        }
-        response = self._call(payload)
-        return response and {
-            'rawtx': response['response'],
-            'txid': txid,
-            'source': 'electrum'
-        }
-
-    def getblock(self, _):
-        return
-
-    @property
-    def status(self):
-        try:
-            res = self._status_queue.get(timeout=0.2)
-            self._status_queue.put(res)
-            return res
-        except queue.Empty:
-            return
-
-    def is_connected(self) -> bool:
-        return 'c' in self.status
-
-    @property
-    def connections(self):
-        try:
-            status = self.status
-            if 'c' in status or 'p' in status:
-                x, y = status.split(',')
-                return int(y.strip())
-        except queue.Empty:
-            return 0
-        return 0
-
-    @property
-    def available(self):
-        return self.is_connected()
