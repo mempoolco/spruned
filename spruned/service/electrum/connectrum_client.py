@@ -8,6 +8,7 @@ from connectrum.svr_info import ServerInfo
 import random
 import binascii
 import os
+from spruned.logging_factory import Logger
 
 
 ELECTRUM_SERVERS = [
@@ -103,18 +104,6 @@ ELECTRUM_SERVERS = [
     ["walle.dedyn.io", "s"]
 ]
 
-import logging
-import sys
-
-root = logging.getLogger()
-root.setLevel(logging.DEBUG)
-
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-root.addHandler(ch)
-
 
 class ConnectrumClient():
     def __init__(
@@ -138,6 +127,7 @@ class ConnectrumClient():
         self._current_status = None
 
     async def _resolve_cmd(self, command_artifact, retry=0):
+        Logger.electrum.debug('ConnectrumClient - resolve_cmd, command: %s (retry: %s)', command_artifact, retry)
         if retry >= self._max_retries_on_discordancy:
             raise RecursionError
         cmds = {
@@ -150,11 +140,13 @@ class ConnectrumClient():
         await cmds[command_artifact['cmd']](*command_artifact['args'], responses)
         for response in responses:
             if len(responses) == 1 or responses.count(response) > len(responses) / 2 + .1:
+                Logger.electrum.debug('ConnectrumClient - resolve_cmd, response: %s', response)
                 return response
         return self._resolve_cmd(command_artifact, retry + 1)
 
     def _update_status(self, status):
         if status != self._current_status:
+            Logger.electrum.debug('ConnectrumClient - update_status (old: %s, new %s)', self._current_status, status)
             self._status_queue.queue.clear()
             self._status_queue.put_nowait(status)
             self._current_status = status
@@ -163,6 +155,7 @@ class ConnectrumClient():
         self._keepalive = False
 
     async def connect(self, cmdq, resq, statusq):
+        Logger.electrum.debug('ConnectrumClient - connect')
         self._status_queue = statusq
         self._update_status('s')
         while 1:
@@ -192,7 +185,7 @@ class ConnectrumClient():
                         banner = await conn.RPC('server.banner')
                         banner and self._peers.append(conn)
                         self._update_status('p, %s' % len(self._peers))
-                        banner and logging.debug('Connected to %s, banner', _server[0])
+                        Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
                 except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
                     self.blacklisted.append(_server)
             else:

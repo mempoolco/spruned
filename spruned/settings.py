@@ -8,6 +8,8 @@ class Network(Enum):
     BITCOIN_TESTNET = 2
 
 
+# application
+DEBUG = True
 TESTNET = 0
 CACHE = 1024
 NETWORK = Network.BITCOIN
@@ -22,9 +24,14 @@ BITCOIND_PASS = os.getenv('BITCOIND_PASS').encode()
 BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')
 BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
-CACHE_ADDRESS = '%s/.spruned/cache/' % Path.home()
-STORAGE_ADDRESS = '%s/.spruned/storage/' % Path.home()
 
+# files
+FILE_DIRECTORY = '%s/.spruned' % Path.home()
+CACHE_ADDRESS = '%s/cache/' % FILE_DIRECTORY
+STORAGE_ADDRESS = '%s/storage/' % FILE_DIRECTORY
+LOGFILE = '%s/spruned.log' % FILE_DIRECTORY
+
+
+# electrum
 ENABLE_ELECTRUM = True
 ELECTRUM_CONCURRENCY = 3
-

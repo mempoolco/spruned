@@ -3,6 +3,7 @@ import threading
 import time
 from spruned.service.abstract import RPCAPIService
 import retrying
+from spruned.logging_factory import Logger
 
 
 class ConnectrumService(RPCAPIService):
@@ -18,14 +19,17 @@ class ConnectrumService(RPCAPIService):
         self._reactor = reactor
 
     def disconnect(self):
+        Logger.electrum.debug('ConnectrumService - disconnecting Connectrum')
         self._call({'cmd': 'die'})
         start = int(time.time())
         while not self._thread.is_alive():
             if int(time.time()) > start + 5:
                 raise ConnectionResetError('Error disconnecting from Electrum Network')
+        Logger.electrum.debug('ConnectrumService - disconnected Connetrum')
         return True
 
     def connect(self):
+        Logger.electrum.debug('ConnectrumService - connect, spawn Connectrum Thread')
         if not self._client_instance:
             self._client_instance = self._reactor
             self._thread = threading.Thread(
@@ -33,26 +37,30 @@ class ConnectrumService(RPCAPIService):
                     self._client_instance.connect(
                         self._cmd_queue,
                         self._res_queue,
-                        self._status_queue
+                        self._status_queue,
                     )
-                ]
+                ],
             )
             self._thread.start()
             return True
 
-    @retrying.retry(wait_fixed=100, retry_on_exception=queue.Full, stop_max_attempt_number=25)
+    @retrying.retry(wait_fixed=100, retry_on_exception=lambda e: isinstance(e, queue.Full), stop_max_attempt_number=25)
     def _call(self, payload):
         """
         25 retries * 0.1+0.1, max 5 seconds then we fail on full queue
         """
+        Logger.electrum.debug('ConnectrumService - call, payload: %s', payload)
         self._cmd_queue.put(payload, timeout=0.1)
         try:
             response = self._res_queue.get(timeout=5)
+            Logger.electrum.debug('ConnectrumService - call, response: %s', response)
         except queue.Empty:
             return
         except queue.Full:
+            Logger.electrum.warning('ConnectrumService - queue Full, retrying')
             raise
         if response.get('error'):
+            Logger.electrum.error('ConnectrumService - call error - response: %s', response)
             return
         return response
 
