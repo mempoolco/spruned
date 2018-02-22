@@ -1,11 +1,11 @@
 import os
 import pickle
 import shutil
-from spruned.service.abstract import CacheInterface
+from spruned.service.abstract import StorageInterface
 import gzip
 
 
-class FileCacheInterface(CacheInterface):
+class StorageFileInterface(StorageInterface):
     def __init__(self, directory, cache_limit=None, compress=True):
         self.directory = directory
         if not os.path.exists(directory):

@@ -3,10 +3,10 @@ import functools
 import json
 import typing
 import random
-from spruned.service.abstract import RPCAPIService, CacheInterface
+from spruned.service.abstract import RPCAPIService, StorageInterface
 import asyncio
 import concurrent.futures
-from spruned.service.connectrum_service import ConnectrumService
+from spruned.service.electrum.connectrum_service import ConnectrumService
 
 
 def cache_block(func):
@@ -143,8 +143,8 @@ class SprunedVOService(RPCAPIService):
             if data:
                 return data
 
-    def add_cache(self, cache: CacheInterface):
-        assert isinstance(cache, CacheInterface)
+    def add_cache(self, cache: StorageInterface):
+        assert isinstance(cache, StorageInterface)
         self.cache = cache
 
     def add_source(self, service: RPCAPIService):

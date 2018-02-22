@@ -2,19 +2,20 @@ import queue
 import threading
 import time
 from spruned.service.abstract import RPCAPIService
-from spruned.service.connectrum_client import ConnectrumClient
+import retrying
 
 
 class ConnectrumService(RPCAPIService):
-    def __init__(self, coin):
+    def __init__(self, coin, reactor):
         assert coin.value == 1
         self.coin = coin
         self._keepalive = True
-        self._cmd_queue = None  # type: queue.Queue
-        self._res_queue = None  # type: queue.Queue
-        self._status_queue = None  # type: queue.Queue
-        self._client = None
+        self._cmd_queue = queue.Queue(maxsize=1)
+        self._res_queue = queue.Queue(maxsize=1)
+        self._status_queue = queue.Queue(maxsize=1)
+        self._client_instance = None
         self._thread = None
+        self._reactor = reactor
 
     def disconnect(self):
         self._call({'cmd': 'die'})
@@ -24,22 +25,12 @@ class ConnectrumService(RPCAPIService):
                 raise ConnectionResetError('Error disconnecting from Electrum Network')
         return True
 
-    def connect(self, loop=None, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
-        if not self._client:
-            self._cmd_queue = queue.Queue(maxsize=1)
-            self._res_queue = queue.Queue(maxsize=1)
-            self._status_queue = queue.Queue(maxsize=1)
-
-            self._client = ConnectrumClient(
-                self.coin,
-                loop,
-                concurrency=concurrency,
-                max_retries_on_discordancy=max_retries_on_discordancy,
-                connections_concurrency_ratio=connections_concurrency_ratio
-            )
+    def connect(self):
+        if not self._client_instance:
+            self._client_instance = self._reactor
             self._thread = threading.Thread(
-                target=self._client.loop.run_until_complete, args=[
-                    self._client.connect(
+                target=self._client_instance.loop.run_until_complete, args=[
+                    self._client_instance.connect(
                         self._cmd_queue,
                         self._res_queue,
                         self._status_queue
@@ -49,12 +40,18 @@ class ConnectrumService(RPCAPIService):
             self._thread.start()
             return True
 
+    @retrying.retry(wait_fixed=100, retry_on_exception=queue.Full, stop_max_attempt_number=25)
     def _call(self, payload):
-        self._cmd_queue.put(payload, timeout=2)
+        """
+        25 retries * 0.1+0.1, max 5 seconds then we fail on full queue
+        """
+        self._cmd_queue.put(payload, timeout=0.1)
         try:
             response = self._res_queue.get(timeout=5)
         except queue.Empty:
             return
+        except queue.Full:
+            raise
         if response.get('error'):
             return
         return response

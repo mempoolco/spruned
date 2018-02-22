@@ -23,6 +23,8 @@ BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')
 BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
 CACHE_ADDRESS = '%s/.spruned/cache/' % Path.home()
+STORAGE_ADDRESS = '%s/.spruned/storage/' % Path.home()
 
 ENABLE_ELECTRUM = True
+ELECTRUM_CONCURRENCY = 3
 

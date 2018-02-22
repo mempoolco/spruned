@@ -16,7 +16,7 @@ class RPCAPIService(metaclass=abc.ABCMeta):
         pass  # pragma: no cover
 
 
-class CacheInterface(metaclass=abc.ABCMeta):
+class StorageInterface(metaclass=abc.ABCMeta):
     def set(self, *a, ttl: int=0):
         pass  # pragma: no cover
 
