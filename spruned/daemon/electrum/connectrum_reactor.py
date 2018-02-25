@@ -1,5 +1,4 @@
 import asyncio
-import async_timeout
 from aiohttp import web
 from aiohttp.web import Response
 from spruned.daemon.electrum.connectrum_interface import ConnectrumInterface

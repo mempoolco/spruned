@@ -1,4 +1,6 @@
 import asyncio
+
+import async_timeout
 from async_timeout import timeout
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
@@ -133,6 +135,9 @@ class ConnectrumInterface:
     def _electrum_disconnect(self):
         self._keepalive = False
 
+    def _evaluate_peer_best_height(self, current_best_height):
+        print('Received best height: %s' % current_best_height)
+
     async def _connect_to_server(self):
         _server = None
         i = 0
@@ -171,6 +176,14 @@ class ConnectrumInterface:
             for observer in self._headers_observers:
                 observer.on_best_header(best_header)
 
+    async def _ping_peer(self, peer):
+        try:
+            with async_timeout.timeout(1) as t:
+                current_best_height = await asyncio.gather(peer.RPC('blockchain.headers.subscribe'))
+                self._evaluate_peer_best_height(current_best_height)
+        except asyncio.TimeoutError:
+            self._peers = [p for p in self._peers if p != peer]
+
     async def _keep_connections(self):
         while 1:
             if not self._keepalive:
@@ -181,8 +194,10 @@ class ConnectrumInterface:
                 await self._connect_to_server()
                 continue
             else:
+                peer = random.choice(self._peers)
+                await self._ping_peer(peer)
                 self._update_status('connected, %s' % len(self._peers))
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)
 
     async def start(self):
         Logger.electrum.debug('ConnectrumClient - connect')
@@ -215,41 +230,32 @@ class ConnectrumInterface:
             response and responses.append(response)
         return responses
 
-    async def getaddresshistory(self, scripthash: str, callback, errback, force_peers=None):
-        try:
-            responses = []
-            futures = [
-                peer.RPC('blockchain.address.get_history', scripthash)
-                for peer in self._pick_peers(force_peers=force_peers)
-            ]
-            for response in await asyncio.gather(*futures):
-                response and responses.append(response)
-            return callback(responses)
-        except Exception as e:
-            return errback and errback(e)
+    async def getaddresshistory(self, scripthash: str, force_peers=None):
+        responses = []
+        futures = [
+            peer.RPC('blockchain.address.get_history', scripthash)
+            for peer in self._pick_peers(force_peers=force_peers)
+        ]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+        return responses
 
-    async def getblockheaders_chunk(self, chunks_index: int, callback, errback, force_peers=None):
-        try:
-            responses = []
-            futures = [
-                peer.RPC('blockchain.address.get_chunk', chunks_index)
-                for peer in self._pick_peers(force_peers=force_peers)
-            ]
-            for response in await asyncio.gather(*futures):
-                response and responses.append(response)
-            return callback(responses)
-        except Exception as e:
-            return errback and errback(e)
+    async def getblockheaders_chunk(self, chunks_index: int, force_peers=None):
+        responses = []
+        futures = [
+            peer.RPC('blockchain.address.get_chunk', chunks_index)
+            for peer in self._pick_peers(force_peers=force_peers)
+        ]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+        return responses
 
-    async def getblockheader(self, scripthash: str, callback, errback, force_peers=None):
-        try:
-            responses = []
-            futures = [
-                peer.RPC('blockchain.block.get_header', scripthash)
-                for peer in self._pick_peers(force_peers=force_peers)
-            ]
-            for response in await asyncio.gather(*futures):
-                response and responses.append(response)
-            return callback(responses)
-        except Exception as e:
-            return errback and errback(e)
+    async def getblockheader(self, scripthash: str, force_peers=None):
+        responses = []
+        futures = [
+            peer.RPC('blockchain.block.get_header', scripthash)
+            for peer in self._pick_peers(force_peers=force_peers)
+        ]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+        return responses
