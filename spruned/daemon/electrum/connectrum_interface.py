@@ -1,6 +1,5 @@
 import asyncio
 from async_timeout import timeout
-from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 import random
@@ -103,14 +102,15 @@ ELECTRUM_SERVERS = [
 ]
 
 
-class ConnectrumClient:
+class ConnectrumInterface:
     def __init__(
             self,
             coin,
+            app,
             loop=None,
             concurrency=1,
             max_retries_on_discordancy=3,
-            connections_concurrency_ratio=3
+            connections_concurrency_ratio=3,
     ):
         self.loop = loop or asyncio.get_event_loop()
         assert coin.value == 1
@@ -121,31 +121,11 @@ class ConnectrumClient:
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
-        self._headers = None
+        self._headers_observers = []
+        self.app = app  # type: 'web.Application'
 
-    def set_headers_repository(self, headers_repository):
-        self._headers = headers_repository(self)
-
-    """
-    async def _resolve_cmd(self, command_artifact, retry=0):
-        Logger.electrum.debug('ConnectrumClient - resolve_cmd, command: %s (retry: %s)', command_artifact, retry)
-        if retry >= self._max_retries_on_discordancy:
-            raise RecursionError
-        cmds = {
-            'die': self._electrum_disconnect,
-            'getrawtransaction': self._electrum_getrawtransaction,
-            'getaddresshistory': self._electrum_getaddresshistory,
-            'getblockheader': self._electrum_getblockheader,
-            'getheaderschunk': self._electrum_getblockheaders_chunk
-        }
-        responses = []
-        await cmds[command_artifact['cmd']](*command_artifact['args'], responses)
-        for response in responses:
-            if len(responses) == 1 or responses.count(response) > len(responses) / 2 + .1:
-                Logger.electrum.debug('ConnectrumClient - resolve_cmd, response: %s', response)
-                return response
-        return self._resolve_cmd(command_artifact, retry + 1)
-    """
+    def add_headers_observer(self, headers_observer):
+        self._headers_observers.append(headers_observer)
 
     def _update_status(self, status):
         self._current_status = status
@@ -174,13 +154,24 @@ class ConnectrumClient:
                 banner = await conn.RPC('server.banner')
                 banner and self._peers.append(conn)
                 self._update_status('connecting, %s' % len(self._peers))
+                self.app.loop.create_task(self._subscribe_headers(conn))
                 Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
             self.blacklisted.append(_server)
 
-    async def start(self):
-        Logger.electrum.debug('ConnectrumClient - connect')
-        self._update_status('stopped')
+    async def _subscribe_headers(self, connection: StratumClient):
+        future, Q = connection.subscribe('blockchain.headers.subscribe')
+        best_header = await future
+        for observer in self._headers_observers:
+            observer.on_best_header(best_header)
+
+        while 1:
+            best_header = await Q.get()
+            Logger.electrum.debug('New best header: %s', best_header)
+            for observer in self._headers_observers:
+                observer.on_best_header(best_header)
+
+    async def _keep_connections(self):
         while 1:
             if not self._keepalive:
                 for peer in self._peers:
@@ -188,10 +179,18 @@ class ConnectrumClient:
                 break
             if len(self._peers) < self.concurrency * self._connections_concurrency_ratio:
                 await self._connect_to_server()
+                continue
             else:
                 self._update_status('connected, %s' % len(self._peers))
+            await asyncio.sleep(10)
 
-    def _pick_peers(self):
+    async def start(self):
+        Logger.electrum.debug('ConnectrumClient - connect')
+        self._update_status('stopped')
+        self.app.loop.create_task(self._keep_connections())
+        Logger.electrum.debug('ConnectrumClient - connections spawned')
+
+    def _pick_peers(self, force_peers=None):
         i = 0
         peers = []
         while 1:
@@ -200,58 +199,57 @@ class ConnectrumClient:
                 break
             peer = random.choice(self._peers)
             peer not in peers and peers.append(peer)
-            if len(peers) == self.concurrency:
+            if force_peers is not None and len(peers) == force_peers:
+                break
+            elif len(peers) == self.concurrency:
                 break
         return peers
 
-    async def _electrum_getrawtransaction(self, txid: str, responses):
-        futures = [
-            peer.RPC('blockchain.transaction.get', txid) for peer in self._pick_peers()
-        ]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
-
-    async def _electrum_getaddresshistory(self, scripthash: str, responses):
-        futures = [
-            peer.RPC('blockchain.address.get_history', scripthash) for peer in self._pick_peers()
-        ]
-        try:
-            for response in await asyncio.gather(*futures):
-                response and responses.append(response)
-        except ElectrumErrorResponse as e:
-            return
-
-    async def _electrum_getblockheaders_chunk(self, chunks_index: int, responses):
-        futures = [
-            peer.RPC('blockchain.address.get_chunk', chunks_index) for peer in self._pick_peers()
-        ]
-        try:
-            for response in await asyncio.gather(*futures):
-                response and responses.append(response)
-        except ElectrumErrorResponse as e:
-            return
-
-    async def _electrum_getblockheader(self, scripthash: str, responses):
-        futures = [
-            peer.RPC('blockchain.block.get_header', scripthash) for peer in self._pick_peers()
-        ]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
-
-    async def _get_best_header(self):
+    async def getrawtransaction(self, txid: str, force_peers=None):
         responses = []
         futures = [
-            peer.RPC('blockchain.headers.subscribe') for peer in self._pick_peers()
+            peer.RPC('blockchain.transaction.get', txid)
+            for peer in self._pick_peers(force_peers=force_peers)
         ]
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
+        return responses
 
+    async def getaddresshistory(self, scripthash: str, callback, errback, force_peers=None):
+        try:
+            responses = []
+            futures = [
+                peer.RPC('blockchain.address.get_history', scripthash)
+                for peer in self._pick_peers(force_peers=force_peers)
+            ]
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+            return callback(responses)
+        except Exception as e:
+            return errback and errback(e)
 
-if __name__ == '__main__':
-    from spruned.service.electrum.headers import HeadersRepository
-    class coin():
-        value = 1
-    client = ConnectrumClient(coin)
-    client.set_headers_repository(HeadersRepository)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(client.start())
+    async def getblockheaders_chunk(self, chunks_index: int, callback, errback, force_peers=None):
+        try:
+            responses = []
+            futures = [
+                peer.RPC('blockchain.address.get_chunk', chunks_index)
+                for peer in self._pick_peers(force_peers=force_peers)
+            ]
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+            return callback(responses)
+        except Exception as e:
+            return errback and errback(e)
+
+    async def getblockheader(self, scripthash: str, callback, errback, force_peers=None):
+        try:
+            responses = []
+            futures = [
+                peer.RPC('blockchain.block.get_header', scripthash)
+                for peer in self._pick_peers(force_peers=force_peers)
+            ]
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+            return callback(responses)
+        except Exception as e:
+            return errback and errback(e)
