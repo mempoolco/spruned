@@ -34,7 +34,7 @@ class ConnectrumService(RPCAPIService):
             self._client_instance = self._reactor
             self._thread = threading.Thread(
                 target=self._client_instance.loop.run_until_complete, args=[
-                    self._client_instance.connect(
+                    self._client_instance.start(
                         self._cmd_queue,
                         self._res_queue,
                         self._status_queue,

@@ -18,11 +18,11 @@ MIN_DATA_SOURCES = 1
 
 
 # secrets
-BITCOIND_URL = os.getenv('BITCOIND_URL').encode()
-BITCOIND_USER = os.getenv('BITCOIND_USER').encode()
-BITCOIND_PASS = os.getenv('BITCOIND_PASS').encode()
-BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')
-BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
+#BITCOIND_URL = os.getenv('BITCOIND_URL').encode()
+#BITCOIND_USER = os.getenv('BITCOIND_USER').encode()
+#BITCOIND_PASS = os.getenv('BITCOIND_PASS').encode()
+#BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')
+#BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
 
 # files

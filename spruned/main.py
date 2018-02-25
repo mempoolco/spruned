@@ -62,7 +62,7 @@ if __name__ == '__main__':
         electrum_service and electrum_service.connect()
         print(service.getrawtransaction('991789bbe7f09bb06d5539b0aae6e194e4f09e42819861c81bee1d81e2021a8d', verbose=1))
         blockhash = "0000000000000000000e5b215c3b4704fcc7b9c8b1eccbcad1251061f20b91a8"
-        blockhash = "00000000000000000029b786fd3da3c2859a9be4807104d7e80112cdd5a33407"
+        blockhash = "0000000000000000000612c2915991d1ed779380bbfacd8082cd24bb588861b9"
         block = service.getblock(blockhash)
         while 1:
             block = service.getblock(blockhash)

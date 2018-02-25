@@ -105,14 +105,15 @@ ELECTRUM_SERVERS = [
 ]
 
 
-class ConnectrumClient():
+class ConnectrumClient:
     def __init__(
             self,
             coin,
             loop=None,
             concurrency=1,
             max_retries_on_discordancy=3,
-            connections_concurrency_ratio=3):
+            connections_concurrency_ratio=3
+    ):
         self.loop = loop or asyncio.get_event_loop()
         assert coin.value == 1
         self._peers = []
@@ -125,6 +126,10 @@ class ConnectrumClient():
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
+        self._headers = None
+
+    def set_headers_repository(self, headers_repository):
+        self._headers = headers_repository(self)
 
     async def _resolve_cmd(self, command_artifact, retry=0):
         Logger.electrum.debug('ConnectrumClient - resolve_cmd, command: %s (retry: %s)', command_artifact, retry)
@@ -134,7 +139,8 @@ class ConnectrumClient():
             'die': self._electrum_disconnect,
             'getrawtransaction': self._electrum_getrawtransaction,
             'getaddresshistory': self._electrum_getaddresshistory,
-            'getblockheader': self._electrum_getblockheader
+            'getblockheader': self._electrum_getblockheader,
+            'getheaderschunk': self._electrum_getblockheaders_chunk
         }
         responses = []
         await cmds[command_artifact['cmd']](*command_artifact['args'], responses)
@@ -154,7 +160,32 @@ class ConnectrumClient():
     def _electrum_disconnect(self):
         self._keepalive = False
 
-    async def connect(self, cmdq, resq, statusq):
+    async def _connect_to_servers(self):
+        _server = None
+        i = 0
+        while not _server:
+            i += 1
+            _server = random.choice(ELECTRUM_SERVERS)
+            _server = _server not in self.blacklisted and _server or None
+            assert i < 50
+
+        _server_info = ServerInfo(
+            binascii.hexlify(os.urandom(6)).decode(),
+            _server[0],
+            _server[1]
+        )
+        try:
+            conn = StratumClient()
+            with timeout(1):
+                await conn.connect(_server_info, disable_cert_verify=True)
+                banner = await conn.RPC('server.banner')
+                banner and self._peers.append(conn)
+                self._update_status('p, %s' % len(self._peers))
+                Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
+        except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
+            self.blacklisted.append(_server)
+
+    async def start(self, cmdq, resq, statusq):
         Logger.electrum.debug('ConnectrumClient - connect')
         self._status_queue = statusq
         self._update_status('s')
@@ -165,29 +196,11 @@ class ConnectrumClient():
                 break
 
             if len(self._peers) < self.concurrency * self._connections_concurrency_ratio:
-                _server = None
-                i = 0
-                while not _server:
-                    i += 1
-                    _server = random.choice(ELECTRUM_SERVERS)
-                    _server = _server not in self.blacklisted and _server or None
-                    assert i < 50
-
-                _server_info = ServerInfo(
-                    binascii.hexlify(os.urandom(6)).decode(),
-                    _server[0],
-                    _server[1]
-                )
-                try:
-                    conn = StratumClient()
-                    with timeout(1):
-                        await conn.connect(_server_info, disable_cert_verify=True)
-                        banner = await conn.RPC('server.banner')
-                        banner and self._peers.append(conn)
-                        self._update_status('p, %s' % len(self._peers))
-                        Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
-                except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
-                    self.blacklisted.append(_server)
+                await self._connect_to_servers()
+            elif self._headers and not self._headers.aligned:
+                await self._headers.align()
+                self._update_status('h')
+                continue
             else:
                 self._update_status('c, %s' % len(self._peers))
             try:
@@ -231,6 +244,16 @@ class ConnectrumClient():
         except ElectrumErrorResponse as e:
             return
 
+    async def _electrum_getblockheaders_chunk(self, chunks_index: int, responses):
+        futures = [
+            peer.RPC('blockchain.address.get_chunk', chunks_index) for peer in self._pick_peers()
+        ]
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse as e:
+            return
+
     async def _electrum_getblockheader(self, scripthash: str, responses):
         futures = [
             peer.RPC('blockchain.block.get_header', scripthash) for peer in self._pick_peers()
@@ -238,28 +261,23 @@ class ConnectrumClient():
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
 
-    def _call(self, payload):
-        self._cmd_queue.put(payload, timeout=2)
-        try:
-            response = self._res_queue.get(timeout=5)
-        except queue.Empty:
-            return
-        if response.get('error'):
-            return
-        return response
+    async def _get_best_header(self):
+        responses = []
+        futures = [
+            peer.RPC('blockchain.headers.subscribe') for peer in self._pick_peers()
+        ]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
 
-    def _get_address_history(self, address):
-        payload = {
-            'cmd': 'getaddresshistory',
-            'args': [address]
-        }
-        response = self._call(payload)
-        return response
 
-    def _get_block_header(self, height: int):
-        payload = {
-            'cmd': 'getblockheader',
-            'args': [height]
-        }
-        response = self._call(payload)
-        return response
+if __name__ == '__main__':
+    from spruned.service.electrum.headers import HeadersRepository
+    class coin():
+        value = 1
+    client = ConnectrumClient(coin)
+    client.set_headers_repository(HeadersRepository)
+    q1 = queue.Queue()
+    q2 = queue.Queue()
+    q3 = queue.Queue()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(client.start(q1, q2, q3))
