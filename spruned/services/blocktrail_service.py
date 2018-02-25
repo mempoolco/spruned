@@ -1,6 +1,6 @@
 from spruned import settings
-from spruned.service.abstract import RPCAPIService
-from spruned.third_party.http_client import HTTPClient
+from spruned.abstracts import RPCAPIService
+from spruned.services.http_client import HTTPClient
 
 
 class BlocktrailService(RPCAPIService):

@@ -1,5 +1,5 @@
 import requests
-from spruned.service.abstract import RPCAPIService
+from spruned.abstracts import RPCAPIService
 from spruned import settings
 
 

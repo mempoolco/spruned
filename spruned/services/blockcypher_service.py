@@ -1,10 +1,8 @@
-import bitcoin
-import struct
 from spruned import settings
-from spruned.service.abstract import RPCAPIService
+from spruned.abstracts import RPCAPIService
 from datetime import datetime
 import time
-from spruned.third_party.http_client import HTTPClient
+from spruned.services.http_client import HTTPClient
 from spruned.tools import normalize_transaction
 
 

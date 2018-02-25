@@ -1,6 +1,4 @@
 import asyncio
-import queue
-import time
 from async_timeout import timeout
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
@@ -120,9 +118,6 @@ class ConnectrumClient:
         self.concurrency = concurrency
         self.blacklisted = []
         self._keepalive = True
-        self._cmd_queue = None  # type: queue.Queue
-        self._res_queue = None  # type: queue.Queue
-        self._status_queue = None  # type: queue.Queue
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
@@ -131,6 +126,7 @@ class ConnectrumClient:
     def set_headers_repository(self, headers_repository):
         self._headers = headers_repository(self)
 
+    """
     async def _resolve_cmd(self, command_artifact, retry=0):
         Logger.electrum.debug('ConnectrumClient - resolve_cmd, command: %s (retry: %s)', command_artifact, retry)
         if retry >= self._max_retries_on_discordancy:
@@ -149,18 +145,15 @@ class ConnectrumClient:
                 Logger.electrum.debug('ConnectrumClient - resolve_cmd, response: %s', response)
                 return response
         return self._resolve_cmd(command_artifact, retry + 1)
+    """
 
     def _update_status(self, status):
-        if status != self._current_status:
-            Logger.electrum.debug('ConnectrumClient - update_status (old: %s, new %s)', self._current_status, status)
-            self._status_queue.queue.clear()
-            self._status_queue.put_nowait(status)
-            self._current_status = status
+        self._current_status = status
 
     def _electrum_disconnect(self):
         self._keepalive = False
 
-    async def _connect_to_servers(self):
+    async def _connect_to_server(self):
         _server = None
         i = 0
         while not _server:
@@ -180,39 +173,23 @@ class ConnectrumClient:
                 await conn.connect(_server_info, disable_cert_verify=True)
                 banner = await conn.RPC('server.banner')
                 banner and self._peers.append(conn)
-                self._update_status('p, %s' % len(self._peers))
+                self._update_status('connecting, %s' % len(self._peers))
                 Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
             self.blacklisted.append(_server)
 
-    async def start(self, cmdq, resq, statusq):
+    async def start(self):
         Logger.electrum.debug('ConnectrumClient - connect')
-        self._status_queue = statusq
-        self._update_status('s')
+        self._update_status('stopped')
         while 1:
             if not self._keepalive:
                 for peer in self._peers:
                     peer.close()
                 break
-
             if len(self._peers) < self.concurrency * self._connections_concurrency_ratio:
-                await self._connect_to_servers()
-            elif self._headers and not self._headers.aligned:
-                await self._headers.align()
-                self._update_status('h')
-                continue
+                await self._connect_to_server()
             else:
-                self._update_status('c, %s' % len(self._peers))
-            try:
-                cmd = cmdq.get_nowait()
-                if cmd:
-                    try:
-                        response = await self._resolve_cmd(cmd)
-                        resq.put({'response': response}, timeout=3)
-                    except RecursionError as e:
-                        resq.put({'error': str(e)}, timeout=3)
-            except queue.Empty:
-                time.sleep(0.05)
+                self._update_status('connected, %s' % len(self._peers))
 
     def _pick_peers(self):
         i = 0
@@ -276,8 +253,5 @@ if __name__ == '__main__':
         value = 1
     client = ConnectrumClient(coin)
     client.set_headers_repository(HeadersRepository)
-    q1 = queue.Queue()
-    q2 = queue.Queue()
-    q3 = queue.Queue()
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(client.start(q1, q2, q3))
+    loop.run_until_complete(client.start())

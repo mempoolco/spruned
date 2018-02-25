@@ -1,7 +1,7 @@
 import queue
 import threading
 import time
-from spruned.service.abstract import RPCAPIService
+from spruned.abstracts import RPCAPIService
 import retrying
 from spruned.logging_factory import Logger
 
