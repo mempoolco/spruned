@@ -8,6 +8,10 @@ class Network(Enum):
     BITCOIN_TESTNET = 2
 
 
+# bitcoin
+GENESIS_BLOCK = '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f'
+
+
 # application
 DEBUG = True
 TESTNET = 0
@@ -30,6 +34,7 @@ FILE_DIRECTORY = '%s/.spruned' % Path.home()
 CACHE_ADDRESS = '%s/cache/' % FILE_DIRECTORY
 STORAGE_ADDRESS = '%s/storage/' % FILE_DIRECTORY
 LOGFILE = '%s/spruned.log' % FILE_DIRECTORY
+SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
 
 
 # electrum

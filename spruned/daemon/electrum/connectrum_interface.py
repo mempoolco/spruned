@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 import async_timeout
 from async_timeout import timeout
@@ -7,8 +8,10 @@ from connectrum.svr_info import ServerInfo
 import random
 import binascii
 import os
+from spruned import settings
+from spruned.abstracts import HeadersRepository
 from spruned.logging_factory import Logger
-
+from spruned.tools import blockheader_to_blockhash, deserialize_header
 
 ELECTRUM_SERVERS = [
     ["134.119.179.55", "s"],
@@ -104,17 +107,15 @@ ELECTRUM_SERVERS = [
 ]
 
 
+def get_chunks_range(local_height, network_height):
+    local_height = local_height
+    while local_height % 2016:
+        local_height = local_height - 1
+    return range(local_height // 2016, network_height // 2016)
+
+
 class ConnectrumInterface:
-    def __init__(
-            self,
-            coin,
-            app,
-            loop=None,
-            concurrency=1,
-            max_retries_on_discordancy=3,
-            connections_concurrency_ratio=3,
-    ):
-        self.loop = loop or asyncio.get_event_loop()
+    def __init__(self, coin, app, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
         assert coin.value == 1
         self._peers = []
         self.concurrency = concurrency
@@ -123,11 +124,12 @@ class ConnectrumInterface:
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
-        self._headers_observers = []
+        self._repo = None  # type: HeadersRepository
         self.app = app  # type: 'web.Application'
+        self.lock = asyncio.Lock()
 
-    def add_headers_observer(self, headers_observer):
-        self._headers_observers.append(headers_observer)
+    def add_headers_repository(self, headers_repository: HeadersRepository):
+        self._repo = headers_repository
 
     def _update_status(self, status):
         self._current_status = status
@@ -135,8 +137,9 @@ class ConnectrumInterface:
     def _electrum_disconnect(self):
         self._keepalive = False
 
-    def _evaluate_peer_best_height(self, current_best_height):
-        print('Received best height: %s' % current_best_height)
+    async def _evaluate_peer_best_header(self, current_best_network_header):
+        print('Received best height: %s' % current_best_network_header)
+        await self._handle_header(current_best_network_header)
 
     async def _connect_to_server(self):
         _server = None
@@ -167,28 +170,67 @@ class ConnectrumInterface:
     async def _subscribe_headers(self, connection: StratumClient):
         future, Q = connection.subscribe('blockchain.headers.subscribe')
         best_header = await future
-        for observer in self._headers_observers:
-            observer.on_best_header(best_header)
+        await self._handle_header(best_header)
 
         while 1:
             best_header = await Q.get()
             Logger.electrum.debug('New best header: %s', best_header)
-            for observer in self._headers_observers:
-                observer.on_best_header(best_header)
+            await self._handle_header(best_header[0])
+
+    async def _handle_header(self, header):
+        data = self._repo.get_best_header()
+        local_best_height, local_best_hash = None, None
+        if data:
+            local_best_height, local_best_hash = data['block_height'], data['block_hash']
+        if not local_best_height or local_best_height < header['block_height'] - 1:
+            await self._build_headers_chain(local_best_height)
+        elif local_best_height == header['block_height'] - 1:
+            await self._handle_new_best_header(header)
+        elif local_best_height == header['block_height']:
+            if local_best_hash == blockheader_to_blockhash(header):
+                pass
+            else:
+                await self._handle_headers_inconsistency()
+
+
+    def _save_header(self, x, i, header_hex):
+        block_height = x * 2016 + i
+        blockhash_from_header = blockheader_to_blockhash(header_hex)
+        if block_height == 0:
+            assert blockhash_from_header == settings.GENESIS_BLOCK
+        header_data = deserialize_header(header_hex)
+        self._repo.save_header(
+            blockhash_from_header, block_height, binascii.unhexlify(header_hex), header_data['prevhash']
+        )
+
+    async def _build_headers_chain(self, local_best_height):
+        local_best_height = local_best_height or 0
+        for x in get_chunks_range(local_best_height, local_best_height+2016):
+            print('build headers chain, blocks between %s and %s' % (x*2016, x*2016+2016))
+            data = await self.getblockheaders_chunk(x, force_peers=1)
+            header = data and data[0]
+            if not header:
+                raise ValueError
+            for i, header_hex in enumerate([header[i:i+160] for i in range(0, len(header), 160)]):
+                self._save_header(x, i, header_hex)
 
     async def _ping_peer(self, peer):
         try:
-            with async_timeout.timeout(1) as t:
-                current_best_height = await asyncio.gather(peer.RPC('blockchain.headers.subscribe'))
-                self._evaluate_peer_best_height(current_best_height)
+            with async_timeout.timeout(1):
+                current_best_header = await asyncio.gather(peer.RPC('blockchain.headers.subscribe'))
+                await self._evaluate_peer_best_header(current_best_header[0])
         except asyncio.TimeoutError:
+            Logger.electrum.warning('Peer timeout, disconnecting')
             self._peers = [p for p in self._peers if p != peer]
 
     async def _keep_connections(self):
         while 1:
             if not self._keepalive:
                 for peer in self._peers:
-                    peer.close()
+                    try:
+                        peer.close()
+                    except Exception:
+                        Logger.electrum.exception('Error disconnecting from peer')
                 break
             if len(self._peers) < self.concurrency * self._connections_concurrency_ratio:
                 await self._connect_to_server()
@@ -243,7 +285,7 @@ class ConnectrumInterface:
     async def getblockheaders_chunk(self, chunks_index: int, force_peers=None):
         responses = []
         futures = [
-            peer.RPC('blockchain.address.get_chunk', chunks_index)
+            peer.RPC('blockchain.block.get_chunk', chunks_index)
             for peer in self._pick_peers(force_peers=force_peers)
         ]
         for response in await asyncio.gather(*futures):

@@ -1,16 +1,17 @@
 import asyncio
 from aiohttp import web
 from aiohttp.web import Response
+from spruned.abstracts import HeadersRepository
 from spruned.daemon.electrum.connectrum_interface import ConnectrumInterface
 from spruned.daemon.electrum.headers_repository import HeadersSQLiteRepository
-from spruned.daemon.electrum.headers_observer import HeadersObserver
 from spruned import settings
+from spruned.daemon import database
 
 
 class ConnectrumReactor:
-    def __init__(self, headers_repository, connectrum_interface, app):
+    def __init__(self, repo: HeadersRepository, connectrum_interface, app):
         self.app = app
-        self.headers_repository = headers_repository
+        self.repo = repo
         self.connectrum_interface = connectrum_interface
         self.set_routes()
 
@@ -46,10 +47,9 @@ class ConnectrumReactor:
 
 
 if __name__ == '__main__':
-    headers_repository = HeadersSQLiteRepository()
-    headers_observer = HeadersObserver(headers_repository)
+    headers_repository = HeadersSQLiteRepository(database.session)
     app = web.Application(loop=asyncio.get_event_loop())
     interface = ConnectrumInterface(settings.NETWORK, app)
-    interface.add_headers_observer(headers_observer)
+    interface.add_headers_repository(headers_repository)
     reactor = ConnectrumReactor(headers_repository, interface, app)
     reactor.start()

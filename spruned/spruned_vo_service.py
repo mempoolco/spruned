@@ -3,7 +3,7 @@ import functools
 import json
 import typing
 import random
-from spruned.service.abstract import RPCAPIService, StorageInterface
+from spruned.abstracts import RPCAPIService, StorageInterface
 import asyncio
 import concurrent.futures
 from spruned.service.electrum.connectrum_service import ConnectrumService

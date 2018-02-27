@@ -1,12 +1,21 @@
-class HeadersSQLiteRepository:
-    def __init__(self):
-        pass
+from spruned.abstracts import HeadersRepository
+from spruned.daemon import database
 
-    def get_best_height(self):
-        pass
 
-    def get_best_hash(self):
-        pass
+class HeadersSQLiteRepository(HeadersRepository):
+    def __init__(self, session):
+        self.session = session
+
+    def get_best_header(self):
+        session = self.session()
+        res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
+        res = res and {
+            'block_height': res.blockheight,
+            'block_hash': res.blockhash,
+            'data': res.data
+        }
+        print('Best header requested, res: %s' % res)
+        return res
 
     def get_header_at_height(self, height: int):
         pass
@@ -14,8 +23,25 @@ class HeadersSQLiteRepository:
     def get_header_for_hash(self, blockhash: str):
         pass
 
-    def save_header(self, data: dict):
-        pass
+    def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
+        session = self.session()
 
-    def delete_headers_from_height(self, height: int):
-        pass
+        def _save():
+            try:
+                model = database.Header(blockhash=blockhash, blockheight=blockheight, data=headerbytes)
+                session.add(model)
+                session.flush()
+                session.commit()
+            finally:
+                session.close()
+        if blockheight == 0:
+            _save()
+        else:
+            existing = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
+            if existing:
+                assert existing.blockhash == blockhash
+                return
+
+            prev_block = session.query(database.Header).filter_by(blockheight=blockheight-1).one()
+            assert prev_block.blockhash == prev_block_hash
+            _save()
