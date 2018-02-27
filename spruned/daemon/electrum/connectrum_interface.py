@@ -1,7 +1,9 @@
 import asyncio
 
 import async_timeout
+import bitcoin
 from async_timeout import timeout
+from bitcoin import serialize_header
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
@@ -10,6 +12,7 @@ import binascii
 import os
 from spruned import settings
 from spruned.abstracts import HeadersRepository
+from spruned.daemon import database
 from spruned.logging_factory import Logger
 from spruned.tools import blockheader_to_blockhash, deserialize_header
 
@@ -182,7 +185,7 @@ class ConnectrumInterface:
             Logger.electrum.debug('New best header: %s', best_header)
             await self._handle_header(best_header[0])
 
-    async def _handle_header(self, header):
+    async def _handle_header(self, header: dict):
         await self.lock.acquire()
         try:
             data = self._repo.get_best_header()
@@ -194,7 +197,9 @@ class ConnectrumInterface:
             elif local_best_height == header['block_height'] - 1:
                 await self._handle_new_best_header(header)
             elif local_best_height == header['block_height']:
-                if local_best_hash == blockheader_to_blockhash(header):
+                serialized_header_bytes = binascii.unhexlify(serialize_header(header))
+                blockhash = binascii.hexlify(bitcoin.sha256(serialized_header_bytes)).decode()
+                if local_best_hash == blockhash:
                     pass
                 else:
                     await self._handle_headers_inconsistency()
@@ -211,17 +216,18 @@ class ConnectrumInterface:
             blockhash_from_header, block_height, binascii.unhexlify(header_hex), header_data['prevhash']
         )
 
+    @database.atomic
     async def _build_headers_chain(self, local_best_height, network_height):
         local_best_height = local_best_height or 0
-        for x in get_chunks_range(local_best_height, network_height):
-            print('build headers chain, blocks between %s and %s' % (x*2016, network_height))
-            data = await self.getblockheaders_chunk(x, force_peers=1)
+        for chunk_index in get_chunks_range(local_best_height, local_best_height+4032):
+            print('build headers chain, blocks between %s and %s' % (chunk_index*2016, network_height))
+            data = await self.getblockheaders_chunk(chunk_index, force_peers=1)
             header = data and data[0]
             if not header:
                 return
+            print('Saving 2016 blocks from %s' % (chunk_index * 2016))
             for i, header_hex in enumerate([header[i:i+160] for i in range(0, len(header), 160)]):
-                print('Saving block %s' % (x*2016 + i))
-                self._save_header(x, i, header_hex)
+                self._save_header(chunk_index, i, header_hex)
 
     async def _ping_peer(self, peer):
         try:
@@ -277,8 +283,11 @@ class ConnectrumInterface:
             peer.RPC('blockchain.transaction.get', txid)
             for peer in self._pick_peers(force_peers=force_peers)
         ]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse:
+            return []
         return responses
 
     async def getaddresshistory(self, scripthash: str, force_peers=None):
@@ -287,8 +296,11 @@ class ConnectrumInterface:
             peer.RPC('blockchain.address.get_history', scripthash)
             for peer in self._pick_peers(force_peers=force_peers)
         ]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse:
+            return []
         return responses
 
     async def getblockheaders_chunk(self, chunks_index: int, force_peers=None):
@@ -310,6 +322,9 @@ class ConnectrumInterface:
             peer.RPC('blockchain.block.get_header', scripthash)
             for peer in self._pick_peers(force_peers=force_peers)
         ]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse:
+            return []
         return responses

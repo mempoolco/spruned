@@ -23,18 +23,15 @@ class HeadersSQLiteRepository(HeadersRepository):
     def get_header_for_hash(self, blockhash: str):
         pass
 
+    @database.atomic
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
         # FIXME - Saving is a bit intensive. Find transactional points.
         session = self.session()
 
         def _save():
-            try:
-                model = database.Header(blockhash=blockhash, blockheight=blockheight, data=headerbytes)
-                session.add(model)
-                session.flush()
-                session.commit()
-            finally:
-                session.close()
+            model = database.Header(blockhash=blockhash, blockheight=blockheight, data=headerbytes)
+            session.add(model)
+            session.flush()
 
         existing = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
         if existing:

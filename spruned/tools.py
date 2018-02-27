@@ -1,6 +1,6 @@
 import hashlib
 import binascii
-from bitcoin import deserialize, serialize, decode, bin_sha256
+from bitcoin import deserialize, serialize, decode, bin_sha256, encode
 
 
 def normalize_transaction(tx):
@@ -41,3 +41,16 @@ def deserialize_header(header):
         data['merkle_root'] = binascii.hexlify(data['merkle_root']).decode()
         data['hash'] = binascii.hexlify(data['hash']).decode()
     return data
+
+
+def serialize_header(inp):
+    o = encode(inp['version'], 256, 4)[::-1] + \
+        binascii.unhexlify(inp['prevhash'])[::-1] + \
+        binascii.unhexlify(inp['merkle_root'])[::-1] + \
+        encode(inp['timestamp'], 256, 4)[::-1] + \
+        encode(inp['bits'], 256, 4)[::-1] + \
+        encode(inp['nonce'], 256, 4)[::-1]
+    h = binascii.hexlify(bin_sha256(bin_sha256(o))[::-1]).decode()
+    assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
+    return binascii.hexlify(o).decode()
+
