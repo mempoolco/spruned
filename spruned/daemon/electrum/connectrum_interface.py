@@ -1,8 +1,8 @@
 import asyncio
-import threading
 
 import async_timeout
 from async_timeout import timeout
+from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 import random
@@ -103,15 +103,20 @@ ELECTRUM_SERVERS = [
     ["us01.hamster.science", "s"],
     ["v25437.1blu.de", "s"],
     ["vps-m-01.donsomhong.net", "s"],
-    ["walle.dedyn.io", "s"]
+    ["walle.dedyn.io", "s"],
+    ["ecdsa.net", "s"],
+    ["erbium1.sytes.net", "s"],
+    ["gh05.geekhosters.com", "s"]
 ]
 
 
-def get_chunks_range(local_height, network_height):
-    local_height = local_height
+def get_chunks_range(local_height, final_height):
+    local_height = local_height + 1
+    final_height = final_height + 1
     while local_height % 2016:
         local_height = local_height - 1
-    return range(local_height // 2016, network_height // 2016)
+    res = range(local_height // 2016, final_height // 2016)
+    return res
 
 
 class ConnectrumInterface:
@@ -178,20 +183,23 @@ class ConnectrumInterface:
             await self._handle_header(best_header[0])
 
     async def _handle_header(self, header):
-        data = self._repo.get_best_header()
-        local_best_height, local_best_hash = None, None
-        if data:
-            local_best_height, local_best_hash = data['block_height'], data['block_hash']
-        if not local_best_height or local_best_height < header['block_height'] - 1:
-            await self._build_headers_chain(local_best_height)
-        elif local_best_height == header['block_height'] - 1:
-            await self._handle_new_best_header(header)
-        elif local_best_height == header['block_height']:
-            if local_best_hash == blockheader_to_blockhash(header):
-                pass
-            else:
-                await self._handle_headers_inconsistency()
-
+        await self.lock.acquire()
+        try:
+            data = self._repo.get_best_header()
+            local_best_height, local_best_hash = None, None
+            if data:
+                local_best_height, local_best_hash = data['block_height'], data['block_hash']
+            if not local_best_height or local_best_height < header['block_height'] - 1:
+                await self._build_headers_chain(local_best_height, header['block_height'])
+            elif local_best_height == header['block_height'] - 1:
+                await self._handle_new_best_header(header)
+            elif local_best_height == header['block_height']:
+                if local_best_hash == blockheader_to_blockhash(header):
+                    pass
+                else:
+                    await self._handle_headers_inconsistency()
+        finally:
+            self.lock.release()
 
     def _save_header(self, x, i, header_hex):
         block_height = x * 2016 + i
@@ -203,15 +211,16 @@ class ConnectrumInterface:
             blockhash_from_header, block_height, binascii.unhexlify(header_hex), header_data['prevhash']
         )
 
-    async def _build_headers_chain(self, local_best_height):
+    async def _build_headers_chain(self, local_best_height, network_height):
         local_best_height = local_best_height or 0
-        for x in get_chunks_range(local_best_height, local_best_height+2016):
-            print('build headers chain, blocks between %s and %s' % (x*2016, x*2016+2016))
+        for x in get_chunks_range(local_best_height, network_height):
+            print('build headers chain, blocks between %s and %s' % (x*2016, network_height))
             data = await self.getblockheaders_chunk(x, force_peers=1)
             header = data and data[0]
             if not header:
-                raise ValueError
+                return
             for i, header_hex in enumerate([header[i:i+160] for i in range(0, len(header), 160)]):
+                print('Saving block %s' % (x*2016 + i))
                 self._save_header(x, i, header_hex)
 
     async def _ping_peer(self, peer):
@@ -288,8 +297,11 @@ class ConnectrumInterface:
             peer.RPC('blockchain.block.get_chunk', chunks_index)
             for peer in self._pick_peers(force_peers=force_peers)
         ]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse:
+            return []
         return responses
 
     async def getblockheader(self, scripthash: str, force_peers=None):

@@ -24,6 +24,7 @@ class HeadersSQLiteRepository(HeadersRepository):
         pass
 
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
+        # FIXME - Saving is a bit intensive. Find transactional points.
         session = self.session()
 
         def _save():
@@ -34,14 +35,14 @@ class HeadersSQLiteRepository(HeadersRepository):
                 session.commit()
             finally:
                 session.close()
+
+        existing = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
+        if existing:
+            assert existing.blockhash == blockhash
+            return
         if blockheight == 0:
             _save()
         else:
-            existing = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
-            if existing:
-                assert existing.blockhash == blockhash
-                return
-
             prev_block = session.query(database.Header).filter_by(blockheight=blockheight-1).one()
             assert prev_block.blockhash == prev_block_hash
             _save()

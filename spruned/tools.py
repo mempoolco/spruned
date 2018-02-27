@@ -1,7 +1,4 @@
-import asyncio
 import hashlib
-from functools import wraps
-
 import binascii
 from bitcoin import deserialize, serialize, decode, bin_sha256
 
@@ -13,17 +10,6 @@ def normalize_transaction(tx):
         if vin.get('txinwitness', '0'*64) == '0'*64:
             _tx['ins'][i]['txinwitness'] = ''
     return serialize(_tx)
-
-
-def locked(fun):
-    @wraps(fun)
-    def decorator(*a, **kw):
-        print('locking')
-        try:
-            return fun(*a, **kw)
-        finally:
-            lock.release()
-    return decorator
 
 
 def blockheader_to_blockhash(header: (bytes, str)) -> (bytes, str):
