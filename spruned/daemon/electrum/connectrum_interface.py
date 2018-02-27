@@ -203,7 +203,7 @@ class ConnectrumInterface:
             if data:
                 local_best_height, local_best_hash = data['block_height'], data['block_hash']
             if not local_best_height or local_best_height < header['block_height'] - 1:
-                await self._build_headers_chain(local_best_height, header['block_height'])
+                await self._fetch_headers_chunks(local_best_height, header['block_height'])
             elif local_best_height == header['block_height'] - 1:
                 await self._handle_new_best_header(header)
             elif local_best_height == header['block_height']:
@@ -220,7 +220,7 @@ class ConnectrumInterface:
     async def _handle_headers_inconsistency(self, local_best_height: int):
         restart_from = local_best_height - (2016*2)
         self._repo.remove_headers_since_height(restart_from)
-        await self._build_headers_chain(restart_from, restart_from + 2016*3)
+        await self._fetch_headers_chunks(restart_from, restart_from + 2016 * 3)
 
     def _save_header(self, x, i, header_hex):
         block_height = x * 2016 + i
@@ -233,7 +233,7 @@ class ConnectrumInterface:
         )
 
     @database.atomic
-    async def _build_headers_chain(self, local_best_height, network_height):
+    async def _fetch_headers_chunks(self, local_best_height, network_height):
         local_best_height = local_best_height or 0
         for chunk_index in get_chunks_range(local_best_height, local_best_height+4032):
             print('build headers chain, blocks between %s and %s' % (chunk_index*2016, network_height))
