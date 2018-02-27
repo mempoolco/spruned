@@ -43,3 +43,10 @@ class HeadersSQLiteRepository(HeadersRepository):
             prev_block = session.query(database.Header).filter_by(blockheight=blockheight-1).one()
             assert prev_block.blockhash == prev_block_hash
             _save()
+
+    @database.atomic
+    def remove_headers_since_height(self, blockheight: int):
+        session = self.session()
+        headers = session.query(database.Header).filter(database.Header.blockheight >= blockheight).all()
+        _ = (session.delete(header) for header in headers)
+        return True

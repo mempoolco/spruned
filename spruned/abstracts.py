@@ -46,3 +46,8 @@ class HeadersRepository(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
         pass  # pragma: no cover
+
+    @abc.abstractmethod
+    def remove_headers_since_height(self, blockheight: int):
+        pass  # pragma: no cover
+

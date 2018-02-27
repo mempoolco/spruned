@@ -3,7 +3,6 @@ import asyncio
 import async_timeout
 import bitcoin
 from async_timeout import timeout
-from bitcoin import serialize_header
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
@@ -14,7 +13,7 @@ from spruned import settings
 from spruned.abstracts import HeadersRepository
 from spruned.daemon import database
 from spruned.logging_factory import Logger
-from spruned.tools import blockheader_to_blockhash, deserialize_header
+from spruned.tools import blockheader_to_blockhash, deserialize_header, serialize_header
 
 ELECTRUM_SERVERS = [
     ["134.119.179.55", "s"],
@@ -185,6 +184,17 @@ class ConnectrumInterface:
             Logger.electrum.debug('New best header: %s', best_header)
             await self._handle_header(best_header[0])
 
+    @database.atomic
+    async def _handle_new_best_header(self, header):
+        block_height = header.pop('block_height')
+        header_hex = serialize_header(header)
+        self._repo.save_header(
+            blockheader_to_blockhash(header_hex),
+            block_height,
+            binascii.unhexlify(header_hex),
+            header['prev_block_hash']
+        )
+
     async def _handle_header(self, header: dict):
         await self.lock.acquire()
         try:
@@ -197,14 +207,20 @@ class ConnectrumInterface:
             elif local_best_height == header['block_height'] - 1:
                 await self._handle_new_best_header(header)
             elif local_best_height == header['block_height']:
-                serialized_header_bytes = binascii.unhexlify(serialize_header(header))
-                blockhash = binascii.hexlify(bitcoin.sha256(serialized_header_bytes)).decode()
+                serialized = serialize_header(header)
+                blockhash = blockheader_to_blockhash(serialized)
                 if local_best_hash == blockhash:
                     pass
                 else:
-                    await self._handle_headers_inconsistency()
+                    await self._handle_headers_inconsistency(local_best_height)
         finally:
             self.lock.release()
+
+    @database.atomic
+    async def _handle_headers_inconsistency(self, local_best_height: int):
+        restart_from = local_best_height - (2016*2)
+        self._repo.remove_headers_since_height(restart_from)
+        await self._build_headers_chain(restart_from, restart_from + 2016*3)
 
     def _save_header(self, x, i, header_hex):
         block_height = x * 2016 + i
@@ -213,7 +229,7 @@ class ConnectrumInterface:
             assert blockhash_from_header == settings.GENESIS_BLOCK
         header_data = deserialize_header(header_hex)
         self._repo.save_header(
-            blockhash_from_header, block_height, binascii.unhexlify(header_hex), header_data['prevhash']
+            blockhash_from_header, block_height, binascii.unhexlify(header_hex), header_data['prev_block_hash']
         )
 
     @database.atomic

@@ -29,7 +29,7 @@ def deserialize_header(header):
         h, fmt = binascii.unhexlify(header.encode()), 'hex'
     data = {
         "version": decode(h[:4][::-1], 256),
-        "prevhash": h[4:36][::-1],
+        "prev_block_hash": h[4:36][::-1],
         "merkle_root": h[36:68][::-1],
         "timestamp": decode(h[68:72][::-1], 256),
         "bits": decode(h[72:76][::-1], 256),
@@ -37,7 +37,7 @@ def deserialize_header(header):
         "hash": bin_sha256(bin_sha256(h))[::-1]
     }
     if fmt == 'hex':
-        data['prevhash'] = binascii.hexlify(data['prevhash']).decode()
+        data['prev_block_hash'] = binascii.hexlify(data['prev_block_hash']).decode()
         data['merkle_root'] = binascii.hexlify(data['merkle_root']).decode()
         data['hash'] = binascii.hexlify(data['hash']).decode()
     return data
@@ -45,12 +45,12 @@ def deserialize_header(header):
 
 def serialize_header(inp):
     o = encode(inp['version'], 256, 4)[::-1] + \
-        binascii.unhexlify(inp['prevhash'])[::-1] + \
+        binascii.unhexlify(inp['prev_block_hash'])[::-1] + \
         binascii.unhexlify(inp['merkle_root'])[::-1] + \
         encode(inp['timestamp'], 256, 4)[::-1] + \
         encode(inp['bits'], 256, 4)[::-1] + \
         encode(inp['nonce'], 256, 4)[::-1]
     h = binascii.hexlify(bin_sha256(bin_sha256(o))[::-1]).decode()
-    assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
+    if inp.get('hash'):
+        assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
     return binascii.hexlify(o).decode()
-
