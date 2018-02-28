@@ -120,7 +120,7 @@ def get_chunks_range(local_height, final_height):
     return res
 
 
-class ElectroInterface:
+class ElectrodInterface:
     def __init__(self, coin, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3, loop=None):
         assert coin.value == 1
         self._peers = []
