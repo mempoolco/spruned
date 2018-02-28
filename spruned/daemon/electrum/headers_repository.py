@@ -1,7 +1,7 @@
 from typing import List, Dict
-
+from sqlalchemy.exc import IntegrityError
 from spruned.abstracts import HeadersRepository
-from spruned.daemon import database
+from spruned.daemon import database, exceptions
 
 
 class HeadersSQLiteRepository(HeadersRepository):
@@ -33,7 +33,10 @@ class HeadersSQLiteRepository(HeadersRepository):
         def _save():
             model = database.Header(blockhash=blockhash, blockheight=blockheight, data=headerbytes)
             session.add(model)
-            session.flush()
+            try:
+                session.flush()
+            except IntegrityError:
+                raise exceptions.HeadersInconsistencyException
 
         if blockheight == 0:
             _save()
@@ -55,7 +58,10 @@ class HeadersSQLiteRepository(HeadersRepository):
                 data=header['header_bytes']
             )
             session.add(model)
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            raise exceptions.HeadersInconsistencyException
 
 
 

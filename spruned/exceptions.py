@@ -1,0 +1,2 @@
+class SprunedException(Exception):
+    pass

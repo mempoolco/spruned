@@ -6,9 +6,12 @@ from connectrum.svr_info import ServerInfo
 import random
 import binascii
 import os
+
+from sqlalchemy.exc import IntegrityError
+
 from spruned import settings
 from spruned.abstracts import HeadersRepository
-from spruned.daemon import database
+from spruned.daemon import database, exceptions
 from spruned.logging_factory import Logger
 from spruned.tools import blockheader_to_blockhash, deserialize_header, serialize_header
 
@@ -193,10 +196,10 @@ class ConnectrumInterface:
         )
 
     async def _handle_header(self, header: dict):
-        await self.lock.acquire()
+        local_best_height, local_best_hash = 0, None
         try:
+            await self.lock.acquire()
             data = self._repo.get_best_header()
-            local_best_height, local_best_hash = None, None
             if data:
                 local_best_height, local_best_hash = data['block_height'], data['block_hash']
             if not local_best_height or local_best_height < header['block_height'] - 1:
@@ -210,14 +213,20 @@ class ConnectrumInterface:
                     pass
                 else:
                     await self._handle_headers_inconsistency(local_best_height)
+        except exceptions.HeadersInconsistencyException:
+            await self._handle_headers_inconsistency(local_best_height)
+
         finally:
             self.lock.release()
 
     @database.atomic
     async def _handle_headers_inconsistency(self, local_best_height: int):
-        restart_from = local_best_height - (2016*2)
-        self._repo.remove_headers_since_height(restart_from)
-        await self._fetch_headers_chunks(restart_from, restart_from + 2016 * 3)
+        if local_best_height:
+            _best_height = local_best_height
+            while _best_height % 2016:
+                _best_height -= 1
+        _best_height = 0
+        self._repo.remove_headers_since_height(_best_height)
 
     @staticmethod
     def _parse_header(header_hex, block_height):
