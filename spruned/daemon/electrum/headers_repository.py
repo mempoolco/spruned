@@ -1,3 +1,5 @@
+from typing import List, Dict
+
 from spruned.abstracts import HeadersRepository
 from spruned.daemon import database
 
@@ -33,16 +35,31 @@ class HeadersSQLiteRepository(HeadersRepository):
             session.add(model)
             session.flush()
 
-        existing = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
-        if existing:
-            assert existing.blockhash == blockhash
-            return
         if blockheight == 0:
             _save()
         else:
             prev_block = session.query(database.Header).filter_by(blockheight=blockheight-1).one()
             assert prev_block.blockhash == prev_block_hash
             _save()
+
+    @database.atomic
+    def save_headers(self, headers: List[Dict]):
+        session = self.session()
+        for i, header in enumerate(headers):
+            if i == 0 and header['block_height'] != 0:
+                prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
+                assert prev_block.blockhash == header['prev_block_hash']
+            model = database.Header(
+                blockhash=header['block_hash'],
+                blockheight=header['block_height'],
+                data=header['header_bytes']
+            )
+            session.add(model)
+        session.flush()
+
+
+
+
 
     @database.atomic
     def remove_headers_since_height(self, blockheight: int):

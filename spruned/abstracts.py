@@ -1,4 +1,5 @@
 import abc
+from typing import List, Dict
 
 
 class RPCAPIService(metaclass=abc.ABCMeta):
@@ -50,4 +51,9 @@ class HeadersRepository(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def remove_headers_since_height(self, blockheight: int):
         pass  # pragma: no cover
+
+    @abc.abstractmethod
+    def save_headers(self, headers: List[Dict]):
+        pass  # pragma: no cover
+
 

@@ -1,7 +1,5 @@
 import asyncio
-
 import async_timeout
-import bitcoin
 from async_timeout import timeout
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
@@ -172,7 +170,7 @@ class ConnectrumInterface:
                 self.app.loop.create_task(self._subscribe_headers(conn))
                 Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
-            self.blacklisted.append(_server)
+            pass #self.blacklisted.append(_server)
 
     async def _subscribe_headers(self, connection: StratumClient):
         future, Q = connection.subscribe('blockchain.headers.subscribe')
@@ -203,7 +201,7 @@ class ConnectrumInterface:
             if data:
                 local_best_height, local_best_hash = data['block_height'], data['block_hash']
             if not local_best_height or local_best_height < header['block_height'] - 1:
-                await self._fetch_headers_chunks(local_best_height, header['block_height'])
+                await self._save_headers_chunks(local_best_height, header['block_height'])
             elif local_best_height == header['block_height'] - 1:
                 await self._handle_new_best_header(header)
             elif local_best_height == header['block_height']:
@@ -222,28 +220,54 @@ class ConnectrumInterface:
         self._repo.remove_headers_since_height(restart_from)
         await self._fetch_headers_chunks(restart_from, restart_from + 2016 * 3)
 
-    def _save_header(self, x, i, header_hex):
-        block_height = x * 2016 + i
+    @staticmethod
+    def _parse_header(header_hex, block_height):
         blockhash_from_header = blockheader_to_blockhash(header_hex)
         if block_height == 0:
             assert blockhash_from_header == settings.GENESIS_BLOCK
         header_data = deserialize_header(header_hex)
+        return {
+            'block_hash': blockhash_from_header,
+            'block_height': block_height,
+            'header_bytes': binascii.unhexlify(header_hex),
+            'prev_block_hash': header_data['prev_block_hash']
+        }
+
+    async def _fetch_headers_chunks(self, local_best_height, network_height):
+        if len(self._peers) < self.concurrency:
+            print('Skipping fetch headers, connected to %s peers, needed %s' % (len(self._peers), self.concurrency))
+            return
+
+        local_best_height = local_best_height or 0
+        peers = self._pick_peers()
+        print('Fetching headers from %s peers' % len(peers))
+        futures = []
+        chunks_indexes = []
+        for i, chunk_index in enumerate(get_chunks_range(local_best_height, local_best_height+len(peers)*2016)):
+            futures.append(peers[i].RPC('blockchain.block.get_chunk', chunk_index))
+            chunks_indexes.append(chunk_index)
+        headers = []
+        for chunk_index, chunk in enumerate([chunk for chunk in await asyncio.gather(*futures) if chunk]):
+            print('Saving 2016 blocks from %s' % (chunks_indexes[chunk_index] * 2016))
+            for i, header_hex in enumerate([chunk[i:i+160] for i in range(0, len(chunk), 160)]):
+                height = chunks_indexes[chunk_index] * 2016 + i
+                headers.append(self._parse_header(header_hex, height))
+        return headers
+
+    @database.atomic
+    async def _save_header(self, header_hex, block_height):
+        header = self._parse_header(header_hex, block_height)
         self._repo.save_header(
-            blockhash_from_header, block_height, binascii.unhexlify(header_hex), header_data['prev_block_hash']
+            header['block_hash'],
+            header['block_height'],
+            header['header_bytes'],
+            header['prev_block_hash']
         )
 
     @database.atomic
-    async def _fetch_headers_chunks(self, local_best_height, network_height):
-        local_best_height = local_best_height or 0
-        for chunk_index in get_chunks_range(local_best_height, local_best_height+4032):
-            print('build headers chain, blocks between %s and %s' % (chunk_index*2016, network_height))
-            data = await self.getblockheaders_chunk(chunk_index, force_peers=1)
-            header = data and data[0]
-            if not header:
-                return
-            print('Saving 2016 blocks from %s' % (chunk_index * 2016))
-            for i, header_hex in enumerate([header[i:i+160] for i in range(0, len(header), 160)]):
-                self._save_header(chunk_index, i, header_hex)
+    async def _save_headers_chunks(self, local_best_height, network_height):
+        headers = await self._fetch_headers_chunks(local_best_height, network_height)
+        headers and self._repo.save_headers(headers)
 
     async def _ping_peer(self, peer):
         try:
@@ -255,7 +279,9 @@ class ConnectrumInterface:
             self._peers = [p for p in self._peers if p != peer]
 
     async def _keep_connections(self):
+        i = 0
         while 1:
+            i += 1
             if not self._keepalive:
                 for peer in self._peers:
                     try:
@@ -267,9 +293,10 @@ class ConnectrumInterface:
                 await self._connect_to_server()
                 continue
             else:
-                peer = random.choice(self._peers)
-                await self._ping_peer(peer)
-                self._update_status('connected, %s' % len(self._peers))
+                if not i % 3:
+                    peer = random.choice(self._peers)
+                    await self._ping_peer(peer)
+                    self._update_status('connected, %s' % len(self._peers))
             await asyncio.sleep(30)
 
     async def start(self):
@@ -287,8 +314,10 @@ class ConnectrumInterface:
                 break
             peer = random.choice(self._peers)
             peer not in peers and peers.append(peer)
-            if force_peers is not None and len(peers) == force_peers:
-                break
+            if force_peers is not None:
+                if len(peers) == force_peers:
+                    break
+                continue
             elif len(peers) == self.concurrency:
                 break
         return peers

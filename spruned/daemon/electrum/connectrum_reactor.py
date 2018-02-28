@@ -49,7 +49,7 @@ class ConnectrumReactor:
 if __name__ == '__main__':
     headers_repository = HeadersSQLiteRepository(database.session)
     app = web.Application(loop=asyncio.get_event_loop())
-    interface = ConnectrumInterface(settings.NETWORK, app)
+    interface = ConnectrumInterface(settings.NETWORK, app, connections_concurrency_ratio=5)
     interface.add_headers_repository(headers_repository)
     reactor = ConnectrumReactor(headers_repository, interface, app)
     reactor.start()
