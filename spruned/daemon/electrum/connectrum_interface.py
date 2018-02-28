@@ -119,7 +119,7 @@ def get_chunks_range(local_height, final_height):
 
 
 class ConnectrumInterface:
-    def __init__(self, coin, app, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
+    def __init__(self, coin, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3, loop=None):
         assert coin.value == 1
         self._peers = []
         self.concurrency = concurrency
@@ -129,7 +129,7 @@ class ConnectrumInterface:
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
         self._repo = None  # type: HeadersRepository
-        self.app = app  # type: 'web.Application'
+        self.loop = loop or asyncio.get_event_loop()
         self.lock = asyncio.Lock()
 
     def add_headers_repository(self, headers_repository: HeadersRepository):
@@ -166,7 +166,7 @@ class ConnectrumInterface:
                 banner = await conn.RPC('server.banner')
                 banner and self._peers.append(conn)
                 self._update_status('connecting, %s' % len(self._peers))
-                self.app.loop.create_task(self._subscribe_headers(conn))
+                self.loop.create_task(self._subscribe_headers(conn))
                 Logger.electrum.debug('ConnectrumClient - added peer %s:%s', _server[0], _server[1])
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
             pass #self.blacklisted.append(_server)
@@ -235,21 +235,25 @@ class ConnectrumInterface:
     async def _fetch_headers_chunks(self, local_best_height, network_height):
         total_peers = self.concurrency * self._connections_concurrency_ratio
         requested_peers = total_peers > 5 and int(total_peers * 0.7) or self.concurrency
-        if len(self._peers) < requested_peers:
-            print('Skipping fetch headers, connected to %s peers, needed %s' % (len(self._peers), self.concurrency))
+        active_peers = [peer for peer in self._pick_peers(force_peers=requested_peers) if peer.protocol]
+        if len(active_peers) < requested_peers:
+            print('Skipping fetch headers, connected to %s peers, needed %s' % (len(active_peers), requested_peers))
             return
 
         local_best_height = local_best_height or 0
-
-        peers = self._pick_peers(force_peers=requested_peers)
-        print('Fetching headers from %s peers' % len(peers))
+        print('Fetching headers from %s peers' % len(active_peers))
         futures = []
         chunks_indexes = []
-        for i, chunk_index in enumerate(get_chunks_range(local_best_height, local_best_height+len(peers)*2016)):
-            futures.append(peers[i].RPC('blockchain.block.get_chunk', chunk_index))
+        for i, chunk_index in enumerate(get_chunks_range(local_best_height, local_best_height+len(active_peers)*2016)):
+            futures.append(active_peers[i].RPC('blockchain.block.get_chunk', chunk_index))
             chunks_indexes.append(chunk_index)
         headers = []
-        for chunk_index, chunk in enumerate([chunk for chunk in await asyncio.gather(*futures) if chunk]):
+        try:
+            responses = await asyncio.gather(*futures)
+        except ElectrumErrorResponse:
+            return
+
+        for chunk_index, chunk in enumerate([chunk for chunk in responses if chunk]):
             for i, header_hex in enumerate([chunk[i:i+160] for i in range(0, len(chunk), 160)]):
                 height = chunks_indexes[chunk_index] * 2016 + i
                 headers.append(self._parse_header(header_hex, height))
@@ -307,7 +311,7 @@ class ConnectrumInterface:
     async def start(self):
         Logger.electrum.debug('ConnectrumClient - connect')
         self._update_status('stopped')
-        self.app.loop.create_task(self._keep_connections())
+        self.loop.create_task(self._keep_connections())
         Logger.electrum.debug('ConnectrumClient - connections spawned')
 
     def _pick_peers(self, force_peers=None):

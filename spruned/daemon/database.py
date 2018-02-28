@@ -44,7 +44,7 @@ def atomic(fun):
         except Exception as e:
             if _local.counter == 1:
                 # No rollback exception and top level -> commit
-                _local.db.rollback()
+                _local.session.rollback()
                 _local.counter -= 1
             raise e
         finally:

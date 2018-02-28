@@ -1,4 +1,5 @@
 asyncio==3.4.3
+aiomas==3.4.3
 requests
 merkle
 git+https://github.com/Conio/pybitcointools.git
