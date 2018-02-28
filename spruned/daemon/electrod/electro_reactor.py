@@ -1,8 +1,8 @@
 import asyncio
 from typing import Tuple
 from spruned.abstracts import HeadersRepository
-from spruned.daemon.electrum.electro_interface import ElectroInterface
-from spruned.daemon.electrum.headers_repository import HeadersSQLiteRepository
+from spruned.daemon.electrod.electro_interface import ElectroInterface
+from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 from spruned import settings
 from spruned.daemon import database
 import aiomas
