@@ -1,6 +1,5 @@
 import asyncio
 import async_timeout
-from async_timeout import timeout
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
@@ -162,7 +161,7 @@ class ConnectrumInterface:
         )
         try:
             conn = StratumClient()
-            with timeout(1):
+            with async_timeout.timeout(5):
                 await conn.connect(_server_info, disable_cert_verify=True)
                 banner = await conn.RPC('server.banner')
                 banner and self._peers.append(conn)
@@ -234,12 +233,15 @@ class ConnectrumInterface:
         }
 
     async def _fetch_headers_chunks(self, local_best_height, network_height):
-        if len(self._peers) < self.concurrency:
+        total_peers = self.concurrency * self._connections_concurrency_ratio
+        requested_peers = total_peers > 5 and int(total_peers * 0.7) or self.concurrency
+        if len(self._peers) < requested_peers:
             print('Skipping fetch headers, connected to %s peers, needed %s' % (len(self._peers), self.concurrency))
             return
 
         local_best_height = local_best_height or 0
-        peers = self._pick_peers()
+
+        peers = self._pick_peers(force_peers=requested_peers)
         print('Fetching headers from %s peers' % len(peers))
         futures = []
         chunks_indexes = []
@@ -248,10 +250,10 @@ class ConnectrumInterface:
             chunks_indexes.append(chunk_index)
         headers = []
         for chunk_index, chunk in enumerate([chunk for chunk in await asyncio.gather(*futures) if chunk]):
-            print('Saving 2016 blocks from %s' % (chunks_indexes[chunk_index] * 2016))
             for i, header_hex in enumerate([chunk[i:i+160] for i in range(0, len(chunk), 160)]):
                 height = chunks_indexes[chunk_index] * 2016 + i
                 headers.append(self._parse_header(header_hex, height))
+            print('Saving 2016 blocks from %s' % (chunks_indexes[chunk_index] * 2016))
         return headers
 
     @database.atomic
@@ -267,11 +269,14 @@ class ConnectrumInterface:
     @database.atomic
     async def _save_headers_chunks(self, local_best_height, network_height):
         headers = await self._fetch_headers_chunks(local_best_height, network_height)
-        headers and self._repo.save_headers(headers)
+        if headers:
+            print('Saving %s headers' % len(headers))
+            self._repo.save_headers(headers)
+            print('Saved %s headers' % len(headers))
 
     async def _ping_peer(self, peer):
         try:
-            with async_timeout.timeout(1):
+            with async_timeout.timeout(5):
                 current_best_header = await asyncio.gather(peer.RPC('blockchain.headers.subscribe'))
                 await self._evaluate_peer_best_header(current_best_header[0])
         except asyncio.TimeoutError:
@@ -293,11 +298,11 @@ class ConnectrumInterface:
                 await self._connect_to_server()
                 continue
             else:
-                if not i % 3:
+                if not i % 20:
                     peer = random.choice(self._peers)
                     await self._ping_peer(peer)
                     self._update_status('connected, %s' % len(self._peers))
-            await asyncio.sleep(30)
+            await asyncio.sleep(3)
 
     async def start(self):
         Logger.electrum.debug('ConnectrumClient - connect')
