@@ -312,6 +312,7 @@ class ConnectrumInterface:
                 continue
             else:
                 if not i % 20:
+                    self._peers = [peer for peer in self._peers if peer.protocol]
                     peer = random.choice(self._peers)
                     await self._ping_peer(peer)
                     self._update_status('connected, %s' % len(self._peers))
