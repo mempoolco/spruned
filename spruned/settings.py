@@ -40,5 +40,5 @@ SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
 # electrum
 ENABLE_ELECTRUM = True
 ELECTRUM_CONCURRENCY = 3
-ELECTRUM_SOCKET = '%s/electrod.socket'
+ELECTRUM_SOCKET = '%s/electrod.socket' % FILE_DIRECTORY
 

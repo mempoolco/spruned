@@ -1,19 +1,18 @@
 import asyncio
 import async_timeout
+import time
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 import random
 import binascii
 import os
-
-from sqlalchemy.exc import IntegrityError
-
 from spruned import settings
 from spruned.abstracts import HeadersRepository
 from spruned.daemon import database, exceptions
 from spruned.logging_factory import Logger
 from spruned.tools import blockheader_to_blockhash, deserialize_header, serialize_header
+
 
 ELECTRUM_SERVERS = [
     ["134.119.179.55", "s"],
@@ -121,7 +120,7 @@ def get_chunks_range(local_height, final_height):
     return res
 
 
-class ConnectrumInterface:
+class ElectroInterface:
     def __init__(self, coin, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3, loop=None):
         assert coin.value == 1
         self._peers = []
@@ -178,9 +177,13 @@ class ConnectrumInterface:
         future, Q = connection.subscribe('blockchain.headers.subscribe')
         best_header = await future
         await self._handle_header(best_header)
-
-        while 1:
-            best_header = await Q.get()
+        start = int(time.time())
+        while connection.protocol or start + 5 > int(time.time()):
+            with async_timeout.timeout(5):
+                try:
+                    best_header = await Q.get()
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    continue
             Logger.electrum.debug('New best header: %s', best_header)
             await self._handle_header(best_header[0])
 
@@ -214,18 +217,20 @@ class ConnectrumInterface:
                 else:
                     await self._handle_headers_inconsistency(local_best_height)
         except exceptions.HeadersInconsistencyException:
-            await self._handle_headers_inconsistency(local_best_height)
+            await self._handle_headers_inconsistency(local_best_height - 64)
 
         finally:
             self.lock.release()
 
     @database.atomic
     async def _handle_headers_inconsistency(self, local_best_height: int):
+        print('handle headers inconsistency, best height: %s' % local_best_height)
         if local_best_height:
             _best_height = local_best_height
             while _best_height % 2016:
                 _best_height -= 1
-        _best_height = 0
+        else:
+            _best_height = 0
         self._repo.remove_headers_since_height(_best_height)
 
     @staticmethod
@@ -243,7 +248,7 @@ class ConnectrumInterface:
 
     async def _fetch_headers_chunks(self, local_best_height, network_height):
         total_peers = self.concurrency * self._connections_concurrency_ratio
-        requested_peers = total_peers > 5 and int(total_peers * 0.7) or self.concurrency
+        requested_peers = total_peers > self.concurrency*2 and int(total_peers * 0.7) or self.concurrency
         active_peers = [peer for peer in self._pick_peers(force_peers=requested_peers) if peer.protocol]
 
         if len(active_peers) < requested_peers:
@@ -284,7 +289,7 @@ class ConnectrumInterface:
     async def _save_headers_chunks(self, local_best_height, network_height):
         headers = await self._fetch_headers_chunks(local_best_height, network_height)
         if headers:
-            print('Saving %s headers' % len(headers))
+            print('Saving %s headers, starts from %s' % (len(headers), local_best_height))
             self._repo.save_headers(headers)
             print('Saved %s headers' % len(headers))
 

@@ -60,16 +60,14 @@ class HeadersSQLiteRepository(HeadersRepository):
             session.add(model)
         try:
             session.flush()
-        except IntegrityError:
+        except IntegrityError as e:
+            print('Inconsistency error: %s' % e)
             raise exceptions.HeadersInconsistencyException
-
-
-
-
 
     @database.atomic
     def remove_headers_since_height(self, blockheight: int):
         session = self.session()
         headers = session.query(database.Header).filter(database.Header.blockheight >= blockheight).all()
-        _ = (session.delete(header) for header in headers)
-        return True
+        for header in headers:
+            session.delete(header)
+        session.flush()
