@@ -245,6 +245,7 @@ class ConnectrumInterface:
         total_peers = self.concurrency * self._connections_concurrency_ratio
         requested_peers = total_peers > 5 and int(total_peers * 0.7) or self.concurrency
         active_peers = [peer for peer in self._pick_peers(force_peers=requested_peers) if peer.protocol]
+
         if len(active_peers) < requested_peers:
             print('Skipping fetch headers, connected to %s peers, needed %s' % (len(active_peers), requested_peers))
             return
@@ -312,11 +313,16 @@ class ConnectrumInterface:
                 continue
             else:
                 if not i % 20:
-                    self._peers = [peer for peer in self._peers if peer.protocol]
                     peer = random.choice(self._peers)
                     await self._ping_peer(peer)
                     self._update_status('connected, %s' % len(self._peers))
             await asyncio.sleep(3)
+            to_remove = []
+            for peer in self._peers:
+                if not peer.protocol:
+                    to_remove.append(peer)
+                    peer.close()
+            self._peers = [peer for peer in self._peers if peer not in to_remove]
 
     async def start(self):
         Logger.electrum.debug('ConnectrumClient - connect')
