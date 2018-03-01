@@ -220,6 +220,7 @@ class ElectrodInterface:
             await self._handle_headers_inconsistency(local_best_height - 64)
 
         finally:
+            asyncio.sleep(3)
             self.lock.release()
 
     @database.atomic

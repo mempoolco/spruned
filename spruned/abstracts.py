@@ -37,10 +37,6 @@ class HeadersRepository(metaclass=abc.ABCMeta):
         pass  # pragma: no cover
 
     @abc.abstractmethod
-    def get_header_for_hash(self, blockhash: str):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
     def get_header_at_height(self, blockheight: int):
         pass  # pragma: no cover
 

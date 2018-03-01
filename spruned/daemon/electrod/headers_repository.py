@@ -8,26 +8,27 @@ class HeadersSQLiteRepository(HeadersRepository):
     def __init__(self, session):
         self.session = session
 
+    @staticmethod
+    def _header_model_to_dict(header: database.Header) -> Dict:
+        return {
+            'block_height': header.blockheight,
+            'block_hash': header.blockhash,
+            'data': header.data
+        }
+
     def get_best_header(self):
         session = self.session()
         res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
-        res = res and {
-            'block_height': res.blockheight,
-            'block_hash': res.blockhash,
-            'data': res.data
-        }
+        res = res and self._header_model_to_dict(res)
         print('Best header requested, res: %s' % res)
         return res
 
     def get_header_at_height(self, height: int):
-        pass
-
-    def get_header_for_hash(self, blockhash: str):
-        pass
+        blockhash = self.get_block_hash(height)
+        return self.get_block_header(blockhash)
 
     @database.atomic
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
-        # FIXME - Saving is a bit intensive. Find transactional points.
         session = self.session()
 
         def _save():
@@ -71,3 +72,18 @@ class HeadersSQLiteRepository(HeadersRepository):
         for header in headers:
             session.delete(header)
         session.flush()
+
+    def get_block_hash(self, blockheight: int):
+        session = self.session()
+        header = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
+        return header and header.blockhash
+
+    def get_block_height(self, blockhash: str):
+        session = self.session()
+        header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
+        return header and header.blockheight
+
+    def get_block_header(self, blockhash: str):
+        session = self.session()
+        header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
+        return header and self._header_model_to_dict(header)

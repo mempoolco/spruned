@@ -43,7 +43,6 @@ def atomic(fun):
             return r
         except Exception as e:
             if _local.counter == 1:
-                # No rollback exception and top level -> commit
                 _local.session.rollback()
                 _local.counter -= 1
             raise e
