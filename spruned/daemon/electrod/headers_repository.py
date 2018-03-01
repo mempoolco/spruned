@@ -20,12 +20,17 @@ class HeadersSQLiteRepository(HeadersRepository):
         session = self.session()
         res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
         res = res and self._header_model_to_dict(res)
-        print('Best header requested, res: %s' % res)
         return res
 
     def get_header_at_height(self, height: int):
         blockhash = self.get_block_hash(height)
         return self.get_block_header(blockhash)
+
+    def get_headers_since_height(self, height: int):
+        session = self.session()
+        headers = session.query(database.Header).filter(database.Header.blockheight >= height)\
+            .order_by(database.Header.blockheight.desc()).all()
+        return headers and [self._header_model_to_dict(h) for h in headers] or []
 
     @database.atomic
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
@@ -45,10 +50,22 @@ class HeadersSQLiteRepository(HeadersRepository):
             prev_block = session.query(database.Header).filter_by(blockheight=blockheight-1).one()
             assert prev_block.blockhash == prev_block_hash
             _save()
+        return {
+            'block_hash': blockheight,
+            'block_height': blockheight,
+            'prev_block_hash': prev_block_hash,
+            'header_bytes': headerbytes
+        }
 
     @database.atomic
-    def save_headers(self, headers: List[Dict]):
+    def save_headers(self, headers: List[Dict], force=False):
         session = self.session()
+        if force:
+            starts_from = headers[0]['block_height']
+            ends_to = headers[-1]['block_height']
+            existings = session.query(database.Header)\
+                .filter(database.Header.blockheight > starts_from).filter(database.Header.blockheight <= ends_to).all()
+            _ = [session.delete(existing) for existing in existings]
         for i, header in enumerate(headers):
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
@@ -64,9 +81,10 @@ class HeadersSQLiteRepository(HeadersRepository):
         except IntegrityError as e:
             print('Inconsistency error: %s' % e)
             raise exceptions.HeadersInconsistencyException
+        return headers
 
     @database.atomic
-    def remove_headers_since_height(self, blockheight: int):
+    def remove_headers_after_height(self, blockheight: int):
         session = self.session()
         headers = session.query(database.Header).filter(database.Header.blockheight >= blockheight).all()
         for header in headers:

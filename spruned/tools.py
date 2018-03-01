@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import binascii
 from bitcoin import deserialize, serialize, decode, bin_sha256, encode
@@ -22,7 +23,7 @@ def blockheader_to_blockhash(header: (bytes, str)) -> (bytes, str):
     return fmt == 'hex' and binascii.hexlify(bytes_blockhash).decode() or bytes_blockhash
 
 
-def deserialize_header(header):
+def deserialize_header(header: (str, bytes)):
     if isinstance(header, bytes):
         h, fmt = header, 'bin'
     else:
@@ -54,3 +55,16 @@ def serialize_header(inp):
     if inp.get('hash'):
         assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
     return binascii.hexlify(o).decode()
+
+
+def get_nearest_parent(number: int, divisor: int):
+    if not number:
+        return 0
+    while number % divisor:
+        number -= 1
+    return int(number)
+
+
+async def async_delayed_task(task, seconds: int):
+    await asyncio.sleep(seconds)
+    return await task

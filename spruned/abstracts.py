@@ -45,11 +45,13 @@ class HeadersRepository(metaclass=abc.ABCMeta):
         pass  # pragma: no cover
 
     @abc.abstractmethod
-    def remove_headers_since_height(self, blockheight: int):
+    def remove_headers_after_height(self, blockheight: int):
         pass  # pragma: no cover
 
     @abc.abstractmethod
-    def save_headers(self, headers: List[Dict]):
+    def save_headers(self, headers: List[Dict], force=False):
         pass  # pragma: no cover
 
-
+    @abc.abstractmethod
+    def get_headers_since_height(self, height: int):
+        pass  # pragma: no cover
