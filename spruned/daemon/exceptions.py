@@ -7,3 +7,7 @@ class HeadersInconsistencyException(SprunedException):
 
 class NoQuorumOnResponsesException(SprunedException):
     pass
+
+
+class ConsistencyCheckRetryException(SprunedException):
+    pass
