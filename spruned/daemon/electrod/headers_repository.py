@@ -29,7 +29,7 @@ class HeadersSQLiteRepository(HeadersRepository):
     def get_headers_since_height(self, height: int):
         session = self.session()
         headers = session.query(database.Header).filter(database.Header.blockheight >= height)\
-            .order_by(database.Header.blockheight.desc()).all()
+            .order_by(database.Header.blockheight.asc()).all()
         return headers and [self._header_model_to_dict(h) for h in headers] or []
 
     @database.atomic

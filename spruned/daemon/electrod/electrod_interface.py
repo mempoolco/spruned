@@ -120,6 +120,9 @@ class ElectrodInterface:
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
 
+    async def get_all_connected_peers(self):
+        return [peer for peer in self._peers if peer.protocol]
+
     def _update_status(self, status):
         self._current_status = status
 
@@ -175,6 +178,14 @@ class ElectrodInterface:
             'header_bytes': binascii.unhexlify(header_hex),
             'prev_block_hash': header_data['prev_block_hash']
         }
+
+    async def get_headers_in_range(self, starts_from, ends_to):
+        chunks_range = [x for x in range(starts_from, ends_to)]
+        print(chunks_range)
+        futures = [self.get_headers_from_chunk(i) for i in chunks_range]
+        headers = []
+        _ = [headers.extend(response) for response in await asyncio.gather(*[f for f in futures])]
+        return headers
 
     async def get_headers_from_chunk(self, chunk_index: int):
         chunk = await self.get_chunk(chunk_index, force_peers=1)
@@ -313,11 +324,11 @@ class ElectrodInterface:
         response = self._handle_responses(responses)
         return response and self._parse_header(response)
 
-    async def get_headers_in_range(self, starts_from: int, ends_to: int):
+    async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int):
         print('Fetching headers between %s and %s' % (starts_from, ends_to))
         futures = []
-        for height in range(starts_from, ends_to):
-            futures.append(self.get_header(height))
+        for chunk_index in range(starts_from, ends_to):
+            futures.append(self.get_headers_from_chunk(chunk_index))
         headers = []
         for header in await asyncio.gather(*futures):
             header and headers.append(header)

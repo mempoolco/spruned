@@ -22,6 +22,10 @@ class ElectrodReactor:
         self.subscriptions = []
         self._last_processed_header = None
 
+    def set_last_processed_header(self, last):
+        Logger.electrum.debug('Last processed header: %s', last)
+        self._last_processed_header = last
+
     async def on_connected(self):
         if self.store_headers:
             self.loop.create_task(self.sync_headers())
@@ -73,12 +77,15 @@ class ElectrodReactor:
 
     @database.atomic
     async def on_local_headers_behind(self, local_best_header: Dict, network_best_header: Dict):
-        print('on local headers behind: %s - %s' % (local_best_header['block_height'], network_best_header['block_height']))
+        Logger.electrum.debug(
+            'On local headers behind. Local: %s, Network: %s',
+            local_best_header['block_height'], network_best_header['block_height']
+        )
         try:
             if not local_best_header:
                 headers = await self.interface.get_headers_from_chunk(0)
                 saved_headers = headers and self.repo.save_headers(headers)
-                self._last_processed_header = saved_headers and saved_headers[-1]
+                self.set_last_processed_header(saved_headers and saved_headers[-1])
 
             if local_best_header['block_height'] == network_best_header['block_height'] - 1:
                 self.repo.save_header(
@@ -87,20 +94,20 @@ class ElectrodReactor:
                     network_best_header['header_bytes'],
                     network_best_header['prev_block_hash']
                 )
-                self._last_processed_header = network_best_header
+                self.set_last_processed_header(network_best_header)
             elif local_best_header['block_height'] > network_best_header['block_height'] - 30:
                 headers = await self.interface.get_headers_in_range(
                     local_best_header['block_height'], network_best_header['block_height']
                 )
                 saved_headers = self.repo.save_headers(headers[1:])
-                self._last_processed_header = saved_headers[-1]
+                self.set_last_processed_header(saved_headers[-1])
             else:
                 rewind_from = (get_nearest_parent(local_best_header['block_height'], 2016) / 2016)
                 headers = await self.interface.get_headers_from_chunk(rewind_from + 1)
                 saved_headers = headers and self.repo.save_headers(headers, force=True)
-                self._last_processed_header = saved_headers and saved_headers[-1]
+                self.set_last_processed_header(saved_headers and saved_headers[-1])
         except exceptions.HeadersInconsistencyException:
-            self._last_processed_header = None
+            self.set_last_processed_header(None)
             await self.handle_headers_inconsistency()
 
     @database.atomic
@@ -110,14 +117,14 @@ class ElectrodReactor:
 
     @database.atomic
     async def ensure_headers_consistency(self, local_best_header: Dict):
-        check_from_height = get_nearest_parent(local_best_header['block_height'] - 2016*4, 2016)
+        check_from_height = get_nearest_parent(local_best_header['block_height'] - 2016, 2016)
         chunk_index = check_from_height // 2016
         local_headers = self.repo.get_headers_since_height(check_from_height)
-        network_headers = await self.interface.get_headers_from_chunk(chunk_index)
+        network_headers = await self.interface.get_headers_in_range(chunk_index, chunk_index + 2)
         try:
             for i, header in enumerate(local_headers):
-                assert header[i]['block_height'] == network_headers[i]['block_height']
-                if header[i]['block_hash'] != network_headers[i]['block_hash']:
+                assert header['block_height'] == network_headers[i]['block_height'], (header, network_headers[i])
+                if header['block_hash'] != network_headers[i]['block_hash']:
                     raise exceptions.HeadersInconsistencyException()
         except exceptions.HeadersInconsistencyException:
             Logger.electrum.exception()
@@ -125,7 +132,7 @@ class ElectrodReactor:
 
     @database.atomic
     async def handle_headers_inconsistency(self):
-        self._last_processed_header = None
+        self.set_last_processed_header(None)
         local_best_header = self.repo.get_best_header()
         remove_headers_since = get_nearest_parent(local_best_header['block_height'], 2016)
         self.repo.remove_headers_after_height(remove_headers_since)
