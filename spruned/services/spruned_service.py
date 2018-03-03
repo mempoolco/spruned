@@ -1,6 +1,6 @@
 import requests
-from spruned.service.abstract import RPCAPIService
-from spruned import settings
+from spruned.application.abstracts import RPCAPIService
+from spruned.application import settings
 
 
 class SprunedHTTPService(RPCAPIService):

@@ -1,27 +1,26 @@
 import asyncio
 import json
-from spruned import settings, spruned_vo_service
-from spruned.logging_factory import Logger
-from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
-from spruned.service.cache import CacheFileInterface
-from spruned.service.electrum.connectrum_client import ConnectrumClient
-from spruned.third_party.bitgo_service import BitGoService
-from spruned.third_party.bitpay_service import BitpayService
-from spruned.third_party.blockexplorer_service import BlockexplorerService
-from spruned.third_party.blocktrail_service import BlocktrailService
-from spruned.third_party.chainflyer_service import ChainFlyerService
-from spruned.third_party.chainso_service import ChainSoService
-from spruned.third_party.blockcypher_service import BlockCypherService
-from spruned.service.electrum.connectrum_service import ConnectrumService
+from spruned.application import spruned_vo_service, settings
+from spruned.application.logging_factory import Logger
+from spruned.application.cache import CacheFileInterface
+from spruned.daemon.electrod.electrod_reactor import build_electrod
+from spruned.services.bitgo_service import BitGoService
+from spruned.services.bitpay_service import BitpayService
+from spruned.services.blockexplorer_service import BlockexplorerService
+from spruned.services.blocktrail_service import BlocktrailService
+from spruned.services.chainflyer_service import ChainFlyerService
+from spruned.services.chainso_service import ChainSoService
+from spruned.services.blockcypher_service import BlockCypherService
+from spruned.services.electrod_service import ElectrodService
 
 # system
-
 cache = CacheFileInterface(settings.CACHE_ADDRESS)
 storage = CacheFileInterface(settings.STORAGE_ADDRESS, compress=False)
+electrod_daemon = build_electrod(settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY)
+electrod_service = ElectrodService(settings.ELECTROD_SOCKET)
+
 
 # services
-
-bitcoind = BitcoindRPCClient(settings.BITCOIND_USER, settings.BITCOIND_PASS, settings.BITCOIND_URL)
 chainso = ChainSoService(settings.NETWORK)
 blocktrail = settings.BLOCKTRAIL_API_KEY and BlocktrailService(settings.NETWORK, api_key=settings.BLOCKTRAIL_API_KEY)
 blockcypher = BlockCypherService(settings.NETWORK, api_token=settings.BLOCKCYPHER_API_TOKEN)
@@ -30,18 +29,9 @@ chainflyer = ChainFlyerService(settings.NETWORK)
 blockexplorer = BlockexplorerService(settings.NETWORK)
 bitpay = BitpayService(settings.NETWORK)
 
-# electrum
-
-connectrum_client = settings.ENABLE_ELECTRUM and ConnectrumClient(
-                settings.NETWORK,
-                asyncio.get_event_loop(),
-                concurrency=settings.ELECTRUM_CONCURRENCY,
-            )
-electrum_service = settings.ENABLE_ELECTRUM and ConnectrumService(settings.NETWORK, connectrum_client)
 
 # vo service
-
-service = spruned_vo_service.SprunedVOService(min_sources=settings.MIN_DATA_SOURCES, bitcoind=bitcoind, cache=cache)
+service = spruned_vo_service.SprunedVOService(electrod_service, cache=cache)
 service.add_source(chainso)
 service.add_source(bitgo)
 service.add_source(blockexplorer)
@@ -49,29 +39,33 @@ service.add_source(blockcypher)
 blocktrail and service.add_source(blocktrail)
 service.add_source(chainflyer)
 service.add_source(bitpay)
-service.electrum = electrum_service
 
 
 def jsonprint(d):
     print(json.dumps(d, indent=4))
 
 
-if __name__ == '__main__':
+async def test_apis():
+    print('sleeping')
+    await asyncio.sleep(5)
+    print('starting')
     try:
         Logger.root.debug('Starting sPRUNED')
-        electrum_service and electrum_service.connect()
-        print(service.getrawtransaction('991789bbe7f09bb06d5539b0aae6e194e4f09e42819861c81bee1d81e2021a8d', verbose=1))
-        blockhash = "0000000000000000000e5b215c3b4704fcc7b9c8b1eccbcad1251061f20b91a8"
-        blockhash = "00000000000000000029b786fd3da3c2859a9be4807104d7e80112cdd5a33407"
-        block = service.getblock(blockhash)
+        blockhash = "0000000000000000000612c2915991d1ed779380bbfacd8082cd24bb588861b9"
         while 1:
-            block = service.getblock(blockhash)
+            print('Requesting Block hash: %s' % blockhash)
+            block = await service.getblock(blockhash)
             for txid in block['tx'][:10]:
-                print(service.getrawtransaction(txid))
+                print(await service.getrawtransaction(txid))
             blockhash = block['previousblockhash']
     except:
         Logger.root.exception('Exception in sPRUNED main')
+        raise
     finally:
-        electrum_service and electrum_service.disconnect()
         Logger.root.debug('Spruned exit')
 
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.create_task(electrod_daemon.start())
+    loop.create_task(test_apis())
+    loop.run_forever()

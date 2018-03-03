@@ -1,7 +1,7 @@
-from spruned import settings
-from spruned.service.abstract import RPCAPIService
-from spruned.third_party.http_client import HTTPClient
-from spruned.tools import normalize_transaction
+from spruned.application import settings
+from spruned.application.abstracts import RPCAPIService
+from spruned.application.tools import normalize_transaction
+from spruned.services.http_client import HTTPClient
 
 
 class ChainSoService(RPCAPIService):
@@ -11,8 +11,8 @@ class ChainSoService(RPCAPIService):
         }[coin]
         self.client = HTTPClient(baseurl='https://chain.so/api/v2/')
 
-    def getrawtransaction(self, txid, **_):
-        data = self.client.get('get_tx/' + self._coin_url + txid)
+    async def getrawtransaction(self, txid, **_):
+        data = await self.client.get('get_tx/' + self._coin_url + txid)
         return data and data.get('success') and {
             'rawtx': normalize_transaction(data['data']['tx_hex']),
             'blockhash': data['data']['blockhash'],
@@ -20,9 +20,9 @@ class ChainSoService(RPCAPIService):
             'source': 'chainso'
         }
 
-    def getblock(self, blockhash):
+    async def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
-        data = self.client.get('get_block/' + self._coin_url + blockhash)
+        data = await self.client.get('get_block/' + self._coin_url + blockhash)
         return data and data.get('success') and {
             'source': 'chainso',
             'hash': data['data']['blockhash'],

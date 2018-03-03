@@ -1,6 +1,6 @@
 import logging
 import sys
-from spruned import settings
+from spruned.application import settings
 
 
 class LoggingFactory:
@@ -39,6 +39,7 @@ class LoggingFactory:
 
 Logger = LoggingFactory(
     logfile=settings.LOGFILE,
-    stdout=True,
     loglevel=settings.DEBUG and logging.DEBUG or logging.INFO
 )  # type: LoggingFactory
+
+logging.getLogger('connectrum').setLevel(logging.WARNING)

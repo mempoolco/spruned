@@ -1,7 +1,7 @@
 import os
 import pickle
 import shutil
-from spruned.service.abstract import StorageInterface
+from spruned.application.abstracts import StorageInterface
 import gzip
 
 

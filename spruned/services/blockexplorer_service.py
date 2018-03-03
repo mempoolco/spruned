@@ -1,6 +1,6 @@
-from spruned import settings
-from spruned.service.abstract import RPCAPIService
-from spruned.third_party.http_client import HTTPClient
+from spruned.application import settings
+from spruned.application.abstracts import RPCAPIService
+from spruned.services.http_client import HTTPClient
 
 
 class BlockexplorerService(RPCAPIService):
@@ -8,8 +8,8 @@ class BlockexplorerService(RPCAPIService):
         assert coin == settings.Network.BITCOIN
         self.client = httpclient(baseurl='https://blockexplorer.com/api/')
 
-    def getrawtransaction(self, txid, **_):
-        data = self.client.get('tx/' + txid)
+    async def getrawtransaction(self, txid, **_):
+        data = await self.client.get('tx/' + txid)
         return data and {
             'rawtx': None,
             'blockhash': data['blockhash'],
@@ -17,9 +17,9 @@ class BlockexplorerService(RPCAPIService):
             'source': 'blockexplorer.com'
         }
 
-    def getblock(self, blockhash):
+    async def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
-        data = self.client.get('block/' + blockhash)
+        data = await self.client.get('block/' + blockhash)
         return data and {
             'source': 'blockexplorer.com',
             'hash': data['hash'],
