@@ -1,4 +1,4 @@
-from spruned.exceptions import SprunedException
+from spruned.application.exceptions import SprunedException
 
 
 class HeadersInconsistencyException(SprunedException):

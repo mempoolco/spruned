@@ -1,14 +1,14 @@
 import asyncio
 from typing import Dict
 
-from spruned.abstracts import HeadersRepository
+from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 from spruned.daemon.electrod.electrod_rpc_server import ElectrodRPCServer
-from spruned import settings
+from spruned.application import settings
 from spruned.daemon import database, exceptions
-from spruned.logging_factory import Logger
-from spruned.tools import get_nearest_parent, async_delayed_task
+from spruned.application.logging_factory import Logger
+from spruned.application.tools import get_nearest_parent, async_delayed_task
 
 
 class ElectrodReactor:
@@ -134,7 +134,7 @@ class ElectrodReactor:
 
     @database.atomic
     async def on_network_headers_behind(self, local_best_header: Dict):
-        Logger.electrum.warning('Network headers behind current')
+        Logger.electrum.warning('Network headers behind current, sleeping a bit')
         # await self.ensure_headers_consistency(local_best_header)
 
     @database.atomic
@@ -153,7 +153,7 @@ class ElectrodReactor:
 def build_electrod() -> ElectrodReactor:
     headers_repository = HeadersSQLiteRepository(database.session)
     electrod_rpc_server = ElectrodRPCServer(settings.ELECTRUM_SOCKET, headers_repository)
-    electrod_interface = ElectrodInterface(settings.NETWORK, connections_concurrency_ratio=8, concurrency=1)
+    electrod_interface = ElectrodInterface(settings.NETWORK, connections_concurrency_ratio=2, concurrency=3)
     electrod = ElectrodReactor(headers_repository, electrod_interface, electrod_rpc_server)
     return electrod
 

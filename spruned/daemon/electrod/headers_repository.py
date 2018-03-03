@@ -1,6 +1,6 @@
 from typing import List, Dict
 from sqlalchemy.exc import IntegrityError
-from spruned.abstracts import HeadersRepository
+from spruned.application.abstracts import HeadersRepository
 from spruned.daemon import database, exceptions
 
 

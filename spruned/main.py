@@ -1,18 +1,17 @@
-import asyncio
 import json
-from spruned import settings, spruned_vo_service
-from spruned.logging_factory import Logger
-from spruned.service.bitcoind_rpc_client import BitcoindRPCClient
-from spruned.service.cache import CacheFileInterface
-from spruned.service.electrum.connectrum_client import ConnectrumClient
-from spruned.third_party.bitgo_service import BitGoService
-from spruned.third_party.bitpay_service import BitpayService
-from spruned.third_party.blockexplorer_service import BlockexplorerService
-from spruned.third_party.blocktrail_service import BlocktrailService
-from spruned.third_party.chainflyer_service import ChainFlyerService
-from spruned.third_party.chainso_service import ChainSoService
-from spruned.third_party.blockcypher_service import BlockCypherService
-from spruned.service.electrum.connectrum_service import ConnectrumService
+from spruned.application import spruned_vo_service, settings
+from spruned.application.logging_factory import Logger
+from spruned.application.cache import CacheFileInterface
+from spruned.services.bitcoind_rpc_service import BitcoindRPCClient
+
+from spruned.services.bitgo_service import BitGoService
+from spruned.services.bitpay_service import BitpayService
+from spruned.services.blockexplorer_service import BlockexplorerService
+from spruned.services.blocktrail_service import BlocktrailService
+from spruned.services.chainflyer_service import ChainFlyerService
+from spruned.services.chainso_service import ChainSoService
+from spruned.services.blockcypher_service import BlockCypherService
+from spruned.services.electrod_service import ElectrodService
 
 # system
 
@@ -32,12 +31,7 @@ bitpay = BitpayService(settings.NETWORK)
 
 # electrum
 
-connectrum_client = settings.ENABLE_ELECTRUM and ConnectrumClient(
-                settings.NETWORK,
-                asyncio.get_event_loop(),
-                concurrency=settings.ELECTRUM_CONCURRENCY,
-            )
-electrum_service = settings.ENABLE_ELECTRUM and ConnectrumService(settings.NETWORK, connectrum_client)
+electrum_service = settings.ENABLE_ELECTRUM and ElectrodService(settings.NETWORK)
 
 # vo service
 

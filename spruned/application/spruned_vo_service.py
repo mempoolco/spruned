@@ -3,10 +3,10 @@ import functools
 import json
 import typing
 import random
-from spruned.abstracts import RPCAPIService, StorageInterface
+from spruned.application.abstracts import RPCAPIService, StorageInterface
 import asyncio
 import concurrent.futures
-from spruned.service.electrum.connectrum_service import ConnectrumService
+from spruned.services.electrod_service import ElectrodService
 
 
 def cache_block(func):
@@ -79,7 +79,7 @@ class SprunedVOService(RPCAPIService):
         self.min_sources = min_sources
         self.bitcoind = bitcoind
         self.current_best_height = None
-        self.electrum = None  # type: ConnectrumService
+        self.electrum = None  # type: ElectrodService
 
     def available(self):
         raise NotImplementedError

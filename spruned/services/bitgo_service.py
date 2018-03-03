@@ -1,7 +1,7 @@
-from spruned import settings
-from spruned.abstracts import RPCAPIService
+from spruned.application import settings
+from spruned.application.abstracts import RPCAPIService
+from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
-from spruned.tools import normalize_transaction
 
 
 class BitGoService(RPCAPIService):

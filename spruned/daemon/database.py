@@ -4,7 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 import threading
 from functools import wraps
-from spruned import settings
+from spruned.application import settings
 
 Base = declarative_base()
 

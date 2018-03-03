@@ -3,14 +3,16 @@ import time
 import random
 import binascii
 import os
+from typing import Dict
+
 import async_timeout
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
-from spruned import settings
+from spruned.application import settings
 from spruned.daemon import exceptions
-from spruned.logging_factory import Logger
-from spruned.tools import blockheader_to_blockhash, deserialize_header, async_delayed_task, serialize_header
+from spruned.application.logging_factory import Logger
+from spruned.application.tools import blockheader_to_blockhash, deserialize_header, async_delayed_task, serialize_header
 
 ELECTRUM_SERVERS = [
     ["134.119.179.55", "s"],
@@ -166,7 +168,7 @@ class ElectrodInterface:
             await callback(self._parse_header(best_header[0]))
 
     @staticmethod
-    def _parse_header(electrum_header):
+    def _parse_header(electrum_header: Dict):
         header_hex = serialize_header(electrum_header)
         blockhash_from_header = blockheader_to_blockhash(header_hex)
         if electrum_header['block_height'] == 0:
@@ -229,7 +231,7 @@ class ElectrodInterface:
             if i > 100:
                 break
             peer = random.choice(self._peers)
-            peer not in peers and peers.append(peer)
+            peer not in peers and peer.protocol and peers.append(peer)
             if force_peers is not None:
                 if len(peers) == force_peers:
                     break
@@ -320,7 +322,7 @@ class ElectrodInterface:
             return
         return headers
 
-    async def get_headers_in_range(self, starts_from, ends_to):
+    async def get_headers_in_range(self, starts_from: int, ends_to: int):
         chunks_range = [x for x in range(starts_from, ends_to)]
         futures = []
         for i in chunks_range:
