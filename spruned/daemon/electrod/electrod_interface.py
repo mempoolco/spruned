@@ -249,9 +249,9 @@ class ElectrodInterface:
         try:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
-        except ElectrumErrorResponse:
-            return
-        return responses and self._handle_responses(responses)
+        except ElectrumErrorResponse as e:
+            return e.args and e.args[0]
+        return responses and {"response": self._handle_responses(responses)}
 
     async def get_last_network_best_header(self, force_peers=1):
         future, _ = self._pick_peers(force_peers=force_peers)[0].subscribe('blockchain.headers.subscribe')

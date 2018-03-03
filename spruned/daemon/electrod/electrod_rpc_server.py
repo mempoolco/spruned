@@ -9,6 +9,7 @@ class ElectrodRPCServer:
         self.endpoint = endpoint
         self.interface = None
         self.repo = repository
+        self._server_instance = None
 
     def _serialize_header(self, header: Dict) -> Dict:
         return header
@@ -24,11 +25,13 @@ class ElectrodRPCServer:
         pass
 
     async def start(self):
-        return await aiomas.rpc.start_server(self.endpoint, self)
+        server = await aiomas.rpc.start_server(self.endpoint, self)
+        self._server_instance = server
 
     @router.expose
-    async def getrawtransaction(self, txid: str, verbose=False):
-        return await self.interface.getrawtransaction(txid)
+    async def getrawtransaction(self, payload: Dict):
+        assert "txid" in payload
+        return await self.interface.getrawtransaction(payload["txid"])
 
     @router.expose
     async def getblockhash(self, height: int):
