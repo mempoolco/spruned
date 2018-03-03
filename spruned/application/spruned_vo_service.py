@@ -25,7 +25,7 @@ def cache_block(func):
             res = await func(*args, **kwargs)
             cached = False
 
-        if args[0].cache and not cached and args[0].electrod:
+        if res and args[0].cache and not cached and args[0].electrod:
             electrod = args[0].electrod
             best_height = await electrod.getbestheight()
             args[0].current_best_height = best_height
@@ -52,7 +52,7 @@ def cache_transaction(func):
             res = await func(*args, **kwargs)
             cached = False
 
-        if args[0].cache and not cached and args[0].electrod:
+        if res and args[0].cache and not cached and args[0].electrod:
             electrod = args[0].electrod
             best_height = await electrod.getbestheight()
             args[0].current_best_height = best_height
@@ -69,7 +69,7 @@ def cache_transaction(func):
             raise NotImplementedError
             # Note: I have to do a PR to ElectrumX Server and today is saturday :-)
         else:
-            return res['rawtx']
+            return res and res['rawtx']
     return wrapper
 
 
@@ -206,25 +206,29 @@ class SprunedVOService(RPCAPIService):
         return await self._getrawtransaction(txid, verbose=verbose)
 
     async def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
-        assert _r < 10
+        if _r > 10:
+            return {}
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
-
         responses = _res or []
         futures = [service.getrawtransaction(txid) for service in services]
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
         if not responses:
             _exclude_services.extend(services)
-            return await self._getrawtransaction(txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services)
+            return await self._getrawtransaction(
+                txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services, _r=_r+1
+            )
         transaction = self._join_data(responses)
         if not transaction.get('rawtx'):
             electrod_transaction = await self.electrod.getrawtransaction(txid)
             if electrod_transaction:
-                transaction['rawtx'] = electrod_transaction['response']
+                transaction['rawtx'] = electrod_transaction.get('response')
                 transaction['source'] += ', electrum'
         if not self._is_complete(transaction):
             _exclude_services.extend(services)
-            return await self._getrawtransaction(txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services)
+            return await self._getrawtransaction(
+                txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services, _r=_r+1
+            )
         assert transaction['rawtx']
         return transaction

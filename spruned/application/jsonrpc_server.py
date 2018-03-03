@@ -43,7 +43,8 @@ class JSONRPCServer:
     async def getblock(self, blockhash: str):
         try:
             binascii.unhexlify(blockhash)
-        except binascii.Error:
+            assert len(blockhash) == 64
+        except (binascii.Error, AssertionError):
             return {"error": {"code": -5, "message": "Block not found"}}
         response = await self.vo_service.getblock(blockhash)
         if not response:
@@ -51,7 +52,16 @@ class JSONRPCServer:
         return response
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        raise NotImplementedError
+        try:
+            binascii.unhexlify(txid)
+        except (binascii.Error):
+            return {"error": {"code": -8, "message": "parameter 1 must be hexadecimal string (not '%s')" % txid}}
+        if len(txid) != 64:
+            return {"error": {"code": -8, "message": "parameter 1 must be of length 64 (not '%s')" % len(txid)}}
+        response = await self.vo_service.getrawtransaction(txid)
+        if not response:
+            return {"error": {"code": -5, "message": "No such mempool or blockchain transaction. [maybe try again]"}}
+        return response
 
     async def getblockchaininfo(self):
         raise NotImplementedError
