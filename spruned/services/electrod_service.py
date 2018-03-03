@@ -31,6 +31,10 @@ class ElectrodService(RPCAPIService):
         payload = {"txid": txid, "verbose": verbose}
         return self._async_to_sync_call("getrawtransaction", payload)
 
+    def getblockheader(self, blockhash, verbose=True):
+        payload = {"block_hash": blockhash, "verbose": verbose}
+        return self._async_to_sync_call("getblockheader", payload)
+
     def getblock(self, txid, verbose=False):
         return None
 
@@ -41,10 +45,6 @@ class ElectrodService(RPCAPIService):
     def getblockheight(self, blockhash: str):
         payload = {"block_hash": blockhash}
         return self._async_to_sync_call("getblockheight", payload)
-
-    def getblockheader(self, blockhash, verbose=False):
-        payload = {"block_hash": blockhash, "verbose": verbose}
-        return self._async_to_sync_call("getblockheader", payload)
 
     def estimatefee(self, blocks: int):
         payload = {"blocks": blocks}
@@ -61,5 +61,8 @@ class ElectrodService(RPCAPIService):
 
 if __name__ == '__main__':
     client = ElectrodService(settings.ELECTRUM_SOCKET)
-    response = client.getrawtransaction('5029394b46e48dfdcf2eaf0bbaad97735a7fa44f2cf51007aa69584c2476fb27')
-    print(response)
+    rawtx = client.getrawtransaction('5029394b46e48dfdcf2eaf0bbaad97735a7fa44f2cf51007aa69584c2476fb27')
+    print(rawtx)
+    blockheader = client.getblockheader('0000000000000000001d5797e770b7f9c4bd8db8aed4b4b649b50402acd1bb7a')
+    print(blockheader)
+

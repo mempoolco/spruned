@@ -9,17 +9,18 @@ class HeadersSQLiteRepository(HeadersRepository):
         self.session = session
 
     @staticmethod
-    def _header_model_to_dict(header: database.Header) -> Dict:
+    def _header_model_to_dict(header: database.Header, nextblockhash: str) -> Dict:
         return {
             'block_height': header.blockheight,
             'block_hash': header.blockhash,
-            'data': header.data
+            'data': header.data,
+            'next_block_hash': nextblockhash
         }
 
     def get_best_header(self):
         session = self.session()
         res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
-        res = res and self._header_model_to_dict(res)
+        res = res and self._header_model_to_dict(res, None)
         return res
 
     def get_header_at_height(self, height: int):
@@ -30,7 +31,9 @@ class HeadersSQLiteRepository(HeadersRepository):
         session = self.session()
         headers = session.query(database.Header).filter(database.Header.blockheight >= height)\
             .order_by(database.Header.blockheight.asc()).all()
-        return headers and [self._header_model_to_dict(h) for h in headers] or []
+        return headers and [
+            self._header_model_to_dict(h, self.get_block_hash(h.blockheight+1)) for h in headers
+        ] or []
 
     @database.atomic
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
@@ -104,4 +107,5 @@ class HeadersSQLiteRepository(HeadersRepository):
     def get_block_header(self, blockhash: str):
         session = self.session()
         header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
-        return header and self._header_model_to_dict(header)
+        nextblockhash = self.get_block_hash(header.blockheight + 1)
+        return header and self._header_model_to_dict(header, nextblockhash)
