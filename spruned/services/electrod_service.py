@@ -22,8 +22,9 @@ class ElectrodService(RPCAPIService):
         except asyncio.TimeoutError:
             return
 
-    async def getbestheight(self):
-        return await self.call("getbestheight")
+    async def getbestblockhash(self):
+        res = await self.call("getbestblockhash")
+        return res
 
     async def getrawtransaction(self, txid, verbose=False):
         payload = {"txid": txid, "verbose": verbose}

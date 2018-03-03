@@ -32,12 +32,13 @@ class JSONRPCServer:
         app.router.add_post('/', self._handle)
         runner = web.AppRunner(app)
         await runner.setup()
-        methods.add(self.getblockchaininfo)
-        methods.add(self.getblockhash)
-        methods.add(self.getblockheight)
-        methods.add(self.getblock)
-        methods.add(self.getrawtransaction)
         methods.add(self.getbestblockhash)
+        methods.add(self.getblockheader)
+        methods.add(self.getblockhash)
+        methods.add(self.getblock)
+
+        methods.add(self.getrawtransaction)
+
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
     async def getblock(self, blockhash: str):
@@ -63,14 +64,26 @@ class JSONRPCServer:
             return {"error": {"code": -5, "message": "No such mempool or blockchain transaction. [maybe try again]"}}
         return response
 
-    async def getblockchaininfo(self):
-        raise NotImplementedError
+    async def getbestblockhash(self):
+        return await self.vo_service.getbestblockhash()
 
     async def getblockhash(self, blockheight: int):
-        raise NotImplementedError
+        try:
+            int(blockheight)
+        except ValueError:
+            return {"error": {"code": -5, "message": "Error parsing JSON:%s" % blockheight}}
+        response = await self.vo_service.getblockhash(blockheight)
+        if not response:
+            return {"error": {"code": -8, "message": "Block height out of range"}}
+        return response
 
-    async def getblockheight(self, blockhash: str):
-        raise NotImplementedError
-
-    async def getbestblockhash(self):
-        raise NotImplementedError
+    async def getblockheader(self, blockhash: str):
+        try:
+            binascii.unhexlify(blockhash)
+            assert len(blockhash) == 64
+        except (binascii.Error, AssertionError):
+            return {"error": {"code": -5, "message": "Block not found"}}
+        response = await self.vo_service.getblockheader(blockhash)
+        if not response:
+            return {"error": {"code": -5, "message": "Block not found"}}
+        return response

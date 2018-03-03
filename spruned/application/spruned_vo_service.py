@@ -232,3 +232,13 @@ class SprunedVOService(RPCAPIService):
             )
         assert transaction['rawtx']
         return transaction
+
+    async def getbestblockhash(self):
+        res = await self.electrod.getbestblockhash()
+        return res and res
+
+    async def getblockhash(self, blockheight: int):
+        return await self.electrod.getblockhash(blockheight)
+
+    async def getblockheader(self, blockhash: str):
+        return await self.electrod.getblockheader(blockhash)

@@ -66,12 +66,8 @@ class ElectrodRPCServer:
         return self._serialize_header(header, verbose_mode)
 
     @router.expose
-    async def getblockhash(self, height: int):
-        return self.repo.get_block_hash(height)
-
-    @router.expose
-    async def getblockheight(self, blockhash: str):
-        return self.repo.get_block_height(blockhash)
+    async def getblockhash(self, payload: Dict):
+        return self.repo.get_block_hash(payload["block_height"])
 
     @router.expose
     async def sendrawtransaction(self, rawtransaction: str):
@@ -86,5 +82,5 @@ class ElectrodRPCServer:
         return await self.interface.getmempoolinfo()
 
     @router.expose
-    async def getbestheight(self):
-        return self.repo.get_best_header().get('block_height')
+    async def getbestblockhash(self):
+        return self.repo.get_best_header().get('block_hash')
