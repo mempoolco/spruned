@@ -32,6 +32,8 @@ class JSONRPCServer:
         app.router.add_post('/', self._handle)
         runner = web.AppRunner(app)
         await runner.setup()
+        methods.add(self.estimatefee)
+        methods.add(self.estimatesmartfee)
         methods.add(self.getbestblockhash)
         methods.add(self.getblockheader)
         methods.add(self.getblockhash)
@@ -91,3 +93,29 @@ class JSONRPCServer:
         if not response:
             return {"error": {"code": -5, "message": "Block not found"}}
         return response
+
+    async def estimatefee(self, blocks: int):
+        try:
+            int(blocks)
+        except ValueError:
+            return {"error": {"code": -5, "message": "Error parsing JSON:%s" % blocks}}
+        response = await self.vo_service.estimatefee(blocks)
+        if response is None:
+            return "-1"
+        return response.get("response")
+
+    async def estimatesmartfee(self, blocks: int):
+        try:
+            int(blocks)
+        except ValueError:
+            return {"error": {"code": -5, "message": "Error parsing JSON:%s" % blocks}}
+        if not 0 < int(blocks) < 1009:
+            return {"error": {"code": -8, "message": "Invalid conf_target, must be between 1 - 1008"}}
+        response = await self.vo_service.estimatefee(blocks)
+        if response is None:
+            return {"error": {"code": -8, "message": "server error: try again"}}
+        return {
+            "blocks": blocks,
+            "feerate": response["response"]
+        }
+

@@ -13,7 +13,8 @@ $ bitcoin-cli getblockchaininfo
 
 ##### Emulated APIs as in bitcoind 0.16:
 
-- <s>estimatefee</s>
+- estimatefee
+- estimatesmartfee [it's an alias to estimatefee]
 - getbestblockhash
 - getblock [mode 1 is supported: a json object with transaction ids]
 - <s>getblockchaininfo</s>

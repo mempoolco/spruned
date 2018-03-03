@@ -251,3 +251,16 @@ class ElectrodInterface:
         except ElectrumErrorResponse:
             return
         return headers
+
+    async def estimatefee(self, blocks: int, force_peers=None):
+        responses = []
+        futures = [
+            peer.RPC('blockchain.estimatefee', blocks)
+            for peer in self._pick_peers(force_peers=force_peers)
+        ]
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse:
+            return
+        return responses and {"response": "{:.8f}".format(min(responses))}

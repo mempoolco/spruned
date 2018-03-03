@@ -74,7 +74,8 @@ class ElectrodRPCServer:
         return await self.interface.sendrawtransaction(rawtransaction)
 
     @router.expose
-    async def estimatefee(self, blocks: int):
+    async def estimatefee(self, payload: Dict):
+        blocks = payload['blocks']
         return await self.interface.estimatefee(blocks)
 
     @router.expose
