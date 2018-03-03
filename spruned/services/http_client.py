@@ -12,7 +12,7 @@ class HTTPClient:
     async def get(self, *a, json_response=True, **kw):
         url = self.baseurl + a[0]
         try:
-            async with async_timeout.timeout(5):
+            async with async_timeout.timeout(10):
                 async with aiohttp.ClientSession() as session:
                     async with session as s:
                         header = {}
@@ -28,7 +28,7 @@ class HTTPClient:
     async def post(self, *a, json_response=True, **kw):
         url = self.baseurl + a[0]
         try:
-            async with async_timeout.timeout(5):
+            async with async_timeout.timeout(10):
                 async with aiohttp.ClientSession() as session:
                     async with session as s:
 

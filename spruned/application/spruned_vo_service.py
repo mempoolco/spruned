@@ -214,9 +214,7 @@ class SprunedVOService(RPCAPIService):
         futures = [service.getrawtransaction(txid) for service in services]
         for response in await asyncio.gather(*futures):
             response and responses.append(response)
-            print('Responses: %s' % responses)
         if not responses:
-            print('Not responses!')
             _exclude_services.extend(services)
             return await self._getrawtransaction(txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services)
         transaction = self._join_data(responses)

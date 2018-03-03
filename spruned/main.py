@@ -55,8 +55,11 @@ async def test_apis():
         while 1:
             print('Requesting Block hash: %s' % blockhash)
             block = await service.getblock(blockhash)
+            assert block
             for txid in block['tx'][:10]:
-                print(await service.getrawtransaction(txid))
+                res = await service.getrawtransaction(txid)
+                assert res
+                print(res)
             blockhash = block['previousblockhash']
     except:
         Logger.root.exception('Exception in sPRUNED main')
