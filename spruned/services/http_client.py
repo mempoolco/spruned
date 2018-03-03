@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
 import async_timeout
-
+from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
 
 
@@ -20,9 +20,9 @@ class HTTPClient:
                         response = await s.get(url, headers=header, **kw)
                         response.raise_for_status()
                         res = await response.json() if json_response else await response.read()
-        except (aiohttp.ClientResponseError, asyncio.TimeoutError, aiohttp.ClientError):
+        except (aiohttp.ClientResponseError, asyncio.TimeoutError, aiohttp.ClientError) as e:
             Logger.third_party.exception('Exception on call: %s' % url)
-            return
+            raise exceptions.HTTPClientException from e
         return res
 
     async def post(self, *a, json_response=True, **kw):
@@ -37,9 +37,9 @@ class HTTPClient:
                             response = await s.post(url, headers=header, **kw)
                             response.raise_for_status()
                             res = await response.json() if json_response else await response.read()
-        except (aiohttp.ClientResponseError, asyncio.TimeoutError, aiohttp.ClientError):
+        except (aiohttp.ClientResponseError, asyncio.TimeoutError, aiohttp.ClientError) as e:
             Logger.third_party.exception('Exception on call: %s' % url)
-            return
+            raise exceptions.HTTPClientException from e
         return res
 
 

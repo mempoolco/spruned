@@ -4,3 +4,7 @@ class SprunedException(Exception):
 
 class ServiceException(SprunedException):
     pass
+
+
+class HTTPClientException(SprunedException):
+    pass

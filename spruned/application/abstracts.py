@@ -1,8 +1,14 @@
 import abc
 from typing import List, Dict
 
+import time
+
 
 class RPCAPIService(metaclass=abc.ABCMeta):
+    errors_ttl = 5
+    max_errors_before_downtime = 1
+    errors = []
+
     @abc.abstractmethod
     def getblock(self, blockhash):
         pass  # pragma: no cover
@@ -11,10 +17,19 @@ class RPCAPIService(metaclass=abc.ABCMeta):
     def getrawtransaction(self, txid, **kwargs):
         pass  # pragma: no cover
 
+    def _increase_errors(self):
+        now = int(time.time())
+        self.errors.append(now)
+
     @property
-    @abc.abstractmethod
-    def available(self) -> bool:
-        pass  # pragma: no cover
+    def available(self):
+        now = int(time.time())
+        _errors = []
+        for error in self.errors:
+            if error > now - self.errors_ttl:
+                _errors.append(error)
+        self.errors = _errors
+        return bool(len(self.errors) < self.max_errors_before_downtime)
 
 
 class StorageInterface(metaclass=abc.ABCMeta):

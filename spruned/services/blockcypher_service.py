@@ -1,6 +1,6 @@
 from datetime import datetime
 import time
-from spruned.application import settings
+from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
@@ -16,10 +16,20 @@ class BlockCypherService(RPCAPIService):
         self._e_d = datetime(1970, 1, 1)
         self.api_token = api_token
 
+    async def get(self, path):
+        try:
+            return await self.client.get(path)
+        except exceptions.HTTPClientException as e:
+            from aiohttp import ClientResponseError
+            cause: ClientResponseError = e.__cause__
+            if isinstance(cause, ClientResponseError):
+                if cause.code == 429:
+                    self._increase_errors()
+
     async def getrawtransaction(self, txid, **_):
         query = '?includeHex=1&limit=1'
         query = self.api_token and query + '&token=%s' % self.api_token or query
-        data = await self.client.get('txs/' + txid + query)
+        data = await self.get('txs/' + txid + query)
         return data and {
             'rawtx': normalize_transaction(data['hex']),
             'blockhash': data['block_hash'],
@@ -37,7 +47,7 @@ class BlockCypherService(RPCAPIService):
             # FIXME - Make it async concurr etc..
             query = '?txstart=%s&limit=%s' % (_s, _l)
             query = self.api_token and query + '&token=%s' % self.api_token or query
-            res = await self.client.get('blocks/' + blockhash + query)
+            res = await self.get('blocks/' + blockhash + query)
             if not res:
                 return
             if not self.api_token:
@@ -55,7 +65,3 @@ class BlockCypherService(RPCAPIService):
             'hash': d['hash'],
             'tx': d['txids']
         }
-
-    @property
-    def available(self):
-        return True
