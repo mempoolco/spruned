@@ -45,31 +45,3 @@ jsonrpc_server = JSONRPCServer(
     settings.JSONRPCSERVER_PASSWORD
 )
 jsonrpc_server.set_vo_service(service)
-
-
-"""
-def jsonprint(d):
-    print(json.dumps(d, indent=4))
-
-async def test_apis():
-    print('sleeping')
-    await asyncio.sleep(5)
-    print('starting')
-    try:
-        Logger.root.debug('Starting sPRUNED')
-        blockhash = "0000000000000000000612c2915991d1ed779380bbfacd8082cd24bb588861b9"
-        while 1:
-            print('Requesting Block hash: %s' % blockhash)
-            block = await service.getblock(blockhash)
-            assert block
-            for txid in block['tx'][:10]:
-                res = await service.getrawtransaction(txid)
-                assert res
-                print(res)
-            blockhash = block['previousblockhash']
-    except:
-        Logger.root.exception('Exception in sPRUNED main')
-        raise
-    finally:
-        Logger.root.debug('Spruned exit')
-"""

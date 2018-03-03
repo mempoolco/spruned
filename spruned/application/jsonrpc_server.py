@@ -2,6 +2,7 @@ import binascii
 from aiohttp import web
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config
+from jsonrpcserver.response import ExceptionResponse
 
 config.schema_validation = False
 
@@ -20,7 +21,9 @@ class JSONRPCServer:
     async def _handle(self, request):
         request = await request.text()
         response = await methods.dispatch(request)
-        if "error" in response["result"]:
+        if isinstance(response, ExceptionResponse):
+            return web.json_response(response, status=response.http_status)
+        if response and "error" in response.get("result"):
             return web.json_response(response["result"], status=400)
         return web.json_response(response, status=response.http_status)
 
