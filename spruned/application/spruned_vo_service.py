@@ -220,12 +220,10 @@ class SprunedVOService(RPCAPIService):
             _exclude_services.extend(services)
             return await self._getrawtransaction(txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services)
         transaction = self._join_data(responses)
-        print('Transaction: %s' % transaction)
         if not transaction.get('rawtx'):
-            print('Rawtx not found, asking to electrod')
-            rawtransaction = await self.electrod.getrawtransaction(txid)
-            if rawtransaction:
-                transaction['rawtx'] = rawtransaction['response']
+            electrod_transaction = await self.electrod.getrawtransaction(txid)
+            if electrod_transaction:
+                transaction['rawtx'] = electrod_transaction['response']
                 transaction['source'] += ', electrum'
         if not self._is_complete(transaction):
             _exclude_services.extend(services)

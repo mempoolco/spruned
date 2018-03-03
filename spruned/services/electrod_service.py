@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict
 
 import aiomas
@@ -11,12 +12,15 @@ class ElectrodService(RPCAPIService):
         self.socketfile = socketfile
 
     async def call(self, method, payload: Dict=None):
-        async with async_timeout.timeout(3):
-            rpc_con = await aiomas.rpc.open_connection(self.socketfile)
-            call = getattr(rpc_con.remote, method)
-            resp = payload is not None and await call(payload) or await call()
-            await rpc_con.close()
-            return resp
+        try:
+            async with async_timeout.timeout(5):
+                rpc_con = await aiomas.rpc.open_connection(self.socketfile)
+                call = getattr(rpc_con.remote, method)
+                resp = payload is not None and await call(payload) or await call()
+                await rpc_con.close()
+                return resp
+        except asyncio.TimeoutError:
+            return
 
     async def getbestheight(self):
         return await self.call("getbestheight")
