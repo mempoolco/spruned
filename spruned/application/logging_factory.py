@@ -39,7 +39,8 @@ class LoggingFactory:
 
 Logger = LoggingFactory(
     logfile=settings.LOGFILE,
-    loglevel=settings.DEBUG and logging.DEBUG or logging.INFO
+    loglevel=settings.DEBUG and logging.DEBUG or logging.INFO,
+    stdout=True
 )  # type: LoggingFactory
 
 logging.getLogger('connectrum').setLevel(logging.WARNING)
