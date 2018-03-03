@@ -16,11 +16,13 @@ $ bitcoin-cli getblockchaininfo
 - <s>estimatefee</s>
 - getbestblockhash
 - getblock [mode 1 is supported: a json object with transaction ids]
-- getblockchaininfo
+- <s>getblockchaininfo</s>
+- getblockcount
 - getblockhash
 - getblockheader <s>[verbose \ non verbose]</s>
 - <s>getmempoolinfo</s>
 - getrawtransaction [non verbose only]
+- <s>gettxout</s>
 - <s>sendrawtransaction</s>
 
 

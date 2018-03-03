@@ -36,7 +36,7 @@ class JSONRPCServer:
         methods.add(self.getblockheader)
         methods.add(self.getblockhash)
         methods.add(self.getblock)
-
+        methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
@@ -66,6 +66,10 @@ class JSONRPCServer:
 
     async def getbestblockhash(self):
         return await self.vo_service.getbestblockhash()
+
+    async def getblockcount(self):
+        res = await self.vo_service.getblockcount()
+        return res is not None and str(res)
 
     async def getblockhash(self, blockheight: int):
         try:

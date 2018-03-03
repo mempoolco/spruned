@@ -53,6 +53,9 @@ class ElectrodService(RPCAPIService):
         payload = {"rawtx": rawtx}
         return await self.call("sendrawtransaction", payload)
 
+    async def getblockcount(self):
+        return await self.call("getblockcount")
+
     @property
     def available(self) -> bool:
         return True

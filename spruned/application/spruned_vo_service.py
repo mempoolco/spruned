@@ -242,3 +242,6 @@ class SprunedVOService(RPCAPIService):
 
     async def getblockheader(self, blockhash: str):
         return await self.electrod.getblockheader(blockhash)
+
+    async def getblockcount(self):
+        return await self.electrod.getblockcount()

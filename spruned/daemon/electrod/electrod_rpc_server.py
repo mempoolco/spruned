@@ -84,3 +84,7 @@ class ElectrodRPCServer:
     @router.expose
     async def getbestblockhash(self):
         return self.repo.get_best_header().get('block_hash')
+
+    @router.expose
+    async def getblockcount(self):
+        return self.repo.get_best_header().get('block_height')
