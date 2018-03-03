@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 import random
 import binascii
@@ -14,106 +15,15 @@ from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, async_delayed_task, serialize_header
 
-ELECTRUM_SERVERS = [
-    ["134.119.179.55", "s"],
-    ["165.227.22.180", "s"],
-    ["176.9.155.246", "s"],
-    ["185.64.116.15", "s"],
-    ["46.166.165.18", "s"],
-    ["E-X.not.fyi", "s"],
-    ["Electrum.GlowHost.com", "s"],
-    ["VPS.hsmiths.com", "s"],
-    ["alviss.coinjoined.com", "s"],
-    ["aspinall.io", "s"],
-    ["bitcoin.cluelessperson.com", "s"],
-    ["bitcoin.maeyanie.com", "s"],
-    ["bitcoins.sk", "s"],
-    ["btc.cihar.com", "s"],
-    ["btc.pr0xima.de", "s"],
-    ["cryptohead.de", "s"],
-    ["daedalus.bauerj.eu", "s"],
-    ["e-1.claudioboxx.com", "s"],
-    ["e-2.claudioboxx.com", "s"],
-    ["e-3.claudioboxx.com", "s"],
-    ["e.keff.org", "s"],
-    ["ele.lightningnetwork.xyz", "s"],
-    ["ele.nummi.it", "s"],
-    ["elec.luggs.co", "s"],
-    ["electrum-server.ninja", "s"],
-    ["electrum.achow101.com", "s"],
-    ["electrum.akinbo.org", "s"],
-    ["electrum.anduck.net", "s"],
-    ["electrum.antumbra.se", "s"],
-    ["electrum.backplanedns.org", "s"],
-    ["electrum.be", "s"],
-    ["electrum.coinucopia.io", "s"],
-    ["electrum.cutie.ga", "s"],
-    ["electrum.festivaldelhumor.org", "s"],
-    ["electrum.hsmiths.com", "s"],
-    ["electrum.infinitum-nihil.com", "s"],
-    ["electrum.leblancnet.us", "s"],
-    ["electrum.mindspot.org", "s"],
-    ["electrum.nute.net", "s"],
-    ["electrum.petrkr.net", "s"],
-    ["electrum.poorcoding.com", "s"],
-    ["electrum.qtornado.com", "s"],
-    ["electrum.taborsky.cz", "s"],
-    ["electrum.villocq.com", "s"],
-    ["electrum.vom-stausee.de", "s"],
-    ["electrum0.snel.it", "s"],
-    ["electrum2.everynothing.net", "s"],
-    ["electrum2.villocq.com", "s"],
-    ["electrum3.hachre.de", "s"],
-    ["electrumx-core.1209k.com", "s"],
-    ["electrumx.adminsehow.com", "s"],
-    ["electrumx.bot.nu", "s"],
-    ["electrumx.donsomhong.net", "s"],
-    ["electrumx.gigelf.eu", "s"],
-    ["electrumx.kekku.li", "s"],
-    ["electrumx.nmdps.net", "s"],
-    ["electrumx.schneemensch.net", "s"],
-    ["electrumx.soon.it", "s"],
-    ["electrumx.westeurope.cloudapp.azure.com", "s"],
-    ["elx01.knas.systems", "s"],
-    ["elx2018.mooo.com", "s"],
-    ["enode.duckdns.org", "s"],
-    ["erbium1.sytes.net", "s"],
-    ["helicarrier.bauerj.eu", "s"],
-    ["icarus.tetradrachm.net", "s"],
-    ["ip101.ip-54-37-91.eu", "s"],
-    ["ip119.ip-54-37-91.eu", "s"],
-    ["ip120.ip-54-37-91.eu", "s"],
-    ["ip239.ip-54-36-234.eu", "s"],
-    ["kirsche.emzy.de", "s"],
-    ["mdw.ddns.net", "s"],
-    ["mooo.not.fyi", "s"],
-    ["ndnd.selfhost.eu", "s"],
-    ["node.ispol.sk", "s"],
-    ["node.xbt.eu", "s"],
-    ["noserver4u.de", "s"],
-    ["orannis.com", "s"],
-    ["qmebr.spdns.org", "s"],
-    ["rbx.curalle.ovh", "s"],
-    ["shogoth.no-ip.info", "s"],
-    ["songbird.bauerj.eu", "s"],
-    ["spv.48.org", "s"],
-    ["such.ninja", "s"],
-    ["sumBTC.mooo.com", "s"],
-    ["tardis.bauerj.eu", "s"],
-    ["technetium.network", "s"],
-    ["us01.hamster.science", "s"],
-    ["v25437.1blu.de", "s"],
-    ["vps-m-01.donsomhong.net", "s"],
-    ["walle.dedyn.io", "s"],
-    ["ecdsa.net", "s"],
-    ["erbium1.sytes.net", "s"],
-    ["gh05.geekhosters.com", "s"]
-]
-
 
 class ElectrodInterface:
     def __init__(self, coin, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
         assert coin.value == 1
+        self._coin = coin
+        self._serversfile_attr = {
+            1: 'bc_mainnet',
+            2: 'bc_testnet'
+        }
         self._peers = []
         self.concurrency = concurrency
         self.blacklisted = []
@@ -121,6 +31,13 @@ class ElectrodInterface:
         self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
+        self._electrum_servers = self._load_electrum_servers()
+
+    def _load_electrum_servers(self):
+        _current_path = os.path.dirname(os.path.abspath(__file__))
+        with open(_current_path + '/electrum_servers.json', 'r') as f:
+            servers = json.load(f)
+        return servers[self._serversfile_attr[self._coin.value]]
 
     async def get_all_connected_peers(self):
         return [peer for peer in self._peers if peer.protocol]
@@ -136,7 +53,7 @@ class ElectrodInterface:
         i = 0
         while not _server:
             i += 1
-            _server = random.choice(ELECTRUM_SERVERS)
+            _server = random.choice(self._electrum_servers)
             _server = _server not in self.blacklisted and _server or None
             assert i < 50
 
