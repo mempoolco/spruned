@@ -1,6 +1,6 @@
 from datetime import datetime
 import time
-from spruned.application import settings, exceptions
+from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
 from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
@@ -15,16 +15,7 @@ class BlockCypherService(RPCAPIService):
         self.client = httpclient(baseurl='https://api.blockcypher.com/v1/' + coin_url)
         self._e_d = datetime(1970, 1, 1)
         self.api_token = api_token
-
-    async def get(self, path):
-        try:
-            return await self.client.get(path)
-        except exceptions.HTTPClientException as e:
-            from aiohttp import ClientResponseError
-            cause: ClientResponseError = e.__cause__
-            if isinstance(cause, ClientResponseError):
-                if cause.code == 429:
-                    self._increase_errors()
+        self.throttling_error_codes = []
 
     async def getrawtransaction(self, txid, **_):
         query = '?includeHex=1&limit=1'
@@ -65,3 +56,10 @@ class BlockCypherService(RPCAPIService):
             'hash': d['hash'],
             'tx': d['txids']
         }
+
+    async def gettxout(self, txid: str, index: int):
+        """
+        https://api.blockcypher.com/v1/btc/main/txs/f854aebae95150b379cc1187d848d58225f3c4157fe992bcd166f58bd5063449
+        there are enough infos to have gettxout
+        """
+        pass

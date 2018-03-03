@@ -68,3 +68,8 @@ def get_nearest_parent(number: int, divisor: int):
 async def async_delayed_task(task, seconds: int):
     await asyncio.sleep(seconds)
     return await task
+
+
+def decode_raw_transaction(rawtx: str):
+    tx = deserialize(rawtx)
+    pass

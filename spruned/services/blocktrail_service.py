@@ -1,7 +1,6 @@
 from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
 from spruned.services.http_client import HTTPClient
-from spruned.application import exceptions
 
 
 class BlocktrailService(RPCAPIService):
@@ -12,16 +11,7 @@ class BlocktrailService(RPCAPIService):
         self.client = httpclient(baseurl='https://api.blocktrail.com/v1/' + coin_url)
         assert api_key is not None
         self.api_key = api_key
-
-    async def get(self, path):
-        try:
-            return await self.client.get(path)
-        except exceptions.HTTPClientException as e:
-            from aiohttp import ClientResponseError
-            cause: ClientResponseError = e.__cause__
-            if isinstance(cause, ClientResponseError):
-                if cause.code == 429:
-                    self._increase_errors()
+        self.throttling_error_codes = []
 
     async def getrawtransaction(self, txid, **_):
         url = 'transaction/' + txid + '?api_key=' + self.api_key
@@ -43,3 +33,9 @@ class BlocktrailService(RPCAPIService):
             'confirmations': data['confirmations'],
             'tx': None
         }
+
+    async def gettxout(self):
+        """
+        blocktrail API permits to implement some sort of gettxout, yahi \o/
+        """
+        pass

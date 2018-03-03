@@ -1,4 +1,3 @@
-from spruned.application import exceptions
 from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
 from spruned.application.tools import normalize_transaction
@@ -14,16 +13,7 @@ class ChainSoService(RPCAPIService):
         self.errors = []
         self.errors_ttl = 5
         self.max_errors_before_downtime = 1
-
-    async def get(self, path):
-        try:
-            return await self.client.get(path)
-        except exceptions.HTTPClientException as e:
-            from aiohttp import ClientResponseError
-            cause: ClientResponseError = e.__cause__
-            if isinstance(cause, ClientResponseError):
-                if cause.code == 429:
-                    self._increase_errors()
+        self.throttling_error_codes = (429, )
 
     async def getrawtransaction(self, txid, **_):
         data = await self.get('get_tx/' + self._coin_url + txid)
@@ -42,3 +32,9 @@ class ChainSoService(RPCAPIService):
             'hash': data['data']['blockhash'],
             'tx': data['data']['txs']
         }
+
+    async def gettxout(self, txid: str, index: int):
+        """
+        https://chain.so/api#get-is-tx-output-spent
+        """
+        pass

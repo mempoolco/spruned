@@ -3,7 +3,7 @@
 <p>sPRUNED emulate the bitcoind rpc server as a full node of BTC mainnet</p>
 
 #### Usage
-w.i.p., not usable yet. follow\star the project and come back later!
+w.i.p., not usable yet. follow the project and come back later!
 
 However, this is how things are going to be:
 ```
@@ -29,13 +29,13 @@ $ bitcoin-cli getblockchaininfo
 
 #### Requirements
 - An internet connection
-- ~200mb of disk space :-)
+- **~200mb of disk space :-)**
 - Python 3.6
 
 
 #### How sPRUNED works:
 It uses an hybrid of public services (blockchaininfo, chainso, blocktrail, blockcypher, etc.) and 
-the electrum network to gather the informations you need.<br />
+the electrum network to gather and verify the informations you need.<br />
 Fetched data is cached on a the local file system.<br />
  
 #### Crypto-verified

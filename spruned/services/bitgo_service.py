@@ -8,6 +8,7 @@ class BitGoService(RPCAPIService):
     def __init__(self, coin, http_client=HTTPClient):
         assert coin == settings.Network.BITCOIN
         self.client = http_client(baseurl='https://www.bitgo.com/api/v1/')
+        self.throttling_error_codes = []
 
     async def get(self, path):
         try:
@@ -37,3 +38,9 @@ class BitGoService(RPCAPIService):
             'hash': data['id'],
             'tx': data['transactions'],
         }
+
+    async def gettxout(self, txid: str, index: int):
+        """
+        looks like bitgo is a dead end for getxout
+        """
+        pass
