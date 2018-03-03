@@ -248,3 +248,6 @@ class SprunedVOService(RPCAPIService):
 
     async def estimatefee(self, blocks: int):
         return await self.electrod.estimatefee(blocks)
+
+    async def getbestblockheader(self):
+        return await self.electrod.getbestblockheader()

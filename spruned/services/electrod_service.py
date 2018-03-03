@@ -26,6 +26,10 @@ class ElectrodService(RPCAPIService):
         res = await self.call("getbestblockhash")
         return res
 
+    async def getbestblockheader(self):
+        res = await self.call("getbestblockheader")
+        return res
+
     async def getrawtransaction(self, txid, verbose=False):
         payload = {"txid": txid, "verbose": verbose}
         return await self.call("getrawtransaction", payload)

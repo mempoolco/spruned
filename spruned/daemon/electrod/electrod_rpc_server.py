@@ -87,5 +87,9 @@ class ElectrodRPCServer:
         return self.repo.get_best_header().get('block_hash')
 
     @router.expose
+    async def getbestblockheader(self):
+        return self._serialize_header(self.repo.get_best_header(), True)
+
+    @router.expose
     async def getblockcount(self):
         return self.repo.get_best_header().get('block_height')

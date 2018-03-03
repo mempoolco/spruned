@@ -35,6 +35,7 @@ class JSONRPCServer:
         methods.add(self.estimatefee)
         methods.add(self.estimatesmartfee)
         methods.add(self.getbestblockhash)
+        methods.add(self.getblockchaininfo)
         methods.add(self.getblockheader)
         methods.add(self.getblockhash)
         methods.add(self.getblock)
@@ -119,3 +120,19 @@ class JSONRPCServer:
             "feerate": response["response"]
         }
 
+    async def getblockchaininfo(self):
+        response = await self.vo_service.getbestblockheader()
+        if response is None:
+            return {"error": {"code": -8, "message": "server error: try again"}}
+        print(response)
+        return {
+            "chain": "main",
+            "blocks": response["height"],
+            "headers": response["height"],
+            "bestblockhash": response["hash"],
+            "difficulty": response["difficulty"],
+            "mediantime": response["mediantime"],
+            "verificationprogress": 0,
+            "chainwork": response["chainwork"],
+            "pruned": False,
+        }

@@ -17,7 +17,7 @@ $ bitcoin-cli getblockchaininfo
 - estimatesmartfee [it's an alias to estimatefee]
 - getbestblockhash
 - getblock [mode 1 is supported: a json object with transaction ids]
-- <s>getblockchaininfo</s>
+- getblockchaininfo
 - getblockcount
 - getblockhash
 - getblockheader <s>[verbose \ non verbose]</s>
