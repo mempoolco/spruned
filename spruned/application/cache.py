@@ -1,4 +1,4 @@
-from spruned.daemon.storage import StorageFileInterface
+from spruned.application.storage import StorageFileInterface
 
 
 class CacheFileInterface(StorageFileInterface):
