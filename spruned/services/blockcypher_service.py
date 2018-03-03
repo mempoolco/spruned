@@ -16,10 +16,10 @@ class BlockCypherService(RPCAPIService):
         self._e_d = datetime(1970, 1, 1)
         self.api_token = api_token
 
-    def getrawtransaction(self, txid, **_):
+    async def getrawtransaction(self, txid, **_):
         query = '?includeHex=1&limit=1'
         query = self.api_token and query + '&token=%s' % self.api_token or query
-        data = self.client.get('txs/' + txid + query)
+        data = await self.client.get('txs/' + txid + query)
         return data and {
             'rawtx': normalize_transaction(data['hex']),
             'blockhash': data['block_hash'],
@@ -28,15 +28,16 @@ class BlockCypherService(RPCAPIService):
             'source': 'blockcypher'
         }
 
-    def getblock(self, blockhash):
+    async def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
         _s = 0
         _l = 500
         d = None
         while 1:
+            # FIXME - Make it async concurr etc..
             query = '?txstart=%s&limit=%s' % (_s, _l)
             query = self.api_token and query + '&token=%s' % self.api_token or query
-            res = self.client.get('blocks/' + blockhash + query)
+            res = await self.client.get('blocks/' + blockhash + query)
             if not res:
                 return
             if not self.api_token:

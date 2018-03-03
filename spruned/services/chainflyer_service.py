@@ -1,8 +1,6 @@
 from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
-from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
-
 
 
 class ChainFlyerService(RPCAPIService):
@@ -10,8 +8,8 @@ class ChainFlyerService(RPCAPIService):
         assert coin == settings.Network.BITCOIN
         self.client = HTTPClient(baseurl='https://chainflyer.bitflyer.jp/v1/')
 
-    def getrawtransaction(self, txid, **_):
-        data = self.client.get('tx/' + txid)
+    async def getrawtransaction(self, txid, **_):
+        data = await self.client.get('tx/' + txid)
         return data and {
             'rawtx': None,
             'blockhash': None,
@@ -20,9 +18,9 @@ class ChainFlyerService(RPCAPIService):
             'source': 'chainflyer'
         }
 
-    def getblock(self, blockhash):
+    async def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
-        data = self.client.get('block/' + blockhash)
+        data = await self.client.get('block/' + blockhash)
         return data and {
             'source': 'chainflyer',
             'hash': data['block_hash'],

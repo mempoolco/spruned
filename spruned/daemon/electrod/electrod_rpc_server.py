@@ -84,3 +84,7 @@ class ElectrodRPCServer:
     @router.expose
     async def getmempoolinfo(self):
         return await self.interface.getmempoolinfo()
+
+    @router.expose
+    async def getbestheight(self):
+        return self.repo.get_best_header().get('block_height')

@@ -5,7 +5,7 @@ from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 from spruned.daemon.electrod.electrod_rpc_server import ElectrodRPCServer
-from spruned.application import settings
+
 from spruned.daemon import database, exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import get_nearest_parent, async_delayed_task
@@ -150,16 +150,21 @@ class ElectrodReactor:
         )
 
 
-def build_electrod() -> ElectrodReactor:
+def build_electrod(network, socket, concurrency=3) -> ElectrodReactor:
     headers_repository = HeadersSQLiteRepository(database.session)
-    electrod_rpc_server = ElectrodRPCServer(settings.ELECTRUM_SOCKET, headers_repository)
-    electrod_interface = ElectrodInterface(settings.NETWORK, connections_concurrency_ratio=2, concurrency=3)
+    electrod_rpc_server = ElectrodRPCServer(socket, headers_repository)
+    electrod_interface = ElectrodInterface(
+        network,
+        connections_concurrency_ratio=2,
+        concurrency=concurrency
+    )
     electrod = ElectrodReactor(headers_repository, electrod_interface, electrod_rpc_server)
     return electrod
 
 
 if __name__ == '__main__':
+    from spruned.application import settings
     loop = asyncio.get_event_loop()
-    electrod = build_electrod()
+    electrod = build_electrod(settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY)
     loop.create_task(electrod.start())
     loop.run_forever()

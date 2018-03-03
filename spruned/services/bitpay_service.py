@@ -1,6 +1,5 @@
 from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
-from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
 
 
@@ -9,8 +8,8 @@ class BitpayService(RPCAPIService):
         assert coin == settings.Network.BITCOIN
         self.client = httpclient(baseurl='https://insight.bitpay.com/api/')
 
-    def getrawtransaction(self, txid, **_):
-        data = self.client.get('tx/' + txid)
+    async def getrawtransaction(self, txid, **_):
+        data = await self.client.get('tx/' + txid)
         return data and {
             'rawtx': None,
             'blockhash': data['blockhash'],
@@ -19,9 +18,9 @@ class BitpayService(RPCAPIService):
             'source': 'insight.bitpay.com'
         }
 
-    def getblock(self, blockhash):
+    async def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
-        data = self.client.get('block/' + blockhash)
+        data = await self.client.get('block/' + blockhash)
         return data and {
             'source': 'blockexplorer.com',
             'hash': data['hash'],

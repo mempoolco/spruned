@@ -11,14 +11,24 @@ from spruned.services.electrod_service import ElectrodService
 
 def cache_block(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        bitcoind = args[0].bitcoind
-        res = func(*args, **kwargs)
-        best_height = bitcoind.getbestheight()
-        args[0].current_best_height = best_height
+    async def wrapper(*args, **kwargs):
+        cacheargs = ''.join(args[1:])
+        cached = False
+        res = None
+        if args[0].cache:
+            cache_res = args[0].cache.get('getblock', cacheargs)
+            if cache_res:
+                res = cache_res
+                cached = True
 
-        # block case
-        if res.get('height'):
+        if res is None:
+            res = await func(*args, **kwargs)
+            cached = False
+
+        if args[0].cache and not cached and args[0].electrod:
+            electrod = args[0].electrod
+            best_height = await electrod.getbestheight()
+            args[0].current_best_height = best_height
             height = res['height']
             res['confirmations'] = best_height - height
             if res['confirmations'] > 3:
@@ -29,76 +39,51 @@ def cache_block(func):
 
 def cache_transaction(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        bitcoind = args[0].bitcoind
-        res = func(*args, **kwargs)
-        best_height = bitcoind.getbestheight()
-        args[0].current_best_height = best_height
-        confirmed = False
-        if res.get('blockhash'):
-            blockheader = bitcoind.getblockheader(res['blockhash'])
-            if blockheader.get('height'):
-                res['confirmations'] = best_height - blockheader['height']
-                if res['confirmations'] > 3:
-                    args[0].cache.set('getrawtransaction', res['txid'], res)
-                    confirmed = True
+    async def wrapper(*args, **kwargs):
+        cacheargs = ''.join(args[1:])
+        cached = False
+        res = None
+        if args[0].cache:
+            cache_res = args[0].cache.get('getrawtransaction', cacheargs)
+            if cache_res:
+                res = cache_res
+                cached = True
+        if res is None:
+            res = await func(*args, **kwargs)
+            cached = False
+
+        if args[0].cache and not cached and args[0].electrod:
+            electrod = args[0].electrod
+            best_height = await electrod.getbestheight()
+            args[0].current_best_height = best_height
+            confirmed = False
+            if res.get('blockhash'):
+                header = await electrod.getblockheader(res['blockhash'])
+                if header and header.get('height'):
+                    res['confirmations'] = best_height - header['height']
+                    if res['confirmations'] > 3:
+                        args[0].cache.set('getrawtransaction', res['txid'], res)
+                        confirmed = True
 
         if kwargs.get('verbose'):
-            data = bitcoind.decoderawtransaction(res['rawtx'])
-            if confirmed:
-                data['confirmations'] = blockheader['confirmations']
-                data['time'] = blockheader['time']
-            return data
+            raise NotImplementedError
+            # Note: I have to do a PR to ElectrumX Server and today is saturday :-)
         else:
             return res['rawtx']
     return wrapper
 
 
-def maybe_cached(method):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **_):
-            if args[0].cache:
-                cacheargs = ''.join(args[1:])
-                _d = args[0].cache.get(method, cacheargs)
-                if _d:
-                    print('Cache hit for %s - %s' % (method, cacheargs))
-                    return _d
-                else:
-                    print('Cache miss for %s - %s' % (method, cacheargs))
-            return func(*args)
-        return wrapper
-    return decorator
-
-
 class SprunedVOService(RPCAPIService):
-    def __init__(self, min_sources=3, bitcoind=None, cache=None):
+    def __init__(self, electrod, cache=None):
         self.sources = []
         self.primary = []
         self.cache = cache
-        self.min_sources = min_sources
-        self.bitcoind = bitcoind
+        self.electrod = electrod
+        self.min_sources = 1
         self.current_best_height = None
-        self.electrum = None  # type: ElectrodService
 
     def available(self):
         raise NotImplementedError
-
-    @staticmethod
-    async def _async_call(services, call, blockhash, responses):
-        calls = [getattr(service, call) for service in services]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            loop = asyncio.get_event_loop()
-            futures = [
-                loop.run_in_executor(
-                    executor,
-                    call,
-                    blockhash
-                )
-                for call in calls
-            ]
-            for response in await asyncio.gather(*futures):
-                response and responses.append(response)
 
     @staticmethod
     def _join_data(data: typing.List[typing.Dict]) -> typing.Dict:
@@ -171,24 +156,16 @@ class SprunedVOService(RPCAPIService):
         return res
 
     def _verify_transaction(self, transaction: dict):
-        if not self.bitcoind:
-            return 1
-        assert transaction['blockheight']
-        blockhash = self.bitcoind.getblockhash(transaction['blockheight'])
-        assert blockhash == transaction['blockhash']
-        block = self.getblock(blockhash)
-        assert transaction['txid'] in block['tx']
+        # TODO
         return 1
 
     @cache_block
-    @maybe_cached('getblock')
-    def getblock(self, blockhash: str, try_from_bitcoind=False):
-        block = self._getblock(blockhash, try_from_bitcoind)
+    async def getblock(self, blockhash: str):
+        block = await self._getblock(blockhash)
         return block
 
-    def _verify_block_with_local_header(self, block):
-        # TODO, validate txs list with local merkle root
-        header = self.bitcoind.getblockheader(block['hash'])
+    async def _verify_block_with_local_header(self, block):
+        header = await self.electrod.getblockheader(block['hash'])
         block['version'] = header['version']
         block['time'] = header['time']
         block['versionHex'] = header['versionHex']
@@ -198,55 +175,60 @@ class SprunedVOService(RPCAPIService):
         block['difficulty'] = header['difficulty']
         block['chainwork'] = header['chainwork']
         block['previousblockhash'] = header['previousblockhash']
-
-        if header.get('height'):
-            block['height'] = header['height']
+        block['height'] = header['height']
+        # TODO Verify transactions tree
         if header.get('nextblockhash'):
             block['nextblockhash'] = header['nextblockhash']
         block.pop('confirmations', None)
         return block
 
-    def _getblock(self, blockhash: str, try_from_bitcoind=False, _res=None, _exclude_services=None, _r=0):
+    async def _getblock(self, blockhash: str, _res=None, _exclude_services=None, _r=0):
         assert _r < 10
         _exclude_services = _exclude_services or []
-        block = self.bitcoind and try_from_bitcoind and self.bitcoind.getblock(blockhash)
-        if not block:
-            services = self._pick_sources(_exclude_services)
-            res = _res or []
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self._async_call(services, 'getblock', blockhash, res))
-            if not res:
-                _exclude_services.extend(services)
-                return self._getblock(blockhash, _res=res, _exclude_services=services)
-            block = self._join_data(res)
-            if not self._is_complete(block):
-                _exclude_services.extend(services)
-                return self._getblock(blockhash, _res=res, _exclude_services=services)
-            self._verify_block_with_local_header(block)
+        services = self._pick_sources(_exclude_services)
+
+        responses = _res or []
+        futures = [service.getblock(blockhash) for service in services]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+        if not responses:
+            _exclude_services.extend(services)
+            return await self._getblock(blockhash, _res=responses, _exclude_services=services)
+        block = self._join_data(responses)
+        if not self._is_complete(block):
+            _exclude_services.extend(services)
+            return await self._getblock(blockhash, _res=responses, _exclude_services=services)
+        await self._verify_block_with_local_header(block)
         return block
 
     @cache_transaction
-    @maybe_cached('getrawtransaction')
-    def getrawtransaction(self, txid: str, verbose=False):
-        return self._getrawtransaction(txid, verbose=verbose)
+    async def getrawtransaction(self, txid: str, verbose=False):
+        return await self._getrawtransaction(txid, verbose=verbose)
 
-    def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
-        res = _res or []
+    async def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
+        assert _r < 10
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(self._async_call(services, 'getrawtransaction', txid, res))
-        if not res:
+
+        responses = _res or []
+        futures = [service.getrawtransaction(txid) for service in services]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+            print('Responses: %s' % responses)
+        if not responses:
+            print('Not responses!')
             _exclude_services.extend(services)
-            return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=_exclude_services)
-        transaction = self._join_data(res)
-        if not transaction.get('rawtx') and self.electrum:
-            rawtransaction = self.electrum.getrawtransaction(txid)
+            return await self._getrawtransaction(txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services)
+        transaction = self._join_data(responses)
+        print('Transaction: %s' % transaction)
+        if not transaction.get('rawtx'):
+            print('Rawtx not found, asking to electrod')
+            rawtransaction = await self.electrod.getrawtransaction(txid)
             if rawtransaction:
-                transaction['rawtx'] = rawtransaction['rawtx']
+                transaction['rawtx'] = rawtransaction['response']
                 transaction['source'] += ', electrum'
         if not self._is_complete(transaction):
             _exclude_services.extend(services)
-            return self._getrawtransaction(txid, verbose=verbose, _res=res, _exclude_services=_exclude_services)
+            return await self._getrawtransaction(txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services)
         assert transaction['rawtx']
         return transaction
