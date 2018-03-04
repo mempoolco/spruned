@@ -41,6 +41,7 @@ class JSONRPCServer:
         methods.add(self.getblock)
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
+        methods.add(self.gettxout)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -135,4 +136,28 @@ class JSONRPCServer:
             "verificationprogress": 0,
             "chainwork": response["chainwork"],
             "pruned": False,
+        }
+
+    async def gettxout(self, txid: str, index: int):
+        response = await self.vo_service.gettxout(txid, index)
+        print(response)
+        if not response:
+            return {"error": {"code": -8, "message": "server error: try again"}}
+
+        best_block_header = await self.vo_service.getbestblockheader()
+        tx_blockheader = await self.getblockheader(response['in_block'])
+        in_block_height = tx_blockheader['height']
+        confirmations = best_block_header['height'] - in_block_height
+        return {
+            "bestblock": best_block_header['height'],
+            "confirmations": confirmations,
+            "value": '{:.8f}'.format(response['value_satoshi'] / 10**8),
+            "scriptPubKey": {
+                "asm": response['script_asm'],
+                "hex": response['script_hex'],
+                "reqSigs": "Not Implemented Yet",
+                "type": response["script_type"],
+                "addresses": response["addresses"]
+            },
+            "coinbase": "Not Implemented Yet"
         }
