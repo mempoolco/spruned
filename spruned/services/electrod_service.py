@@ -57,6 +57,10 @@ class ElectrodService(RPCAPIService):
         payload = {"rawtx": rawtx}
         return await self.call("sendrawtransaction", payload)
 
+    async def listunspents(self, address: str):
+        payload = {"address": address}
+        return await self.call("listunspents", payload)
+
     async def getblockcount(self):
         return await self.call("getblockcount")
 

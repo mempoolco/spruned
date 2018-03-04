@@ -93,3 +93,8 @@ class ElectrodRPCServer:
     @router.expose
     async def getblockcount(self):
         return self.repo.get_best_header().get('block_height')
+
+    @router.expose
+    async def listunspents(self, payload: Dict):
+        address = payload['address']
+        return await self.interface.listunspents(address)

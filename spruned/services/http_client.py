@@ -12,7 +12,7 @@ class HTTPClient:
     async def get(self, *a, json_response=True, **kw):
         url = self.baseurl + a[0]
         try:
-            async with async_timeout.timeout(10):
+            async with async_timeout.timeout(15):
                 async with aiohttp.ClientSession() as session:
                     async with session as s:
                         header = {}

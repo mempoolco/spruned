@@ -3,6 +3,8 @@ import functools
 import json
 import typing
 import random
+
+from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService, StorageInterface
 import asyncio
 import concurrent.futures
@@ -76,13 +78,15 @@ def cache_transaction(func):
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, cache=None):
+    def __init__(self, electrod, cache=None, utxo_tracker=None, repository=None):
         self.sources = []
         self.primary = []
         self.cache = cache
         self.electrod = electrod
         self.min_sources = 1
         self.current_best_height = None
+        self.utxo_tracker = utxo_tracker
+        self.repository = repository
 
     def available(self):
         raise NotImplementedError
@@ -294,7 +298,35 @@ class SprunedVOService(RPCAPIService):
         if not self._is_txout_complete(txout):
             _exclude_services.extend(services)
             return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r+1)
+        try:
+            if not await self.ensure_unspent_consistency_with_electrum_network(txid, index, txout):
+                return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r + 1)
+        except exceptions.SpentTxOutException:
+            Logger.electrum.exception("Can't find a solution for gettxout between electrum and local services")
+            return {"error": "No Quorum Found Between Electrum Service And Public Services. Try Again"}
         return txout
+
+    async def ensure_unspent_consistency_with_electrum_network(self, txid: str, index: int, data: typing.Dict):
+        if not data['addresses']:
+            if settings.ALLOW_UNSAFE_UTXO:
+                return True
+            raise {"error": "Can't Verify This On The Electrum Network. Enable ALLOW_UNSAFE_UTXO For This"}
+        if data['script_type'] == 'nulldata':  # I'm not sure if nulldata can reach this point, investigate.
+            return True
+        found = None
+        unspents = await self.electrod.listunspents(data['addresses'][0])
+        for unspent in unspents:
+            if unspent['tx_hash'] == txid and unspent['tx_pos'] == index:
+                found = unspent
+                break
+        if not data['unspent'] and not found:
+            self.utxo_tracker and not data['unspent'] and self.utxo_tracker.invalidate_spent(txid, index)
+            raise exceptions.SpentTxOutException
+
+        if data['unspent'] and found:
+            if bool(data['value_satoshi'] != found['value']):
+                raise exceptions.SpentTxOutException
+        return True
 
     async def getbestblockhash(self):
         res = await self.electrod.getbestblockhash()

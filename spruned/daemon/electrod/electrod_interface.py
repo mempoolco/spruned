@@ -180,6 +180,7 @@ class ElectrodInterface:
 
     @staticmethod
     def _handle_responses(responses):
+        print('handling responses: %s' % responses)
         if len(responses) == 1:
             return responses and responses[0]
         for response in responses:
@@ -264,3 +265,16 @@ class ElectrodInterface:
         except ElectrumErrorResponse:
             return
         return responses and {"response": "{:.8f}".format(min(responses))}
+
+    async def listunspents(self, address: str, force_peers=1):
+        responses = []
+        futures = [
+            peer.RPC('blockchain.address.listunspent', address)
+            for peer in self._pick_peers(force_peers=force_peers)
+        ]
+        try:
+            for response in await asyncio.gather(*futures):
+                response and responses.append(response)
+        except ElectrumErrorResponse:
+            return
+        return self._handle_responses(responses)
