@@ -8,3 +8,7 @@ class ServiceException(SprunedException):
 
 class HTTPClientException(SprunedException):
     pass
+
+
+class SpentTxOutException(SprunedException):
+    pass

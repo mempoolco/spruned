@@ -1,13 +1,16 @@
-from spruned.application import settings
+from typing import Dict
+
+from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.services.http_client import HTTPClient
 
 
 class BlockexplorerService(RPCAPIService):
-    def __init__(self, coin, httpclient=HTTPClient):
+    def __init__(self, coin, httpclient=HTTPClient, utxo_tracker=None):
         assert coin == settings.Network.BITCOIN
         self.client = httpclient(baseurl='https://blockexplorer.com/api/')
         self.throttling_error_codes = []
+        self.utxo_tracker = utxo_tracker
 
     async def getrawtransaction(self, txid, **_):
         data = await self.get('tx/' + txid)
@@ -27,11 +30,39 @@ class BlockexplorerService(RPCAPIService):
             'tx': None
         }
 
-    async def gettxout(self, txid, height):
-        """
-        blockexplorer.com is insight based, so same stuff as bitpay:
+    def _track_spents(self, data):
+        for i, _v in enumerate(data.get('vout', [])):
+            _v.get('spentTxId') and self.utxo_tracker.track_utxo_spent(
+                data['txid'],
+                i,
+                spent_by=_v.get('spentTxId'),
+                spent_at_index=_v.get('spentIndex'),
+                spent_at_height=_v.get('spentAtHeight')
+            )
 
-        https: // insight.bitpay.com / api / tx / 356ab5efacf7f9324f4bbb4c5bfbecf4df1f731acb70d20932c086478e875516
-        return enough infos on the output to have a gettxout api
-        """
-        pass
+    @staticmethod
+    def _format_txout(data: Dict, index: int):
+        return {
+            "in_block": data["blockhash"],
+            "in_block_height": data["blockheight"],
+            "value_satoshi": int(float(data["vout"][index]["value"])*10**8),
+            "script_hex": data["vout"][index]["scriptPubKey"]["hex"],
+            "script_asm": data["vout"][index]["scriptPubKey"]["asm"],
+            "script_type": data["vout"][index]["scriptPubKey"]["type"],
+            "addresses": data["vout"][index]["scriptPubKey"].get("addresses", []),
+            "unspent": not bool(data["vout"][index]["spentTxId"])
+        }
+
+    async def gettxout(self, txid, index):
+        data = await self.get('tx/' + txid)
+        if not data or index >= len(data.get('vout', [])):
+            return
+        self.utxo_tracker and self._track_spents(data)
+        return self._format_txout(data, index)
+
+
+if __name__ == '__main__':
+    import asyncio
+    loop = asyncio.get_event_loop()
+    api = BlockexplorerService(settings.NETWORK)
+    print(loop.run_until_complete(api.gettxout('8e4c29e2c37a1107f732492a94a94197bbbc6f93aa97b7b3e58852d42680b923', 0)))
