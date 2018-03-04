@@ -68,14 +68,17 @@ class BlockCypherService(RPCAPIService):
             )
 
     @staticmethod
-    def _format_txout(data: Dict, index: int):
+    def _normalize_scripttype(script_type):
+        return {"pay-to-pubkey-hash": "pubkeyhash"}[script_type]
+
+    def _format_txout(self, data: Dict, index: int):
         return {
             "in_block": data.get("block_hash"),
             "in_block_height": data.get("block_height"),
             "value_satoshi": data["outputs"][index]["value"],
             "script_hex": data["outputs"][index]["script"],
             "script_asm": None,
-            "script_type": data["outputs"][index]["script_type"],
+            "script_type": self._normalize_scripttype(data["outputs"][index]["script_type"]),
             "addresses": data["outputs"][index].get("addresses", []),
             "unspent": not bool(data["outputs"][index].get("spent_by", False))
         }

@@ -6,6 +6,8 @@ import random
 from spruned.application.abstracts import RPCAPIService, StorageInterface
 import asyncio
 import concurrent.futures
+
+from spruned.application.logging_factory import Logger
 from spruned.services.electrod_service import ElectrodService
 
 
@@ -183,7 +185,7 @@ class SprunedVOService(RPCAPIService):
         return block
 
     async def _getblock(self, blockhash: str, _res=None, _exclude_services=None, _r=0):
-        assert _r < 10
+        assert _r < 5
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
 
@@ -206,7 +208,7 @@ class SprunedVOService(RPCAPIService):
         return await self._getrawtransaction(txid, verbose=verbose)
 
     async def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
-        if _r > 10:
+        if _r > 5:
             return {}
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
@@ -232,6 +234,68 @@ class SprunedVOService(RPCAPIService):
             )
         assert transaction['rawtx']
         return transaction
+
+    async def gettxout(self, txid: str, index: int):
+        return await self._gettxout(txid, index)
+
+    @staticmethod
+    def _join_txout(responses: typing.List):
+        count_unspent_vote = []
+        filtered_responses = []
+        for r in responses:
+            if r['in_block'] is None:
+                if r['unspent'] is not None:
+                    count_unspent_vote.append(r['unspent'])
+            else:
+                filtered_responses.append(r)
+        responses = filtered_responses
+        for x in [
+            'value_satoshi', 'script_hex', 'script_type', 'unspent', 'in_block'
+        ]:
+            try:
+                evaluation = [
+                    r[x] for r in responses if r[x] not in ([], None)
+                ] + count_unspent_vote if x == 'unspent' else []
+                assert len(set(evaluation)) <= 1, evaluation
+            except AssertionError:
+                Logger.third_party.exception('Quorum on join tx out')
+                return
+        return responses and {
+            "in_block": responses[0]['in_block'],
+            "in_block_height": None,
+            "value_satoshi": responses[0]['value_satoshi'],
+            "script_hex": responses[0]['script_hex'],
+            "script_asm": random.choice([r['script_asm'] for r in responses if r] or [None]),  # FIXME - TODO - quorum
+            "script_type": responses[0]['script_type'],
+            "addresses": random.choice([r['addresses'] for r in responses if r] or [None]),  # FIXME - TODO - quorum
+            "unspent": responses[0]['unspent'],
+        } or {}
+
+    @staticmethod
+    def _is_txout_complete(txout: typing.Dict):
+        is_complete = [txout[v] for v in txout if v not in ['in_block_height', 'script_asm']]
+        print(is_complete)
+        evaluation = txout and all(is_complete) or False
+        return evaluation
+
+    async def _gettxout(self, txid: str, index: int, _res=None, _exclude_services=None, _r=0):
+        if _r > 5:
+            return {}
+        _exclude_services = _exclude_services or []
+        services = self._pick_sources(_exclude_services)
+
+        responses = _res or []
+        futures = [service.gettxout(txid, index) for service in services]
+        for response in await asyncio.gather(*futures):
+            response and responses.append(response)
+        if not responses:
+            _exclude_services.extend(services)
+            return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r+1)
+        txout = self._join_txout(responses)
+        if not self._is_txout_complete(txout):
+            _exclude_services.extend(services)
+            return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r+1)
+        return txout
 
     async def getbestblockhash(self):
         res = await self.electrod.getbestblockhash()
