@@ -31,7 +31,7 @@ def cache_block(func):
 
         if res and args[0].cache and not cached and args[0].electrod:
             electrod = args[0].electrod
-            best_height = await electrod.getbestheight()
+            best_height = await electrod.getblockcount()
             args[0].current_best_height = best_height
             height = res['height']
             res['confirmations'] = best_height - height
@@ -58,7 +58,7 @@ def cache_transaction(func):
 
         if res and args[0].cache and not cached and args[0].electrod:
             electrod = args[0].electrod
-            best_height = await electrod.getbestheight()
+            best_height = await electrod.getblockcount()
             args[0].current_best_height = best_height
             confirmed = False
             if res.get('blockhash'):
@@ -189,7 +189,8 @@ class SprunedVOService(RPCAPIService):
         return block
 
     async def _getblock(self, blockhash: str, _res=None, _exclude_services=None, _r=0):
-        assert _r < 5
+        if _r > 5:
+            return {"error": "No Quorum Found. Try Again"}
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
 
@@ -213,7 +214,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
         if _r > 5:
-            return {}
+            return {"error": "No Quorum Found. Try Again"}
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
         responses = _res or []
@@ -283,7 +284,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _gettxout(self, txid: str, index: int, _res=None, _exclude_services=None, _r=0):
         if _r > 5:
-            return {}
+            return {"error": "No Quorum Found. Try Again"}
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
 

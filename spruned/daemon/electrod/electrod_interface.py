@@ -147,7 +147,9 @@ class ElectrodInterface:
             i += 1
             if i > 100:
                 break
-            peer = random.choice(self._peers)
+            peer = self._peers and random.choice(self._peers) or None
+            if not peer:
+                raise exceptions.SprunedException('No Peers Available')
             peer not in peers and peer.protocol and peers.append(peer)
             if force_peers is not None:
                 if len(peers) == force_peers:

@@ -44,7 +44,7 @@ class RPCAPIService(metaclass=abc.ABCMeta):
                 if cause.code in self.throttling_error_codes:
                     Logger.third_party.warning('throttling %s' % self.__class__.__name__)
                 else:
-                    Logger.third_party.exception('Error on %s: %s' % self.__class__.__name__, e.__cause__)
+                    Logger.third_party.exception('Error on %s: %s' % (self.__class__.__name__, e.__cause__))
                 self._increase_errors()
 
 

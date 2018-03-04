@@ -13,14 +13,14 @@ class InsightService(RPCAPIService):
             'rawtx': None,
             'blockhash': data['blockhash'],
             'txid': txid,
-            'source': 'blockexplorer.com'
+            "source": self.__class__.__name__.replace("Service", "").lower(),
         }
 
     async def getblock(self, blockhash):
         print('getblock from %s' % self.__class__)
         data = await self.get('block/' + blockhash)
         return data and {
-            'source': 'blockexplorer.com',
+            "source": self.__class__.__name__.replace("Service", "").lower(),
             'hash': data['hash'],
             'tx': None
         }
@@ -35,9 +35,9 @@ class InsightService(RPCAPIService):
                 spent_at_height=_v.get('spentAtHeight')
             )
 
-    @staticmethod
-    def _format_txout(data: Dict, index: int):
+    def _format_txout(self, data: Dict, index: int):
         return {
+            "source": self.__class__.__name__.replace("Service", "").lower(),
             "in_block": data["blockhash"],
             "in_block_height": data["blockheight"],
             "value_satoshi": int(float(data["vout"][index]["value"])*10**8),
