@@ -9,9 +9,12 @@ from spruned.services.blocktrail_service import BlocktrailService
 from spruned.services.chainflyer_service import ChainFlyerService
 from spruned.services.chainso_service import ChainSoService
 from spruned.services.blockcypher_service import BlockCypherService
+from spruned.services.localbitcoins_service import LocalbitcoinsService
 from spruned.services.electrod_service import ElectrodService
 
 # system
+
+
 cache = CacheFileInterface(settings.CACHE_ADDRESS)
 storage = CacheFileInterface(settings.STORAGE_ADDRESS, compress=False)
 electrod_daemon = build_electrod(settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY)
@@ -26,6 +29,7 @@ bitgo = BitGoService(settings.NETWORK)
 chainflyer = ChainFlyerService(settings.NETWORK)
 blockexplorer = BlockexplorerService(settings.NETWORK)
 bitpay = BitpayService(settings.NETWORK)
+localbitcoins = LocalbitcoinsService(settings.NETWORK)
 
 
 # vo service
@@ -37,6 +41,7 @@ service.add_source(blockcypher)
 blocktrail and service.add_source(blocktrail)
 service.add_source(chainflyer)
 service.add_source(bitpay)
+service.add_source(localbitcoins)
 
 jsonrpc_server = JSONRPCServer(
     settings.JSONRPCSERVER_HOST,
