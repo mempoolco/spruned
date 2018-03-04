@@ -149,7 +149,7 @@ class JSONRPCServer:
         in_block_height = tx_blockheader['height']
         confirmations = best_block_header['height'] - in_block_height
         return {
-            "bestblock": best_block_header['height'],
+            "bestblock": best_block_header['hash'],
             "confirmations": confirmations,
             "value": '{:.8f}'.format(response['value_satoshi'] / 10**8),
             "scriptPubKey": {
