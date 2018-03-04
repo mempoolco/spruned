@@ -23,7 +23,7 @@ $ bitcoin-cli getblockchaininfo
 - getblockheader <s>[verbose \ non verbose]</s>
 - <s>getmempoolinfo</s>
 - getrawtransaction [non verbose only]
-- <s>gettxout</s>
+- gettxout
 - <s>sendrawtransaction</s>
 
 
