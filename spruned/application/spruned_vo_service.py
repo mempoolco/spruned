@@ -274,7 +274,6 @@ class SprunedVOService(RPCAPIService):
     @staticmethod
     def _is_txout_complete(txout: typing.Dict):
         is_complete = [txout[v] for v in txout if v not in ['in_block_height', 'script_asm']]
-        print(is_complete)
         evaluation = txout and all(is_complete) or False
         return evaluation
 

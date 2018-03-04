@@ -140,7 +140,6 @@ class JSONRPCServer:
 
     async def gettxout(self, txid: str, index: int):
         response = await self.vo_service.gettxout(txid, index)
-        print(response)
         if not response:
             return {"error": {"code": -8, "message": "server error: try again"}}
 
