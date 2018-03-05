@@ -22,32 +22,12 @@ class ElectrodService(RPCAPIService):
         except asyncio.TimeoutError:
             return
 
-    async def getbestblockhash(self):
-        res = await self.call("getbestblockhash")
-        return res
-
-    async def getbestblockheader(self):
-        res = await self.call("getbestblockheader")
-        return res
-
     async def getrawtransaction(self, txid, verbose=False):
         payload = {"txid": txid, "verbose": verbose}
         return await self.call("getrawtransaction", payload)
 
-    async def getblockheader(self, blockhash, verbose=True):
-        payload = {"block_hash": blockhash, "verbose": verbose}
-        return await self.call("getblockheader", payload)
-
     async def getblock(self, txid, verbose=False):
         return None
-
-    async def getblockhash(self, height: int):
-        payload = {"block_height": height}
-        return await self.call("getblockhash", payload)
-
-    async def getblockheight(self, blockhash: str):
-        payload = {"block_hash": blockhash}
-        return await self.call("getblockheight", payload)
 
     async def estimatefee(self, blocks: int):
         payload = {"blocks": blocks}
@@ -60,9 +40,6 @@ class ElectrodService(RPCAPIService):
     async def listunspents(self, address: str):
         payload = {"address": address}
         return await self.call("listunspents", payload)
-
-    async def getblockcount(self):
-        return await self.call("getblockcount")
 
     @property
     def available(self) -> bool:

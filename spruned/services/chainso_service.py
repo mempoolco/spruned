@@ -61,6 +61,8 @@ class ChainSoService(RPCAPIService):
         """
         https://chain.so/api#get-is-tx-output-spent
         """
+        return  # looks like chainso is unreliable for unspents :-(
+
         data = await self.get('is_tx_spent/' + self._coin_url + txid + '/' + str(index))
         if not data.get('status') == 'success':
             return

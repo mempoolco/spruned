@@ -1,6 +1,7 @@
 from spruned.application import spruned_vo_service, settings
 from spruned.application.cache import CacheFileInterface
 from spruned.application.jsonrpc_server import JSONRPCServer
+from spruned.daemon import database
 from spruned.daemon.electrod.electrod_reactor import build_electrod
 from spruned.services.bitgo_service import BitGoService
 from spruned.services.bitpay_service import BitpayService
@@ -11,13 +12,16 @@ from spruned.services.chainso_service import ChainSoService
 from spruned.services.blockcypher_service import BlockCypherService
 from spruned.services.localbitcoins_service import LocalbitcoinsService
 from spruned.services.electrod_service import ElectrodService
+from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 
 # system
 
-
+headers_repository = HeadersSQLiteRepository(database.session)
 cache = CacheFileInterface(settings.CACHE_ADDRESS)
 storage = CacheFileInterface(settings.STORAGE_ADDRESS, compress=False)
-electrod_daemon = build_electrod(settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY)
+electrod_daemon = build_electrod(
+    headers_repository, settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY
+)
 electrod_service = ElectrodService(settings.ELECTROD_SOCKET)
 
 
@@ -33,7 +37,7 @@ localbitcoins = LocalbitcoinsService(settings.NETWORK)
 
 
 # vo service
-service = spruned_vo_service.SprunedVOService(electrod_service, cache=cache)
+service = spruned_vo_service.SprunedVOService(electrod_service, cache=cache, repository=headers_repository)
 service.add_source(chainso)
 service.add_source(bitgo)
 service.add_source(blockexplorer)

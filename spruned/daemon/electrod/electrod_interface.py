@@ -188,7 +188,7 @@ class ElectrodInterface:
         for response in responses:
             if responses.count(response) > len(responses) / 2:
                 return response
-        raise exceptions.NoQuorumOnResponsesException
+        raise exceptions.NoQuorumOnResponsesException(responses)
 
     async def getaddresshistory(self, scripthash: str, force_peers=None):
         responses = []
@@ -279,4 +279,4 @@ class ElectrodInterface:
                 response and responses.append(response)
         except ElectrumErrorResponse:
             return
-        return self._handle_responses(responses)
+        return {"response": responses and self._handle_responses(responses) or []}

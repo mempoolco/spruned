@@ -3,7 +3,6 @@ from typing import Dict
 
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 from spruned.daemon.electrod.electrod_rpc_server import ElectrodRPCServer
 
 from spruned.daemon import database, exceptions
@@ -150,8 +149,7 @@ class ElectrodReactor:
         )
 
 
-def build_electrod(network, socket, concurrency=3) -> ElectrodReactor:
-    headers_repository = HeadersSQLiteRepository(database.session)
+def build_electrod(headers_repository, network, socket, concurrency=3) -> ElectrodReactor:
     electrod_rpc_server = ElectrodRPCServer(socket, headers_repository)
     electrod_interface = ElectrodInterface(
         network,

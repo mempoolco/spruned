@@ -1,80 +1,13 @@
-import concurrent
-import functools
 import json
 import typing
 import random
-
+import binascii
+import asyncio
+from spruned.application.tools import deserialize_header
 from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService, StorageInterface
-import asyncio
-import concurrent.futures
-
+from spruned.application.cache import cache_block, cache_transaction
 from spruned.application.logging_factory import Logger
-from spruned.services.electrod_service import ElectrodService
-
-
-def cache_block(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        cacheargs = ''.join(args[1:])
-        cached = False
-        res = None
-        if args[0].cache:
-            cache_res = args[0].cache.get('getblock', cacheargs)
-            if cache_res:
-                res = cache_res
-                cached = True
-
-        if res is None:
-            res = await func(*args, **kwargs)
-            cached = False
-
-        if res and args[0].cache and not cached and args[0].electrod:
-            electrod = args[0].electrod
-            best_height = await electrod.getblockcount()
-            args[0].current_best_height = best_height
-            height = res['height']
-            res['confirmations'] = best_height - height
-            if res['confirmations'] > 3:
-                args[0].cache.set('getblock', res['hash'], res)
-        return res
-    return wrapper
-
-
-def cache_transaction(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        cacheargs = ''.join(args[1:])
-        cached = False
-        res = None
-        if args[0].cache:
-            cache_res = args[0].cache.get('getrawtransaction', cacheargs)
-            if cache_res:
-                res = cache_res
-                cached = True
-        if res is None:
-            res = await func(*args, **kwargs)
-            cached = False
-
-        if res and args[0].cache and not cached and args[0].electrod:
-            electrod = args[0].electrod
-            best_height = await electrod.getblockcount()
-            args[0].current_best_height = best_height
-            confirmed = False
-            if res.get('blockhash'):
-                header = await electrod.getblockheader(res['blockhash'])
-                if header and header.get('height'):
-                    res['confirmations'] = best_height - header['height']
-                    if res['confirmations'] > 3:
-                        args[0].cache.set('getrawtransaction', res['txid'], res)
-                        confirmed = True
-
-        if kwargs.get('verbose'):
-            raise NotImplementedError
-            # Note: I have to do a PR to ElectrumX Server and today is saturday :-)
-        else:
-            return res and res['rawtx']
-    return wrapper
 
 
 class SprunedVOService(RPCAPIService):
@@ -190,7 +123,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _getblock(self, blockhash: str, _res=None, _exclude_services=None, _r=0):
         if _r > 5:
-            return {"error": "No Quorum Found. Try Again"}
+            return
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
 
@@ -214,7 +147,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
         if _r > 5:
-            return {"error": "No Quorum Found. Try Again"}
+            return
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
         responses = _res or []
@@ -241,7 +174,27 @@ class SprunedVOService(RPCAPIService):
         return transaction
 
     async def gettxout(self, txid: str, index: int):
-        return await self._gettxout(txid, index)
+        response = await self._gettxout(txid, index)
+        if not response:
+            return
+        best_block_header = self.repository.get_best_header()
+        tx_blockheader = self.repository.get_block_header(response['in_block'])
+        in_block_height = tx_blockheader['block_height']
+        confirmations = best_block_header['block_height'] - in_block_height
+        return {
+            "bestblock": best_block_header['block_hash'],
+            "confirmations": confirmations,
+            "value": '{:.8f}'.format(response['value_satoshi'] / 10**8),
+            "scriptPubKey": {
+                "asm": response['script_asm'],
+                "hex": response['script_hex'],
+                "reqSigs": "Not Implemented Yet",
+                "type": response["script_type"],
+                "addresses": response["addresses"]
+            },
+            "coinbase": "Not Implemented Yet"
+        }
+
 
     @staticmethod
     def _join_txout(responses: typing.List):
@@ -260,8 +213,8 @@ class SprunedVOService(RPCAPIService):
             try:
                 evaluation = [
                     r[x] for r in responses if r[x] not in ([], None)
-                ] + count_unspent_vote if x == 'unspent' else []
-                assert len(set(evaluation)) <= 1, evaluation
+                ] + (count_unspent_vote if x == 'unspent' else [])
+                assert len(set(evaluation)) <= 1
             except AssertionError:
                 Logger.third_party.exception('Quorum on join tx out')
                 return
@@ -274,17 +227,16 @@ class SprunedVOService(RPCAPIService):
             "script_type": responses[0]['script_type'],
             "addresses": random.choice([r['addresses'] for r in responses if r] or [None]),  # FIXME - TODO - quorum
             "unspent": responses[0]['unspent'],
-        } or {}
+        }
 
     @staticmethod
     def _is_txout_complete(txout: typing.Dict):
-        is_complete = [txout[v] for v in txout if v not in ['in_block_height', 'script_asm']]
-        evaluation = txout and all(is_complete) or False
-        return evaluation
+        res = txout and all([txout[v] for v in txout if v not in ['in_block_height', 'script_asm', 'unspent']])
+        return res and txout['unspent'] is not None
 
     async def _gettxout(self, txid: str, index: int, _res=None, _exclude_services=None, _r=0):
         if _r > 5:
-            return {"error": "No Quorum Found. Try Again"}
+            return
         _exclude_services = _exclude_services or []
         services = self._pick_sources(_exclude_services)
 
@@ -304,46 +256,89 @@ class SprunedVOService(RPCAPIService):
                 return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r + 1)
         except exceptions.SpentTxOutException:
             Logger.electrum.exception("Can't find a solution for gettxout between electrum and local services")
-            return {"error": "No Quorum Found Between Electrum Service And Public Services. Try Again"}
+            return
         return txout
 
     async def ensure_unspent_consistency_with_electrum_network(self, txid: str, index: int, data: typing.Dict):
         if not data['addresses']:
             if settings.ALLOW_UNSAFE_UTXO:
                 return True
-            raise {"error": "Can't Verify This On The Electrum Network. Enable ALLOW_UNSAFE_UTXO For This"}
+            return
         if data['script_type'] == 'nulldata':  # I'm not sure if nulldata can reach this point, investigate.
             return True
-        found = None
+        found = False
         unspents = await self.electrod.listunspents(data['addresses'][0])
-        for unspent in unspents:
+        if not unspents:
+            return
+        for unspent in unspents.get("response"):
             if unspent['tx_hash'] == txid and unspent['tx_pos'] == index:
                 found = unspent
                 break
-        if not data['unspent'] and not found:
+        if not data['unspent'] and found:
+            print('unspent not found in the electrum listunspent for the given address')
             self.utxo_tracker and not data['unspent'] and self.utxo_tracker.invalidate_spent(txid, index)
             raise exceptions.SpentTxOutException
 
-        if data['unspent'] and found:
+        if data['unspent'] and not found:
             if bool(data['value_satoshi'] != found['value']):
                 raise exceptions.SpentTxOutException
         return True
 
     async def getbestblockhash(self):
-        res = await self.electrod.getbestblockhash()
+        res = self.repository.get_best_header().get('block_hash')
         return res and res
 
     async def getblockhash(self, blockheight: int):
-        return await self.electrod.getblockhash(blockheight)
+        return self.repository.get_block_header(blockheight).get('block_hash')
 
-    async def getblockheader(self, blockhash: str):
-        return await self.electrod.getblockheader(blockhash)
+    async def getblockheader(self, blockhash: str, verbose=True):
+        header = self.repository.get_block_header(blockhash)
+        if verbose:
+            _best_header = self.repository.get_best_header()
+            _deserialized_header = deserialize_header(binascii.hexlify(header['data']).decode())
+            res = {
+                  "hash": _deserialized_header['hash'],
+                  "confirmations": _best_header['block_height'] - header['block_height'] + 1,
+                  "height": header['block_height'],
+                  "version": _deserialized_header['version'],
+                  "versionHex": "Not Implemented Yet",
+                  "merkleroot": _deserialized_header['merkle_root'],
+                  "time": _deserialized_header['timestamp'],
+                  "mediantime": _deserialized_header['timestamp'],
+                  "nonce": _deserialized_header['nonce'],
+                  "bits": _deserialized_header['bits'],
+                  "difficulty": "Not Implemented Yet",
+                  "chainwork": "Not Implemented Yet",
+                  "previousblockhash": _deserialized_header['prev_block_hash'],
+                  "nextblockhash": header.get('next_block_hash')
+                }
+        else:
+            res = binascii.hexlify(header['data']).decode()
+        print(res)
+        return res
 
     async def getblockcount(self):
-        return await self.electrod.getblockcount()
+        return self.repository.get_best_header().get('block_height')
 
     async def estimatefee(self, blocks: int):
         return await self.electrod.estimatefee(blocks)
 
-    async def getbestblockheader(self):
-        return await self.electrod.getbestblockheader()
+    async def getbestblockheader(self, verbose=True):
+        best_header = self.repository.get_best_header()
+        return self.getblockheader(best_header['block_hash'], verbose=verbose)
+
+    async def getblockchaininfo(self):
+        best_header = self.repository.get_best_header()
+        _deserialized_header = deserialize_header(best_header['data'])
+        return {
+            "chain": "main",
+            "version": "spruned 0.0.1",
+            "blocks": best_header["block_height"],
+            "headers": best_header["block_height"],
+            "bestblockhash": best_header["block_hash"],
+            "difficulty": "Not Implemented Yet",
+            "chainwork": "Not Implemented Yet",
+            "mediantime": _deserialized_header["timestamp"],
+            "verificationprogress": 0,
+            "pruned": False,
+        }

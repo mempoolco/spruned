@@ -85,13 +85,13 @@ class JSONRPCServer:
             return {"error": {"code": -8, "message": "Block height out of range"}}
         return response
 
-    async def getblockheader(self, blockhash: str):
+    async def getblockheader(self, blockhash: str, verbose=False):
         try:
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
             return {"error": {"code": -5, "message": "Block not found"}}
-        response = await self.vo_service.getblockheader(blockhash)
+        response = await self.vo_service.getblockheader(blockhash, verbose=verbose)
         if not response:
             return {"error": {"code": -5, "message": "Block not found"}}
         return response
@@ -122,41 +122,14 @@ class JSONRPCServer:
         }
 
     async def getblockchaininfo(self):
-        response = await self.vo_service.getbestblockheader()
+        response = await self.vo_service.getblockchaininfo()
         if response is None:
             return {"error": {"code": -8, "message": "server error: try again"}}
-        print(response)
-        return {
-            "chain": "main",
-            "blocks": response["height"],
-            "headers": response["height"],
-            "bestblockhash": response["hash"],
-            "difficulty": response["difficulty"],
-            "mediantime": response["mediantime"],
-            "verificationprogress": 0,
-            "chainwork": response["chainwork"],
-            "pruned": False,
-        }
+        return response
 
     async def gettxout(self, txid: str, index: int):
         response = await self.vo_service.gettxout(txid, index)
         if not response:
             return {"error": {"code": -8, "message": "server error: try again"}}
-
-        best_block_header = await self.vo_service.getbestblockheader()
-        tx_blockheader = await self.getblockheader(response['in_block'])
-        in_block_height = tx_blockheader['height']
-        confirmations = best_block_header['height'] - in_block_height
-        return {
-            "bestblock": best_block_header['hash'],
-            "confirmations": confirmations,
-            "value": '{:.8f}'.format(response['value_satoshi'] / 10**8),
-            "scriptPubKey": {
-                "asm": response['script_asm'],
-                "hex": response['script_hex'],
-                "reqSigs": "Not Implemented Yet",
-                "type": response["script_type"],
-                "addresses": response["addresses"]
-            },
-            "coinbase": "Not Implemented Yet"
-        }
+        print('response!: %s' % response)
+        return response
