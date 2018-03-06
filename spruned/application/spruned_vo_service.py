@@ -104,20 +104,22 @@ class SprunedVOService(RPCAPIService):
         return block
 
     async def _verify_block_with_local_header(self, block):
-        header = await self.electrod.getblockheader(block['hash'])
+        repo_header = self.repository.get_block_header(block['hash'])
+        _header = binascii.hexlify(repo_header['data']).decode()
+        header = deserialize_header(_header)
         block['version'] = header['version']
-        block['time'] = header['time']
-        block['versionHex'] = header['versionHex']
-        block['mediantime'] = header['mediantime']
+        block['time'] = header['timestamp']
+        block['versionHex'] = None
+        block['mediantime'] = None
         block['nonce'] = header['nonce']
         block['bits'] = header['bits']
-        block['difficulty'] = header['difficulty']
-        block['chainwork'] = header['chainwork']
-        block['previousblockhash'] = header['previousblockhash']
-        block['height'] = header['height']
+        block['difficulty'] = None
+        block['chainwork'] = None
+        block['previousblockhash'] = header['prev_block_hash']
+        block['height'] = repo_header['block_height']
         # TODO Verify transactions tree
         if header.get('nextblockhash'):
-            block['nextblockhash'] = header['nextblockhash']
+            block['nextblockhash'] = repo_header.get('next_block_hash')
         block.pop('confirmations', None)
         return block
 
@@ -314,7 +316,6 @@ class SprunedVOService(RPCAPIService):
                 }
         else:
             res = binascii.hexlify(header['data']).decode()
-        print(res)
         return res
 
     async def getblockcount(self):
@@ -336,8 +337,8 @@ class SprunedVOService(RPCAPIService):
             "blocks": best_header["block_height"],
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],
-            "difficulty": "Not Implemented Yet",
-            "chainwork": "Not Implemented Yet",
+            "difficulty": None,
+            "chainwork": None,
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": 0,
             "pruned": False,

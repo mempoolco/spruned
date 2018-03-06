@@ -24,7 +24,7 @@ def cache_block(func):
             cached = False
 
         if res and args[0].cache and not cached:
-            best_height = args[0].getblockcount()
+            best_height = await args[0].getblockcount()
             args[0].current_best_height = best_height
             height = res['height']
             res['confirmations'] = best_height - height

@@ -4,7 +4,7 @@ import time
 import random
 import binascii
 import os
-from typing import Dict
+from typing import Dict, Tuple
 
 import async_timeout
 from connectrum import ElectrumErrorResponse
@@ -82,7 +82,7 @@ class ElectrodInterface:
                     best_header = await Q.get()
                 except (asyncio.TimeoutError, asyncio.CancelledError):
                     continue
-            await callback(self._parse_header(best_header[0]))
+            await callback(connection, self._parse_header(best_header[0]))
 
     @staticmethod
     def _parse_header(electrum_header: Dict):
@@ -140,6 +140,10 @@ class ElectrodInterface:
         self._update_status('stopped')
         await self._keep_connections(on_connected=on_connected)
 
+    async def disconnect_from_peer(self, peer: StratumClient):
+        peer.close()
+        self._peers = [p for p in self._peers if p != peer]
+
     def _pick_peers(self, force_peers=None):
         i = 0
         peers = []
@@ -172,17 +176,18 @@ class ElectrodInterface:
             return e.args and e.args[0]
         return responses and {"response": self._handle_responses(responses)}
 
-    async def get_last_network_best_header(self, force_peers=1):
-        future, _ = self._pick_peers(force_peers=force_peers)[0].subscribe('blockchain.headers.subscribe')
+    async def get_last_network_best_header(self, force_peers=1) -> (Tuple, None):
+        assert force_peers == 1  # FIXME - think about a good quorum strategy for headers and peers marking
+        peer = self._pick_peers(force_peers=force_peers)
+        future, _ = peer[0].subscribe('blockchain.headers.subscribe')
         try:
             header = await future
-            return self._parse_header(header)
+            return peer[0], self._parse_header(header)
         except ElectrumErrorResponse:
             return
 
     @staticmethod
     def _handle_responses(responses):
-        print('handling responses: %s' % responses)
         if len(responses) == 1:
             return responses and responses[0]
         for response in responses:
