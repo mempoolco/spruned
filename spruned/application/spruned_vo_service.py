@@ -291,7 +291,7 @@ class SprunedVOService(RPCAPIService):
         return res and res
 
     async def getblockhash(self, blockheight: int):
-        return self.repository.get_block_header(blockheight).get('block_hash')
+        return self.repository.get_block_hash(blockheight)
 
     async def getblockheader(self, blockhash: str, verbose=True):
         header = self.repository.get_block_header(blockhash)
