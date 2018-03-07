@@ -49,9 +49,9 @@ class ElectrodReactor:
         peer, network_best_header = await self.interface.get_last_network_best_header()
         if network_best_header and network_best_header != self._last_processed_header:
             sync = await self.on_header(peer, network_best_header)
-            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 30 or 0))
+            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 60 or 10))
         else:
-            self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
+            self.loop.create_task(async_delayed_task(self.sync_headers(), 60))
 
     @database.atomic
     async def on_header(self, peer, network_best_header: Dict):

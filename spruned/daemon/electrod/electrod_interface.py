@@ -71,7 +71,8 @@ class ElectrodInterface:
                 self._update_status('connecting, %s' % len(self._peers))
                 Logger.electrum.debug('Connected to peer %s:%s', _server[0], _server[1])
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
-            pass #self.blacklisted.append(_server)
+            Logger.electrum.warning('Blacklisting peer %s:%s', _server[0], _server[1])
+            self.blacklisted.append(_server)
 
     async def subscribe_new_headers(self, connection: StratumClient, callback):
         future, Q = connection.subscribe('blockchain.headers.subscribe')

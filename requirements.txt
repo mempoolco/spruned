@@ -1,8 +1,9 @@
 asyncio==3.4.3
-aiomas==3.4.3
+aiomas
 merkle
 git+https://github.com/Conio/pybitcointools.git
 connectrum
 async-timeout
 aiohttp
 jsonrpcserver
+sqlalchemy
