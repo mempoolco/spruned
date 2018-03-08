@@ -2,6 +2,7 @@ from typing import Dict
 
 from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
+from spruned.application.logging_factory import Logger
 from spruned.services.http_client import HTTPClient
 
 
@@ -27,7 +28,7 @@ class BlocktrailService(RPCAPIService):
         }
 
     async def getblock(self, blockhash):
-        print('getblock from %s' % self.__class__)
+        Logger.third_party.debug('getblock from %s' % self.__class__)
         url = 'block/' + blockhash + '?api_key=' + self.api_key
         data = await self.get(url)
         return data and {

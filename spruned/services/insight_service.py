@@ -1,5 +1,6 @@
 from typing import Dict
 from spruned.application.abstracts import RPCAPIService
+from spruned.application.logging_factory import Logger
 
 
 class InsightService(RPCAPIService):
@@ -17,7 +18,7 @@ class InsightService(RPCAPIService):
         }
 
     async def getblock(self, blockhash):
-        print('getblock from %s' % self.__class__)
+        Logger.third_party.debug('getblock from %s' % self.__class__)
         data = await self.get('block/' + blockhash)
         return data and {
             "source": self.__class__.__name__.replace("Service", "").lower(),

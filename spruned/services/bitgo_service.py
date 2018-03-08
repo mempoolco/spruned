@@ -31,7 +31,7 @@ class BitGoService(RPCAPIService):
         }
 
     async def getblock(self, blockhash):
-        print('getblock from %s' % self.__class__)
+        Logger.third_party.debug('getblock from %s' % self.__class__)
         data = await self.get('block/' + blockhash)
         return data and {
             'source': 'bitgo',

@@ -2,6 +2,7 @@ from typing import Dict
 
 from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService
+from spruned.application.logging_factory import Logger
 from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
 
@@ -28,7 +29,7 @@ class ChainSoService(RPCAPIService):
         }
 
     async def getblock(self, blockhash):
-        print('getblock from %s' % self.__class__)
+        Logger.third_party.debug('getblock from %s' % self.__class__)
         data = await self.get('get_block/' + self._coin_url + blockhash)
         return data and data.get('success') and {
             'source': 'chainso',

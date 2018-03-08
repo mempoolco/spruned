@@ -3,6 +3,7 @@ import time
 from typing import Dict
 from spruned.application import settings
 from spruned.application.abstracts import RPCAPIService
+from spruned.application.logging_factory import Logger
 from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
 
@@ -32,7 +33,7 @@ class BlockCypherService(RPCAPIService):
         }
 
     async def getblock(self, blockhash):
-        print('getblock from %s' % self.__class__)
+        Logger.third_party.debug('getblock from %s' % self.__class__)
         _s = 0
         _l = 500
         d = None
