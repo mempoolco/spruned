@@ -32,9 +32,6 @@ class ElectrodReactor:
             )
 
     async def on_connected(self):
-        Logger.electrum.info(
-            'Electrum interface connected to %s peers' % len(await self.interface.get_all_connected_peers())
-        )
         if self.store_headers:
             self.loop.create_task(self.sync_headers())
             self.rpc_server.enable_blocks_api()
@@ -164,7 +161,6 @@ class ElectrodReactor:
         await self.interface.disconnect_from_peer(peer)
         peer.close()
         Logger.electrum.info('Closing with peer %s', str(peer.server_info))
-
 
     @database.atomic
     async def handle_headers_inconsistency(self):

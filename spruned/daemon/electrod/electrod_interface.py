@@ -35,6 +35,7 @@ class ElectrodInterface:
         self._current_status = None
         self._electrum_servers = self._load_electrum_servers()
         self._peers_errors = {}
+        self._keep_connecting = False
 
     def _load_electrum_servers(self):
         _current_path = os.path.dirname(os.path.abspath(__file__))
@@ -65,8 +66,8 @@ class ElectrodInterface:
             _server[0],
             _server[1]
         )
+        conn = StratumClient()
         try:
-            conn = StratumClient()
             with async_timeout.timeout(5):
                 await conn.connect(_server_info, disable_cert_verify=True)
                 banner = await conn.RPC('server.banner')
@@ -74,8 +75,8 @@ class ElectrodInterface:
                 self._update_status('connecting, %s' % len(self._peers))
                 Logger.electrum.debug('Connected to peer %s:%s', _server[0], _server[1])
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
-            Logger.electrum.warning('Blacklisting peer %s:%s', _server[0], _server[1])
-            self.blacklisted.append(_server)
+            errors = self._peers_errors[conn] = self._peers_errors.get(conn, 0) + 1
+            self._handle_peer_error(conn, errors)
 
     async def subscribe_new_headers(self, connection: StratumClient, callback):
         future, Q = connection.subscribe('blockchain.headers.subscribe')
@@ -131,16 +132,25 @@ class ElectrodInterface:
                 except Exception:
                     Logger.electrum.exception('Error disconnecting from peer')
             return
-        peers_under_target = len(self._peers) < self.concurrency
+        if len(self._peers) >= self.concurrency and on_connected:
+            on_connected and loop.create_task(on_connected())
+            on_connected and Logger.electrum.debug('Electrod headers sync started.')
+            loop.create_task(self._keep_connections())
+            return
+
+        peers_under_target = len(self._peers) < self.concurrency * self._connections_concurrency_ratio
         if peers_under_target:
-            Logger.electrum.debug('Peers under target, keep connecting, no sync yet.')
+            if not self._keep_connecting:
+                self._keep_connecting = True
+                Logger.electrum.debug('Peers under target, keep connecting, no sync yet.')
             await self._connect_to_server()
             loop.create_task(self._keep_connections(on_connected))
             return
+        else:
+            self._keep_connecting and Logger.electrum.debug('Connected to %s peers' % len(self._peers))
+            self._keep_connecting = False
 
-        on_connected and loop.create_task(on_connected())
-        on_connected and Logger.electrum.debug('Electrod headers sync started.')
-        loop.create_task(async_delayed_task(self._keep_connections(), 30))
+        loop.create_task(async_delayed_task(self._keep_connections(), 5))
 
     async def start(self, on_connected=None):
         self._update_status('stopped')
@@ -202,15 +212,21 @@ class ElectrodInterface:
                 return response
         raise exceptions.NoQuorumOnResponsesException(responses)
 
-    def _handle_electrum_error(self, e: ElectrumErrorResponse):
+    def _handle_electrum_exception(self, e: ElectrumErrorResponse):
         peer: StratumClient = e.args[2]
         errors = self._peers_errors[peer] = self._peers_errors.get(peer, 0) + 1
+        self._handle_peer_error(peer, errors)
+
+    def _handle_peer_error(self, peer, errors):
         if errors > self.MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING:
             Logger.electrum.warning(
                 'Multiple errors (%s) with peer %s, disconnecting' % (
                     self.MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING, peer.server_info[0]
                 )
             )
+            self._ban_peer(peer)
+
+    def _ban_peer(self, peer):
         self._peers = [peer for peer in self._peers if peer != peer]
         self._peers_errors.pop(peer)
         peer.close()
@@ -227,7 +243,7 @@ class ElectrodInterface:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         return responses and self._handle_responses(responses)
 
     async def get_chunk(self, chunks_index: int, force_peers=None):
@@ -242,7 +258,7 @@ class ElectrodInterface:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         return responses and self._handle_responses(responses)
 
     async def get_header(self, height: int, force_peers=None):
@@ -255,7 +271,7 @@ class ElectrodInterface:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         response = self._handle_responses(responses)
         return response and self._parse_header(response)
 
@@ -268,7 +284,7 @@ class ElectrodInterface:
             for _headers in await asyncio.gather(*futures):
                 _headers and headers.extend(_headers)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         return headers
 
     async def get_headers_in_range(self, starts_from: int, ends_to: int):
@@ -281,7 +297,7 @@ class ElectrodInterface:
             for header in await asyncio.gather(*futures):
                 headers.append(header)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         return headers
 
     async def estimatefee(self, blocks: int, force_peers=None):
@@ -294,7 +310,7 @@ class ElectrodInterface:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         return responses and {"response": "{:.8f}".format(min(responses))}
 
     async def listunspents(self, address: str, force_peers=1):
@@ -307,5 +323,5 @@ class ElectrodInterface:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
         except ElectrumErrorResponse as e:
-            return self._handle_electrum_error(e)
+            return self._handle_electrum_exception(e)
         return {"response": responses and self._handle_responses(responses) or []}
