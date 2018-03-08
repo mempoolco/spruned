@@ -11,3 +11,7 @@ class NoQuorumOnResponsesException(SprunedException):
 
 class ConsistencyCheckRetryException(SprunedException):
     pass
+
+
+class NoPeersException(SprunedException):
+    pass
