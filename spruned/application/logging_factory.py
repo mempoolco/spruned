@@ -25,6 +25,10 @@ class LoggingFactory:
         return logging.getLogger('root')
 
     @property
+    def repository(self):
+        return logging.getLogger('repository')
+
+    @property
     def third_party(self):
         return logging.getLogger('third_party')
 
