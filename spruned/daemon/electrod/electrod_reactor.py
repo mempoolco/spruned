@@ -20,6 +20,7 @@ class ElectrodReactor:
         self.subscriptions = []
         self._last_processed_header = None
         self._inconsistencies = []
+        self._sync_errors = 0
 
     def set_last_processed_header(self, last):
         if last != self._last_processed_header:
@@ -46,10 +47,18 @@ class ElectrodReactor:
         self.loop.create_task(self.rpc_server.start())
 
     async def sync_headers(self):
-        peer, network_best_header = await self.interface.get_last_network_best_header()
+        if self._sync_errors > 100:
+            raise exceptions.SprunedException('Too many sync errors. Sospending Sync')
+        try:
+            peer, network_best_header = await self.interface.get_last_network_best_header()
+        except exceptions.NoPeersException:
+            Logger.electrum.warning('Electrod is not able to find peers to sync headers. Sleeping 30 secs')
+            self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
+            return
+
         if network_best_header and network_best_header != self._last_processed_header:
             sync = await self.on_header(peer, network_best_header)
-            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 60 or 10))
+            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 60 or 0))
         else:
             self.loop.create_task(async_delayed_task(self.sync_headers(), 60))
 
@@ -61,7 +70,6 @@ class ElectrodReactor:
             local_best_header = self.repo.get_best_header()
             if not local_best_header or local_best_header['block_height'] < network_best_header['block_height']:
                 await self.on_local_headers_behind(local_best_header, network_best_header)
-                self.loop.create_task(self.sync_headers())
                 return
             elif local_best_header['block_height'] > network_best_header['block_height']:
                 await self.on_network_headers_behind(local_best_header, peer=peer)
@@ -72,7 +80,6 @@ class ElectrodReactor:
             self.set_last_processed_header(network_best_header)
             return True
         finally:
-            await self.ensure_headers_subscriptions()
             self.lock.release()
 
     async def ensure_headers_subscriptions(self):
@@ -87,13 +94,13 @@ class ElectrodReactor:
 
     @database.atomic
     async def on_local_headers_behind(self, local_best_header: Dict, network_best_header: Dict):
-        chunks_at_time = 3
+        chunks_at_time = 1
         try:
             if not local_best_header:
                 # No local best header? This comes from the db, it must be a boostrap session.
                 headers = await self.interface.get_headers_in_range_from_chunks(0, chunks_at_time)
                 if not headers:
-                    asyncio.sleep(3)
+                    await asyncio.sleep(3)
                     Logger.electrum.warning(
                         'Missing headers on <on_local_headers_behind> chunks: 0, %s' % chunks_at_time
                     )
@@ -120,7 +127,7 @@ class ElectrodReactor:
                     Logger.electrum.warning(
                         'Missing headers on <on_local_headers_behind> chunks: 0, %s' % chunks_at_time
                     )
-                    asyncio.sleep(3)
+                    await asyncio.sleep(3)
                     return
                 saved_headers = self.repo.save_headers(headers[1:])
                 self.set_last_processed_header(saved_headers[-1])
@@ -130,11 +137,13 @@ class ElectrodReactor:
                     rewind_from + 1, rewind_from + 1 + chunks_at_time
                 )
                 saved_headers = headers and self.repo.save_headers(headers, force=True)
-                self.set_last_processed_header(saved_headers and saved_headers[-1])
+                self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
         except exceptions.HeadersInconsistencyException:
             Logger.electrum.exception('Inconsistency!')
             self.set_last_processed_header(None)
             await self.handle_headers_inconsistency()
+        except Exception:
+            raise
 
     @database.atomic
     async def on_network_headers_behind(self, local_best_header: Dict, peer=None):
@@ -174,7 +183,7 @@ def build_electrod(headers_repository, network, socket, concurrency=3) -> Electr
     electrod_rpc_server = ElectrodRPCServer(socket, headers_repository)
     electrod_interface = ElectrodInterface(
         network,
-        connections_concurrency_ratio=2,
+        connections_concurrency_ratio=3,
         concurrency=concurrency
     )
     electrod = ElectrodReactor(headers_repository, electrod_interface, electrod_rpc_server)

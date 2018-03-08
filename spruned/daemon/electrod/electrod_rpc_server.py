@@ -1,7 +1,5 @@
 from typing import Tuple, Dict
 import aiomas
-import binascii
-from spruned.application.tools import deserialize_header
 
 
 class ElectrodRPCServer:
