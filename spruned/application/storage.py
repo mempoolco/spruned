@@ -4,6 +4,8 @@ import shutil
 from spruned.application.abstracts import StorageInterface
 import gzip
 
+from spruned.application.logging_factory import Logger
+
 
 class StorageFileInterface(StorageInterface):
     def __init__(self, directory, cache_limit=None, compress=True):
@@ -55,4 +57,4 @@ class StorageFileInterface(StorageInterface):
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
             except Exception as e:
-                print(e)
+                Logger.root.exception('storage exception')

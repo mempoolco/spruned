@@ -277,7 +277,7 @@ class SprunedVOService(RPCAPIService):
                 found = unspent
                 break
         if not data['unspent'] and found:
-            print('unspent not found in the electrum listunspent for the given address')
+            Logger.third_party.debug('unspent not found in the electrum listunspent for the given address')
             self.utxo_tracker and not data['unspent'] and self.utxo_tracker.invalidate_spent(txid, index)
             raise exceptions.SpentTxOutException
 

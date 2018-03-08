@@ -1,6 +1,7 @@
 from typing import List, Dict
 from sqlalchemy.exc import IntegrityError
 from spruned.application.abstracts import HeadersRepository
+from spruned.application.logging_factory import Logger
 from spruned.daemon import database, exceptions
 
 
@@ -69,6 +70,7 @@ class HeadersSQLiteRepository(HeadersRepository):
             existings = session.query(database.Header)\
                 .filter(database.Header.blockheight > starts_from).filter(database.Header.blockheight <= ends_to).all()
             _ = [session.delete(existing) for existing in existings]
+
         for i, header in enumerate(headers):
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
@@ -82,7 +84,7 @@ class HeadersSQLiteRepository(HeadersRepository):
         try:
             session.flush()
         except IntegrityError as e:
-            print('Inconsistency error: %s' % e)
+            Logger.repository.exception('Integrity Error on save_headers')
             raise exceptions.HeadersInconsistencyException
         return headers
 
