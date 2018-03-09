@@ -47,10 +47,11 @@ class ElectrodReactor:
     async def sync_headers(self):
         Logger.electrum.debug('Syncing headers, errors until now: %s' % self._sync_errors)
         if self._sync_errors > 100:
-            raise exceptions.SprunedException('Too many sync errors. Sospending Sync')
+            raise exceptions.SprunedException('Too many sync errors. Suspending Sync')
         try:
             best_header_response = await self.interface.get_last_network_best_header()
             if not best_header_response:
+                Logger.electrum.warning('No best header ?')
                 self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
                 return
 
@@ -62,9 +63,13 @@ class ElectrodReactor:
 
         if network_best_header and network_best_header != self._last_processed_header:
             sync = await self.on_header(peer, network_best_header)
-            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 600 or 0))
+            reschedule = 0 if not sync else 120
+            self.loop.create_task(async_delayed_task(self.sync_headers(), reschedule))  # loop or fallback
+            Logger.electrum.debug('Rescheduling sync_headers (sync: %s) in %ss', sync, reschedule)
         else:
-            self.loop.create_task(async_delayed_task(self.sync_headers(), 600))
+            reschedule = 120
+            self.loop.create_task(async_delayed_task(self.sync_headers(), reschedule))  # fallback (ping?)
+            Logger.electrum.debug('Rescheduling sync_headers in %ss', reschedule)
 
     @database.atomic
     async def on_header(self, peer, network_best_header: Dict):
@@ -74,27 +79,18 @@ class ElectrodReactor:
             local_best_header = self.repo.get_best_header()
             if not local_best_header or local_best_header['block_height'] < network_best_header['block_height']:
                 await self.on_local_headers_behind(local_best_header, network_best_header)
-                return
+                return False
             elif local_best_header['block_height'] > network_best_header['block_height']:
                 await self.on_network_headers_behind(local_best_header, peer=peer)
                 return
-            blockhash = self.repo.get_block_hash(network_best_header['block_height'])
-            if blockhash != local_best_header['block_hash']:
+
+            block_hash = self.repo.get_block_hash(network_best_header['block_height'])
+            if block_hash != local_best_header['block_hash']:
                 raise exceptions.HeadersInconsistencyException(network_best_header)
             self.set_last_processed_header(network_best_header)
             return True
         finally:
             self.lock.release()
-
-    async def ensure_headers_subscriptions(self):
-        peers = await self.interface.get_all_connected_peers()
-        self.subscriptions = [subscription for subscription in self.subscriptions if subscription in peers]
-        for peer in peers:
-            if peer not in self.subscriptions:
-                Logger.electrum.debug('Subscribing to %s' % peer)
-                self.loop.create_task(self.interface.subscribe_new_headers(peer, self.on_header))
-                self.subscriptions.append(peer)
-        return
 
     @database.atomic
     async def on_local_headers_behind(self, local_best_header: Dict, network_best_header: Dict):
@@ -106,7 +102,7 @@ class ElectrodReactor:
                 if not headers:
                     await asyncio.sleep(3)
                     Logger.electrum.warning(
-                        'Missing headers on <on_local_headers_behind> chunks: 0, %s' % chunks_at_time
+                        'Missing headers on <on_local_headers_behind> chunks: 0, %s', chunks_at_time
                     )
                     return
                 saved_headers = headers and self.repo.save_headers(headers)
@@ -143,21 +139,26 @@ class ElectrodReactor:
                 )
                 if not headers:
                     Logger.electrum.warning(
-                        'Missing headers on <on_local_headers_behind> chunks: 0, %s' % chunks_at_time
+                        'Missing headers on <on_local_headers_behind> chunks: 0, %s', chunks_at_time
                     )
                     await asyncio.sleep(3)
                     return
                 saved_headers = self.repo.save_headers(headers[1:])
                 self.set_last_processed_header(saved_headers[-1])
             else:
-                Logger.electrum.info(
-                    ''
+                Logger.electrum.debug(
+                    'Behind of %s blocks, fetching chunks',
+                    network_best_header['block_height'] - local_best_header['block_height']
                 )
                 rewind_from = get_nearest_parent(local_best_header['block_height'], 2016) // 2016
-                headers = await self.interface.get_headers_in_range_from_chunks(
-                    rewind_from + 1, rewind_from + 1 + chunks_at_time
-                )
+                _from = rewind_from
+                _to = rewind_from + 1 + chunks_at_time
+                headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
                 saved_headers = headers and self.repo.save_headers(headers, force=True)
+                Logger.electrum.debug(
+                    'Fetched %s headers (from chunk %s to chunk %s), saved %s headers',
+                    len(headers), _from, _to, len(saved_headers)
+                )
                 self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
         except exceptions.HeadersInconsistencyException:
             Logger.electrum.exception('Inconsistency!')
@@ -168,7 +169,7 @@ class ElectrodReactor:
 
     @database.atomic
     async def on_network_headers_behind(self, local_best_header: Dict, peer=None):
-        Logger.electrum.warning('Network headers behind current, closing with peer in 3.. 2... 1...')
+        Logger.electrum.warning('Network headers behind current, closing with peer in 3s')
         await asyncio.sleep(3)
         await self.ensure_consistency(local_best_header, peer)
 
@@ -181,6 +182,7 @@ class ElectrodReactor:
                 'saved in the db: %s',
                 str(peer.server_info), local_best_header, repo_header
             )
+            # FIXME. understand what's going on, maybe rollback
 
         await self.interface.disconnect_from_peer(peer)
         peer.close()
@@ -193,9 +195,8 @@ class ElectrodReactor:
         remove_headers_since = get_nearest_parent(local_best_header['block_height'], 2016)
         self.repo.remove_headers_after_height(remove_headers_since)
         Logger.electrum.warning(
-            'Headers inconsistency found, removed headers since %s. Current local: %s' % (
-                remove_headers_since, local_best_header['block_height']
-            )
+            'Headers inconsistency found, removed headers since %s. Current local: %s',
+            remove_headers_since, local_best_header['block_height']
         )
 
 

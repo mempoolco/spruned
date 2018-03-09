@@ -68,8 +68,12 @@ class HeadersSQLiteRepository(HeadersRepository):
             starts_from = headers[0]['block_height']
             ends_to = headers[-1]['block_height']
             existings = session.query(database.Header)\
-                .filter(database.Header.blockheight > starts_from).filter(database.Header.blockheight <= ends_to).all()
+                .filter(database.Header.blockheight >= starts_from).filter(database.Header.blockheight <= ends_to).all()
             _ = [session.delete(existing) for existing in existings]
+            Logger.repository.debug(
+                'Force mode, deleted headers from %s to %s (included)', starts_from, ends_to
+            )
+            session.flush()
         for i, header in enumerate(headers):
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
