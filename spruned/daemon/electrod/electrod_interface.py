@@ -19,7 +19,7 @@ from spruned.application.tools import blockheader_to_blockhash, deserialize_head
 class ElectrodInterface:
     MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING = 3
 
-    def __init__(self, coin, concurrency=1, max_retries_on_discordancy=3, connections_concurrency_ratio=3):
+    def __init__(self, coin, concurrency=1, connections_concurrency_ratio=2):
         assert coin.value == 1
         self._coin = coin
         self._serversfile_attr = {
@@ -30,12 +30,15 @@ class ElectrodInterface:
         self.concurrency = concurrency
         self.blacklisted = []
         self._keepalive = True
-        self._max_retries_on_discordancy = max_retries_on_discordancy
         self._connections_concurrency_ratio = connections_concurrency_ratio
         self._current_status = None
         self._electrum_servers = self._load_electrum_servers()
         self._peers_errors = {}
         self._keep_connecting = False
+        self.on_new_header_callback = False
+
+    def add_header_subscribe_callback(self, value):
+        self.on_new_header_callback = value
 
     def _load_electrum_servers(self):
         _current_path = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +46,7 @@ class ElectrodInterface:
             servers = json.load(f)
         return servers[self._serversfile_attr[self._coin.value]]
 
-    async def get_all_connected_peers(self):
+    def get_all_connected_peers(self):
         return [peer for peer in self._peers if peer.protocol]
 
     def _update_status(self, status):
@@ -66,17 +69,17 @@ class ElectrodInterface:
             _server[0],
             _server[1]
         )
-        conn = StratumClient()
+        peer = StratumClient()
         try:
             with async_timeout.timeout(5):
-                await conn.connect(_server_info, disable_cert_verify=True)
-                banner = await conn.RPC('server.banner')
-                banner and self._peers.append(conn)
+                await peer.connect(_server_info, disable_cert_verify=True)
+                banner = await peer.RPC('server.banner')
+                banner and self._peers.append(peer)
                 self._update_status('connecting, %s' % len(self._peers))
                 Logger.electrum.debug('Connected to peer %s:%s', _server[0], _server[1])
+                return peer
         except (ConnectionRefusedError, asyncio.TimeoutError, OSError):
-            errors = self._peers_errors[conn] = self._peers_errors.get(conn, 0) + 1
-            self._handle_peer_error(conn, errors)
+            self._handle_peer_error(peer)
 
     async def subscribe_new_headers(self, connection: StratumClient, callback):
         future, Q = connection.subscribe('blockchain.headers.subscribe')
@@ -143,14 +146,16 @@ class ElectrodInterface:
             if not self._keep_connecting:
                 self._keep_connecting = True
                 Logger.electrum.debug('Peers under target, keep connecting, no sync yet.')
-            await self._connect_to_server()
+            peer = await self._connect_to_server()
+            peer and self.on_new_header_callback and loop.create_task(
+                self.subscribe_headers(peer, self.on_new_header_callback)
+            )
             loop.create_task(self._keep_connections(on_connected))
             return
         else:
             self._keep_connecting and Logger.electrum.debug('Connected to %s peers' % len(self._peers))
             self._keep_connecting = False
-
-        loop.create_task(async_delayed_task(self._keep_connections(), 5))
+        loop.create_task(async_delayed_task(self._keep_connections(), 5, disable_log=True))
 
     async def start(self, on_connected=None):
         self._update_status('stopped')
@@ -166,7 +171,7 @@ class ElectrodInterface:
         while 1:
             i += 1
             if i > 200:
-                break
+                raise exceptions.NoPeersException('Too many iterations, No Peers Available')
             peer = self._peers and random.choice(self._peers) or None
             if not peer:
                 raise exceptions.NoPeersException('No Peers Available')
@@ -189,19 +194,40 @@ class ElectrodInterface:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
         except ElectrumErrorResponse as e:
-            return e.args and e.args[0]
+            return self._handle_electrum_exception(e)
         return responses and {"response": self._handle_responses(responses)}
 
+    async def subscribe_headers(self, peer: StratumClient, callback):
+        try:
+            future, q = peer.subscribe('blockchain.headers.subscribe')
+            while 1:
+                Logger.electrum.debug('waiting for new headers from peer %s', peer.server_info)
+                header = await q.get()
+                await callback(peer, header)
+        except Exception:
+            peer_errors = self._handle_peer_error(peer)
+            if peer_errors is None:
+                Logger.electrum.error('subscribe_headers errors exceeded, disconnecting.')
+                return
+            Logger.electrum.warning(
+                'subscribe_headers, peer %s, error n.%s, retrying in 5s', peer.server_info, peer_errors
+            )
+            await async_delayed_task(self.subscribe_headers(peer, callback), 5)
+
     async def get_last_network_best_header(self, force_peers=1) -> (Tuple, None):
+        # TODO Migrate to RPC call on ElectrumX 1.2
         Logger.electrum.debug('Obtaining latest network header')
         assert force_peers == 1
         peer = self._pick_peers(force_peers=force_peers)
         future, _ = peer[0].subscribe('blockchain.headers.subscribe')
         try:
+            Logger.electrum.debug('Waiting for headers updates from peer %s', peer[0].server_info)
             header = await future
-            return peer[0], self._parse_header(header)
-        except ElectrumErrorResponse:
-            return
+            _header = self._parse_header(header)
+            Logger.electrum.debug('New header from peer %s: %s',  peer[0].server_info, _header)
+            return peer[0], _header
+        except ElectrumErrorResponse as e:
+            return self._handle_electrum_exception(e)
 
     @staticmethod
     def _handle_responses(responses):
@@ -214,17 +240,19 @@ class ElectrodInterface:
 
     def _handle_electrum_exception(self, e: ElectrumErrorResponse):
         peer: StratumClient = e.args[2]
-        errors = self._peers_errors[peer] = self._peers_errors.get(peer, 0) + 1
-        self._handle_peer_error(peer, errors)
+        self._handle_peer_error(peer)
 
-    def _handle_peer_error(self, peer, errors):
+    def _handle_peer_error(self, peer):
+        errors = self._peers_errors[peer] = self._peers_errors.get(peer, 0) + 1
         if errors > self.MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING:
             Logger.electrum.warning(
                 'Multiple errors (%s) with peer %s, disconnecting' % (
-                    self.MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING, peer.server_info[0]
+                    self.MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING, peer.server_info
                 )
             )
             self._ban_peer(peer)
+            return
+        return errors
 
     def _ban_peer(self, peer):
         self._peers = [peer for peer in self._peers if peer != peer]
@@ -253,7 +281,7 @@ class ElectrodInterface:
             for peer in self._pick_peers(force_peers=force_peers)
         ]
         if not futures:
-            raise exceptions.SprunedException('No peers')
+            raise exceptions.NoPeersException('No peers')
         try:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
@@ -287,11 +315,11 @@ class ElectrodInterface:
             return self._handle_electrum_exception(e)
         return headers
 
-    async def get_headers_in_range(self, starts_from: int, ends_to: int):
+    async def get_headers_in_range(self, starts_from: int, ends_to: int, force_peers=None):
         chunks_range = [x for x in range(starts_from, ends_to)]
         futures = []
         for i in chunks_range:
-            futures.append(self.get_header(i))
+            futures.append(self.get_header(i, force_peers=force_peers))
         headers = []
         try:
             for header in await asyncio.gather(*futures):
