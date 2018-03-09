@@ -208,11 +208,3 @@ def build_electrod(headers_repository, network, socket, concurrency=3) -> Electr
     )
     electrod = ElectrodReactor(headers_repository, electrod_interface, electrod_rpc_server)
     return electrod
-
-
-if __name__ == '__main__':
-    from spruned.application import settings
-    loop = asyncio.get_event_loop()
-    electrod = build_electrod(settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY)
-    loop.create_task(electrod.start())
-    loop.run_forever()

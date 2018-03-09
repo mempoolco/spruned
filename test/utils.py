@@ -12,8 +12,8 @@ class MockValidator(object):
         return bool(self.validator(other))
 
 
-def call_name(call_name: str):
+def called_coroutine(coro_name: str):
     def test_coro(coro):
-        return coro.cr_code.co_name == call_name
+        return coro.cr_code.co_name == coro_name
 
     return MockValidator(test_coro)
