@@ -232,7 +232,10 @@ class ElectrodInterface:
             Logger.electrum.debug('Waiting for headers updates from peer %s', peer[0].server_info)
             header = await future
             _header = self._parse_header(header)
-            Logger.electrum.debug('New header from peer %s: %s',  peer[0].server_info, _header)
+            Logger.electrum.debug(
+                'New header from peer %s: %s (%s)',
+                peer[0].server_info, _header['block_height'], _header['block_hash']
+            )
             return peer[0], _header
         except ElectrumErrorResponse as e:
             return self._handle_electrum_exception(e)
