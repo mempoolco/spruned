@@ -6,7 +6,7 @@ from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon.electrod.electrod_rpc_server import ElectrodRPCServer
 from spruned.daemon import database, exceptions
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import get_nearest_parent, async_delayed_task
+from spruned.application.tools import get_nearest_parent
 
 
 class ElectrodReactor:
@@ -25,7 +25,7 @@ class ElectrodReactor:
     def set_last_processed_header(self, last):
         if last != self._last_processed_header:
             self._last_processed_header = last
-            Logger.electrum.debug(
+            Logger.electrum.info(
                 'Last processed header: %s (%s)',
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
@@ -52,23 +52,23 @@ class ElectrodReactor:
             best_header_response = await self.interface.get_last_network_best_header()
             if not best_header_response:
                 Logger.electrum.warning('No best header ?')
-                self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
+                self.loop.call_later(30, self.sync_headers())
                 return
 
             peer, network_best_header = best_header_response
         except exceptions.NoPeersException:
             Logger.electrum.warning('Electrod is not able to find peers to sync headers. Sleeping 30 secs')
-            self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
+            self.loop.call_later(30, self.sync_headers())
             return
 
         if network_best_header and network_best_header != self._last_processed_header:
             sync = await self.on_header(peer, network_best_header)
             reschedule = 0 if not sync else 120
-            self.loop.create_task(async_delayed_task(self.sync_headers(), reschedule))  # loop or fallback
+            self.loop.call_later(reschedule, self.sync_headers())  # loop or fallback
             Logger.electrum.debug('Rescheduling sync_headers (sync: %s) in %ss', sync, reschedule)
         else:
             reschedule = 120
-            self.loop.create_task(async_delayed_task(self.sync_headers(), reschedule))  # fallback (ping?)
+            self.loop.call_later(reschedule, self.sync_headers())  # fallback (ping?)
             Logger.electrum.debug('Rescheduling sync_headers in %ss', reschedule)
 
     @database.atomic
@@ -82,7 +82,7 @@ class ElectrodReactor:
                 return False
             elif local_best_header['block_height'] > network_best_header['block_height']:
                 await self.on_network_headers_behind(local_best_header, peer=peer)
-                return
+                return False
 
             block_hash = self.repo.get_block_hash(network_best_header['block_height'])
             if block_hash != local_best_header['block_hash']:

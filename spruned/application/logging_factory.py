@@ -1,5 +1,8 @@
 import logging
 import sys
+
+import os
+
 from spruned.application import settings
 
 
@@ -43,7 +46,7 @@ class LoggingFactory:
 
 Logger = LoggingFactory(
     logfile=settings.LOGFILE,
-    loglevel=settings.DEBUG and logging.DEBUG or logging.INFO,
+    loglevel=(settings.DEBUG and logging.DEBUG or logging.INFO) if not os.getenv('TESTING') else logging.ERROR,
     stdout=True
 )  # type: LoggingFactory
 
