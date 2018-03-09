@@ -240,7 +240,7 @@ class ElectrodInterface:
             header = await future
             _header = self._parse_header(header)
             Logger.electrum.debug(
-                'New header from peer %s: %s (%s)',
+                'Got header from peer %s: %s (%s)',
                 peer[0].server_info, _header['block_height'], _header['block_hash']
             )
             return peer[0], _header
