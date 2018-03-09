@@ -155,13 +155,20 @@ class ElectrodInterface:
         else:
             self._keep_connecting and Logger.electrum.debug('Connected to %s peers' % len(self._peers))
             self._keep_connecting = False
-            peers = self._pick_peers(force_peers=1)
+            peers = None
             try:
-                peers and peers[0].RPC('server.version')
+                if not random.choice(range(0, 12*5)):
+                    peers = self._pick_peers(force_peers=1)
+                    # should ping a random peer ~ every 5 minutes, due the 5s keep_connections interval
+                    pong = peers and await peers[0].RPC('server.version')
+                    pong and Logger.electrum.debug('Ping peer %s: Pong (%s)', peers[0].server_info, pong)
             except:
-                peers[0].close()
-                self._peers = [peer for peer in self._peers if peer != peer[0]]
-                Logger.electrum.exception('Peer connectivity check failed, removed')
+                if peers:
+                    Logger.electrum.exception('Peer connectivity check failed, removing %s', peers[0].server_info)
+                    peers[0].close()
+                    self._peers = [peer for peer in self._peers if peer != peer[0]]
+                else:
+                    Logger.electrum.exception('No available peers for Ping')
 
         loop.create_task(async_delayed_task(self._keep_connections(), 5, disable_log=True))
 
