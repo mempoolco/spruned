@@ -39,15 +39,22 @@ class ElectrodReactor:
             self.rpc_server.disable_blocks_api()
 
     async def start(self):
+        self.interface.add_header_subscribe_callback(self.on_header)
         self.rpc_server.set_interface(self.interface)
         self.loop.create_task(self.interface.start(self.on_connected))
         self.loop.create_task(self.rpc_server.start())
 
     async def sync_headers(self):
+        Logger.electrum.debug('Syncing headers, errors until now: %s' % self._sync_errors)
         if self._sync_errors > 100:
             raise exceptions.SprunedException('Too many sync errors. Sospending Sync')
         try:
-            peer, network_best_header = await self.interface.get_last_network_best_header()
+            best_header_response = await self.interface.get_last_network_best_header()
+            if not best_header_response:
+                self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
+                return
+
+            peer, network_best_header = best_header_response
         except exceptions.NoPeersException:
             Logger.electrum.warning('Electrod is not able to find peers to sync headers. Sleeping 30 secs')
             self.loop.create_task(async_delayed_task(self.sync_headers(), 30))
@@ -55,9 +62,9 @@ class ElectrodReactor:
 
         if network_best_header and network_best_header != self._last_processed_header:
             sync = await self.on_header(peer, network_best_header)
-            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 60 or 0))
+            self.loop.create_task(async_delayed_task(self.sync_headers(), sync and 600 or 0))
         else:
-            self.loop.create_task(async_delayed_task(self.sync_headers(), 60))
+            self.loop.create_task(async_delayed_task(self.sync_headers(), 600))
 
     @database.atomic
     async def on_header(self, peer, network_best_header: Dict):
@@ -105,8 +112,20 @@ class ElectrodReactor:
                 saved_headers = headers and self.repo.save_headers(headers)
                 self.set_last_processed_header(saved_headers and saved_headers[-1])
             elif local_best_header['block_height'] == network_best_header['block_height'] - 1:
-                # A new header is found, just save it atm.
-                # FIXME: Verify the agreement from other peers, check 2 random peers
+                # A new header is found, download again from multiple peers to verify it.
+                header = await self.interface.get_header(
+                    network_best_header['block_height'],
+                    force_peers=len(self.interface.get_all_connected_peers()) // 2
+                )
+                if not header:
+                    # Other peers doesn't have it yet, sleep 3 seconds, we'll try again later.
+                    await asyncio.sleep(3)
+                    return
+                if header['block_hash'] != network_best_header['block_hash']:
+                    raise exceptions.HeadersInconsistencyException(
+                        'New header differs from the network at the same height'
+                    )
+
                 self.repo.save_header(
                     network_best_header['block_hash'],
                     network_best_header['block_height'],
@@ -118,7 +137,9 @@ class ElectrodReactor:
                 # The last saved header is old! It must be a while since the last time spruned synced.
                 # Download the headers with a chunk, instead of tons of calls to servers..
                 headers = await self.interface.get_headers_in_range(
-                    local_best_header['block_height'], network_best_header['block_height']
+                    local_best_header['block_height'],
+                    network_best_header['block_height'],
+                    force_peers=len(self.interface.get_all_connected_peers()) // 2
                 )
                 if not headers:
                     Logger.electrum.warning(
@@ -129,6 +150,9 @@ class ElectrodReactor:
                 saved_headers = self.repo.save_headers(headers[1:])
                 self.set_last_processed_header(saved_headers[-1])
             else:
+                Logger.electrum.info(
+                    ''
+                )
                 rewind_from = get_nearest_parent(local_best_header['block_height'], 2016) // 2016
                 headers = await self.interface.get_headers_in_range_from_chunks(
                     rewind_from + 1, rewind_from + 1 + chunks_at_time
@@ -179,7 +203,6 @@ def build_electrod(headers_repository, network, socket, concurrency=3) -> Electr
     electrod_rpc_server = ElectrodRPCServer(socket, headers_repository)
     electrod_interface = ElectrodInterface(
         network,
-        connections_concurrency_ratio=3,
         concurrency=concurrency
     )
     electrod = ElectrodReactor(headers_repository, electrod_interface, electrod_rpc_server)
