@@ -1,0 +1,19 @@
+# Documentation: http://docs.travis-ci.com/user/languages/python/
+language: python
+os:
+  - linux
+env:
+  - TESTING=true DEBUG=true
+python:
+  - 3.6
+before_install:
+  - pwd
+  - pip install -r requirements.txt
+script:
+  - coverage run -m unittest discover
+after_success:
+  - if [[ $(python3 -V 2>&1) == *"Python 3.6"* ]]; then
+      pip install python-coveralls;
+      coveralls;
+    fi
+
