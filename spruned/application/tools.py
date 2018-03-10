@@ -76,3 +76,21 @@ async def async_delayed_task(task, seconds: int, disable_log=False):
 def decode_raw_transaction(rawtx: str):
     tx = deserialize(rawtx)
     pass
+
+
+def load_config():
+    """
+    todo: parse config or create with default values
+    """
+    Logger.root.info('Loading configuration')
+    from spruned.application import settings
+    import os
+    if not os.path.exists(settings.FILE_DIRECTORY):
+        Logger.root.debug('Creating %s', settings.FILE_DIRECTORY)
+        os.makedirs(settings.FILE_DIRECTORY)
+    if not os.path.exists(settings.STORAGE_ADDRESS):
+        Logger.root.debug('Creating %s', settings.STORAGE_ADDRESS)
+        os.makedirs(settings.STORAGE_ADDRESS)
+    if not os.path.exists(settings.CACHE_ADDRESS):
+        Logger.root.debug('Creating %s', settings.CACHE_ADDRESS)
+        os.makedirs(settings.CACHE_ADDRESS)

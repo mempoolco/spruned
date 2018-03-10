@@ -11,7 +11,6 @@ from spruned.services.chainflyer_service import ChainFlyerService
 from spruned.services.chainso_service import ChainSoService
 from spruned.services.blockcypher_service import BlockCypherService
 from spruned.services.localbitcoins_service import LocalbitcoinsService
-from spruned.daemon.electrod.electrod_service import ElectrodService
 from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 
 # system
