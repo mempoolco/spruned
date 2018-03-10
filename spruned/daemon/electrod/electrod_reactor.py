@@ -113,13 +113,16 @@ class ElectrodReactor:
 
     @database.atomic
     async def on_new_header(self, peer, network_best_header: Dict, _r=0):
+        if self.lock.locked():
+            Logger.electrum.debug('on_new_header locked, skipping network_best_header %s', network_best_header['block_height'])
+            return
+        await self.lock.acquire()
         assert network_best_header
         if self._last_processed_header and \
                 self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                 self._last_processed_header['block_height'] == network_best_header['block_height']:
             self.synced = True
             return
-        await self.lock.acquire()
         try:
             local_best_header = self.repo.get_best_header()
             if not local_best_header or local_best_header['block_height'] < network_best_header['block_height']:
@@ -238,33 +241,42 @@ class ElectrodReactor:
                     network_best_header['block_height'],
                 )
                 if not headers:
-                    Logger.electrum.warning(
-                        'Missing headers on <on_local_headers_behind> chunks: 0, %s', chunks_at_time
-                    )
+                    Logger.electrum.warning('Missing headers on <on_local_headers_behind>')
                     await asyncio.sleep(3)
                     return
                 saved_headers = self.repo.save_headers(headers[1:])
                 self.set_last_processed_header(saved_headers[-1])
             else:
-                Logger.electrum.debug(
-                    'Behind of %s blocks, fetching chunks',
-                    network_best_header['block_height'] - local_best_header['block_height']
-                )
-                rewind_from = get_nearest_parent(local_best_header['block_height'], 2016) // 2016
-                _from = rewind_from
-                _to = rewind_from + 1 + chunks_at_time
-                headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
-                saving_headers = [h for h in headers if h['block_height'] > local_best_header['block_height']]
-                saved_headers = headers and self.repo.save_headers(saving_headers, force=True)
-                Logger.electrum.debug(
-                    'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
-                    len(headers), _from, _to, len(saved_headers), len(saving_headers)
-                )
-                self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
+                i = 0
+                current_height = local_best_header['block_height']
+                while 1:
+                    Logger.electrum.debug(
+                        'Behind of %s blocks, fetching chunks',
+                        network_best_header['block_height'] - current_height
+                    )
+                    rewind_from = (get_nearest_parent(local_best_header['block_height'], 2016) // 2016) + 1 + i
+                    _from = rewind_from
+                    _to = rewind_from + chunks_at_time
+                    if _from > (network_best_header['block_height'] // 2016) + 1:
+                        self.synced = True
+                        return
+                    headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
+                    if not headers:
+                        return
+                    saving_headers = [h for h in headers if h['block_height'] > local_best_header['block_height']]
+                    saved_headers = headers and self.repo.save_headers(saving_headers)
+                    Logger.electrum.debug(
+                        'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
+                        len(headers), _from, _to, len(saved_headers), len(saving_headers)
+                    )
+                    self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
+                    current_height = self._last_processed_header['block_height']
+                    i += 1
         except exceptions.HeadersInconsistencyException:
             Logger.electrum.error('Inconsistency error, rolling back')
             self.set_last_processed_header(None)
             await self.handle_headers_inconsistency()
+            return
         except exceptions.NoPeersException as e:
             Logger.electrum.warning('Not enough peers to fetch data: %s', e)
             await asyncio.sleep(3)

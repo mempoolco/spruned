@@ -3,8 +3,6 @@ import hashlib
 import binascii
 from bitcoin import deserialize, serialize, decode, bin_sha256, encode
 
-from spruned.application.logging_factory import Logger
-
 
 def normalize_transaction(tx):
     _tx = deserialize(tx)
@@ -68,6 +66,7 @@ def get_nearest_parent(number: int, divisor: int):
 
 
 async def async_delayed_task(task, seconds: int, disable_log=False):
+    from spruned.application.logging_factory import Logger
     not disable_log and Logger.root.debug('Scheduling task %s in %s seconds', task, seconds)
     await asyncio.sleep(seconds)
     return await task
@@ -82,15 +81,11 @@ def load_config():
     """
     todo: parse config or create with default values
     """
-    Logger.root.info('Loading configuration')
     from spruned.application import settings
     import os
     if not os.path.exists(settings.FILE_DIRECTORY):
-        Logger.root.debug('Creating %s', settings.FILE_DIRECTORY)
         os.makedirs(settings.FILE_DIRECTORY)
     if not os.path.exists(settings.STORAGE_ADDRESS):
-        Logger.root.debug('Creating %s', settings.STORAGE_ADDRESS)
         os.makedirs(settings.STORAGE_ADDRESS)
     if not os.path.exists(settings.CACHE_ADDRESS):
-        Logger.root.debug('Creating %s', settings.CACHE_ADDRESS)
         os.makedirs(settings.CACHE_ADDRESS)

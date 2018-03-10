@@ -17,15 +17,14 @@ class Header(Base):
     data = Column(String)
 
 
-if settings.SQLITE_DBNAME:
-    engine = create_engine('sqlite:///' + settings.SQLITE_DBNAME)
-    if not os.path.exists(settings.SQLITE_DBNAME):
-        Base.metadata.create_all(engine)
+engine = create_engine('sqlite:///' + settings.SQLITE_DBNAME)
+if not os.path.exists(settings.SQLITE_DBNAME):
+    Base.metadata.create_all(engine)
 
-    session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
+session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
-    _local = threading.local()
-    _local.session = session
+_local = threading.local()
+_local.session = session
 
 
 def atomic(fun):

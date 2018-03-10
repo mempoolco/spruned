@@ -105,8 +105,8 @@ class ElectrodInterface:
             'timestamp': header_data['timestamp']
         }
 
-    async def get_headers_from_chunk(self, chunk_index: int):
-        chunk = await self.get_chunk(chunk_index)
+    async def get_headers_from_chunk(self, chunk_index: int, force_peers=None):
+        chunk = await self.get_chunk(chunk_index, force_peers=force_peers)
         if not chunk:
             return
         hex_headers = [chunk[i:i + 160] for i in range(0, len(chunk), 160)]
@@ -313,7 +313,7 @@ class ElectrodInterface:
     async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int):
         futures = []
         for chunk_index in range(starts_from, ends_to):
-            futures.append(self.get_headers_from_chunk(chunk_index))
+            futures.append(self.get_headers_from_chunk(chunk_index, force_peers=1))
         headers = []
         try:
             for _headers in await asyncio.gather(*futures):

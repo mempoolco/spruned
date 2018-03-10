@@ -1,6 +1,10 @@
+from spruned.application.tools import load_config
+load_config()
+
 from spruned.application import spruned_vo_service, settings
 from spruned.application.cache import CacheFileInterface
 from spruned.application.jsonrpc_server import JSONRPCServer
+
 from spruned.daemon import database
 from spruned.daemon.electrod.electrod_reactor import build_electrod
 from spruned.services.bitgo_service import BitGoService
@@ -14,7 +18,6 @@ from spruned.services.localbitcoins_service import LocalbitcoinsService
 from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 
 # system
-
 headers_repository = HeadersSQLiteRepository(database.session)
 cache = CacheFileInterface(settings.CACHE_ADDRESS)
 storage = CacheFileInterface(settings.STORAGE_ADDRESS, compress=False)

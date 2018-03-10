@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 
 
+TESTING = os.getenv('TESTING')
+
 class Network(Enum):
     BITCOIN = 1
     BITCOIN_TESTNET = 2
@@ -41,11 +43,14 @@ BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')
 BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
 # files
-FILE_DIRECTORY = '%s/.spruned' % Path.home()
-CACHE_ADDRESS = '%s/cache/' % FILE_DIRECTORY
-STORAGE_ADDRESS = '%s/storage/' % FILE_DIRECTORY
-LOGFILE = '%s/spruned.log' % FILE_DIRECTORY
-SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
+SQLITE_DBNAME = ''
+
+if not TESTING:
+    FILE_DIRECTORY = '%s/.spruned' % Path.home()
+    CACHE_ADDRESS = '%s/cache/' % FILE_DIRECTORY
+    STORAGE_ADDRESS = '%s/storage/' % FILE_DIRECTORY
+    LOGFILE = '%s/spruned.log' % FILE_DIRECTORY
+    SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
 
 # electrod
 ELECTROD_CONCURRENCY = 3

@@ -45,7 +45,7 @@ class LoggingFactory:
 
 
 Logger = LoggingFactory(
-    logfile=settings.LOGFILE,
+    logfile=settings.LOGFILE if not os.getenv('TESTING') else None,
     loglevel=(settings.DEBUG and logging.DEBUG or logging.INFO) if not os.getenv('TESTING') else logging.DEBUG,
     stdout=True
 )  # type: LoggingFactory
