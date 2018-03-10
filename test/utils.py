@@ -23,3 +23,20 @@ def in_range(n1: int, n2: int):
     def test(n):
         return n1 <= n <= n2
     return MockValidator(test)
+
+
+def make_headers(s: int, e: int, prevblock_0: str):
+    import os
+    import binascii
+    _headers = []
+    for i, x in enumerate(range(s, e)):
+        block_hash = binascii.hexlify(os.urandom(32)).decode()
+        _headers.append({
+            'block_hash': block_hash,
+            'prev_block_hash': i != 0 and _headers[i-1]['block_hash'],
+            'timestamp': 0,
+            'header_bytes': os.urandom(80),
+            'block_height': x
+        }
+        )
+    return _headers

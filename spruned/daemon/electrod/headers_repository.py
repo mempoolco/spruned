@@ -99,6 +99,15 @@ class HeadersSQLiteRepository(HeadersRepository):
             session.delete(header)
         session.flush()
 
+    @database.atomic
+    def remove_header_at_height(self, blockheight: int) -> Dict:
+        session = self.session()
+        header = session.query(database.Header).filter(database.Header.blockheight == blockheight).one()
+        removing_dict = self._header_model_to_dict(header, "")
+        session.delete(header)
+        session.flush()
+        return removing_dict
+
     def get_block_hash(self, blockheight: int):
         session = self.session()
         header = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()

@@ -18,7 +18,8 @@ class ElectrodReactor:
             interface: ElectrodInterface,
             loop=asyncio.get_event_loop(),
             store_headers=True,
-            delayed_task=async_delayed_task  # asyncio testing...  :/
+            delayed_task=async_delayed_task,  # asyncio testing...  :/
+            sleep_time_on_inconsistency=20
     ):
         self.repo = repo
         self.interface = interface
@@ -32,6 +33,8 @@ class ElectrodReactor:
         self.delayed_task = delayed_task
         self.new_headers_fallback_poll_interval = 60*11
         self.synced = False
+        self.sleep_time_on_inconsistency = sleep_time_on_inconsistency
+        self.orphans_headers = []
 
     def set_last_processed_header(self, last):
         if last != self._last_processed_header:
@@ -116,7 +119,6 @@ class ElectrodReactor:
                 self._last_processed_header['block_height'] == network_best_header['block_height']:
             self.synced = True
             return
-        await asyncio.sleep(3)
         await self.lock.acquire()
         try:
             local_best_header = self.repo.get_best_header()
@@ -125,7 +127,7 @@ class ElectrodReactor:
                 await self.on_local_headers_behind(local_best_header, network_best_header)
                 return
             elif local_best_header['block_height'] > network_best_header['block_height']:
-                await self.on_network_headers_behind(local_best_header, peer=peer)
+                await self.on_network_headers_behind(network_best_header, peer=peer)
                 return
             block_hash = self.repo.get_block_hash(network_best_header['block_height'])
             if block_hash != network_best_header['block_hash']:
@@ -133,7 +135,10 @@ class ElectrodReactor:
                 Logger.electrum.error('Inconsistency error with peer %s: (%s), %s',
                                       peer.server_info, network_best_header, block_hash
                                       )
-                return  # fixme
+                await asyncio.sleep(self.sleep_time_on_inconsistency)
+                if not await self.on_inconsistent_header_received(peer, network_best_header, block_hash):
+                    return
+
             self.set_last_processed_header(network_best_header)
             self.synced = True
         except exceptions.NoPeersException:
@@ -144,6 +149,45 @@ class ElectrodReactor:
             self.lock.release()
         finally:
             self.lock.release()
+
+    @database.atomic
+    async def on_inconsistent_header_received(self, peer: StratumClient, received_header: Dict, local_hash: str):
+        """
+        received an inconsistent header, this network header differs for hash from
+        one at the same height saved in the db.
+        check which one we should trust
+        """
+        _, response = await self.interface.get_header(received_header['block_height'], fail_silent_out_of_range=True)
+        if not response:
+            return
+        if response['block_hash'] == local_hash:
+            Logger.electrum.warning('Received a controversial header (%s), handling error with peer %s',
+                                    received_header, peer.server_info)
+            self.interface.handle_peer_error(peer)
+            return True
+
+        elif response['block_hash'] == received_header['block_hash']:
+            Logger.electrum.error('Remote peers agree the new header is ok, and our is orphan. rolling back')
+            orphaned = self.repo.remove_header_at_height(received_header['block_height'])
+            await self.on_new_orphan(orphaned)
+            self.synced = False
+            return
+
+        else:
+            Logger.electrum.error(
+                'Another inconsistency (net: %s, fetched: %s, local_hash: %s, something must be _very_ wrong',
+                received_header, response, local_hash
+            )
+            self.synced = False
+            self.interface.handle_peer_error(peer)
+
+    @database.atomic
+    async def on_new_orphan(self, header: Dict):
+        """
+        TODO: mark header as orphan
+        """
+        self.orphans_headers.append(header)
+        Logger.electrum.debug('Header %s orphaned, orphans: %s', header['block_hash'], self.orphans_headers)
 
     @database.atomic
     async def on_local_headers_behind(self, local_best_header: Dict, network_best_header: Dict):
@@ -218,7 +262,7 @@ class ElectrodReactor:
                 )
                 self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
         except exceptions.HeadersInconsistencyException:
-            Logger.electrum.exception('Inconsistency!')
+            Logger.electrum.error('Inconsistency error, rolling back')
             self.set_last_processed_header(None)
             await self.handle_headers_inconsistency()
         except exceptions.NoPeersException as e:
@@ -227,19 +271,19 @@ class ElectrodReactor:
             return
 
     @database.atomic
-    async def on_network_headers_behind(self, local_best_header: Dict, peer=None):
+    async def on_network_headers_behind(self, network_best_header: Dict, peer=None):
         Logger.electrum.warning('Network headers behind current, closing with peer in 3s')
         await asyncio.sleep(3)
-        await self.ensure_consistency(local_best_header, peer)
+        await self.ensure_consistency(network_best_header, peer)
 
-    async def ensure_consistency(self, local_best_header: Dict, peer: StratumClient):
-        repo_header = self.repo.get_header_at_height(local_best_header['block_height'])
-        if repo_header['block_hash'] != local_best_header['block_hash']:
+    async def ensure_consistency(self, network_best_header: Dict, peer: StratumClient):
+        repo_header = self.repo.get_header_at_height(network_best_header['block_height'])
+        if repo_header['block_hash'] != network_best_header['block_hash']:
             Logger.electrum.error(
                 'Warning! A peer (%s), behind in height, '
-                'have an header which differ from our, '
+                'have an header (%s) which differ from our, '
                 'saved in the db: %s',
-                str(peer.server_info), local_best_header, repo_header
+                str(peer.server_info), network_best_header, repo_header
             )
             # FIXME. understand what's going on, maybe rollback
 

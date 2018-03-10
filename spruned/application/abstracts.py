@@ -90,3 +90,8 @@ class HeadersRepository(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_block_hash(self, height: int):
         pass  # pragma: no cover
+
+    @abc.abstractmethod
+    def remove_header_at_height(self, blockheight: int):
+        pass  # pragma: no cover
+
