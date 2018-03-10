@@ -53,7 +53,8 @@ class ElectrodReactor:
     async def check_headers(self):
         if not self.synced or self.lock.locked():
             Logger.electrum.debug(
-                'Not synced yet or in sync (%s), retrying fallback headers check in 120s', self.lock.locked()
+                'Fallback headers check: Not synced yet or in sync (%s), retrying fallback headers check in 120s',
+                self.lock.locked()
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), 120))
             return
@@ -66,13 +67,14 @@ class ElectrodReactor:
             retry_in = self.new_headers_fallback_poll_interval - since_last_header
             retry_in = retry_in > 0 and retry_in or self.new_headers_fallback_poll_interval // 2
             Logger.electrum.debug(
-                'No best header or too recent header (%s), trying again in %s', since_last_header, retry_in
+                'Fallback headers check: No best header or too recent header (%s), trying again in %s',
+                since_last_header, retry_in
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), retry_in))
             return
-        Logger.electrum.debug('Syncing headers, errors until now: %s' % self._sync_errors)
+        Logger.electrum.debug('Fallback headers check, errors until now: %s' % self._sync_errors)
         if self._sync_errors > 100:
-            raise exceptions.SprunedException('Too many sync errors. Suspending Sync')
+            raise exceptions.SprunedException('Fallback headers check: Too many sync errors. Suspending Sync')
         try:
             best_header_response = self._last_processed_header and \
                                    await self.interface.get_header(
@@ -81,14 +83,17 @@ class ElectrodReactor:
                                    )
             if not best_header_response:
                 Logger.electrum.debug(
-                    'Looks like current header (%s) is best header', self._last_processed_header['block_height']
+                    'Fallback headers check: Looks like current header (%s) is best header',
+                    self._last_processed_header['block_height']
                 )
                 self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
                 return
 
             peer, network_best_header = best_header_response
         except exceptions.NoPeersException:
-            Logger.electrum.warning('Electrod is not able to find peers to sync headers. Sleeping 30 secs')
+            Logger.electrum.warning(
+                'Fallback headers check: Electrod is not able to find peers to sync headers. Sleeping 30 secs'
+            )
             self.loop.create_task(self.delayed_task(self.check_headers(), 30))
             return
 
@@ -96,11 +101,12 @@ class ElectrodReactor:
             sync = await self.on_new_header(peer, network_best_header)
             reschedule = 0 if not sync else self.new_headers_fallback_poll_interval
             self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # loop or fallback
-            Logger.electrum.debug('Rescheduling sync_headers (sync: %s) in %ss', sync, reschedule)
+            Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers (sync: %s) in %ss',
+                                  sync, reschedule)
         else:
             reschedule = self.new_headers_fallback_poll_interval
             self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # fallback (ping?)
-            Logger.electrum.debug('Rescheduling sync_headers in %ss', reschedule)
+            Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers in %ss', reschedule)
 
     @database.atomic
     async def on_new_header(self, peer, network_best_header: Dict, _r=0):
@@ -110,6 +116,7 @@ class ElectrodReactor:
                 self._last_processed_header['block_height'] == network_best_header['block_height']:
             self.synced = True
             return
+        await asyncio.sleep(3)
         await self.lock.acquire()
         try:
             local_best_header = self.repo.get_best_header()
@@ -156,6 +163,8 @@ class ElectrodReactor:
             elif local_best_header['block_height'] == network_best_header['block_height'] - 1:
                 # A new header is found, download again from multiple peers to verify it.
                 Logger.electrum.debug('Fetching headers')
+                await asyncio.sleep(1)  # reduce race conditions and peers annoying
+                # fixme - verify pow, disable multi headers fetch.
                 header = await self.interface.get_header(
                     network_best_header['block_height'],
                     fail_silent_out_of_range=True
@@ -201,10 +210,11 @@ class ElectrodReactor:
                 _from = rewind_from
                 _to = rewind_from + 1 + chunks_at_time
                 headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
-                saved_headers = headers and self.repo.save_headers(headers, force=True)
+                saving_headers = [h for h in headers if h['block_height'] > local_best_header['block_height']]
+                saved_headers = headers and self.repo.save_headers(saving_headers, force=True)
                 Logger.electrum.debug(
-                    'Fetched %s headers (from chunk %s to chunk %s), saved %s headers',
-                    len(headers), _from, _to, len(saved_headers)
+                    'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
+                    len(headers), _from, _to, len(saved_headers), len(saving_headers)
                 )
                 self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
         except exceptions.HeadersInconsistencyException:

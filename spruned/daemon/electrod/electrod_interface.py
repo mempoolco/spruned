@@ -168,7 +168,7 @@ class ElectrodInterface:
                 else:
                     Logger.electrum.exception('No available peers for Ping')
 
-        self.loop.create_task(async_delayed_task(self._keep_connections(), 5))
+        self.loop.create_task(async_delayed_task(self._keep_connections(), 5, disable_log=True))
 
     async def start(self, on_connected=None):
         self._update_status('stopped')
