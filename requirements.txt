@@ -1,5 +1,4 @@
 asyncio==3.4.3
-aiomas
 merkle
 git+https://github.com/Conio/pybitcointools.git
 git+https://github.com/gdassori/connectrum.git

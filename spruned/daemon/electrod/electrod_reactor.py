@@ -1,19 +1,27 @@
 import asyncio
-from typing import Dict
+from typing import Dict, Tuple
+
+import time
 from connectrum.client import StratumClient
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.electrod.electrod_rpc_server import ElectrodRPCServer
 from spruned.daemon import database, exceptions
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import get_nearest_parent
+from spruned.application.tools import get_nearest_parent, async_delayed_task
+from spruned.daemon.electrod.electrod_service import ElectrodService
 
 
 class ElectrodReactor:
-    def __init__(self, repo: HeadersRepository, interface, rpc_server, loop=None, store_headers=True):
+    def __init__(
+            self,
+            repo: HeadersRepository,
+            interface: ElectrodInterface,
+            loop=asyncio.get_event_loop(),
+            store_headers=True,
+            delayed_task=async_delayed_task  # asyncio testing...  :/
+    ):
         self.repo = repo
         self.interface = interface
-        self.rpc_server = rpc_server
         self.loop = loop or asyncio.get_event_loop()
         self.store_headers = store_headers
         self.lock = asyncio.Lock()
@@ -21,6 +29,9 @@ class ElectrodReactor:
         self._last_processed_header = None
         self._inconsistencies = []
         self._sync_errors = 0
+        self.delayed_task = delayed_task
+        self.new_headers_fallback_poll_interval = 60*11
+        self.synced = False
 
     def set_last_processed_header(self, last):
         if last != self._last_processed_header:
@@ -33,62 +44,97 @@ class ElectrodReactor:
 
     async def on_connected(self):
         if self.store_headers:
-            self.loop.create_task(self.sync_headers())
-            self.rpc_server.enable_blocks_api()
-        else:
-            self.rpc_server.disable_blocks_api()
+            self.loop.create_task(self.check_headers())
 
     async def start(self):
-        self.interface.add_header_subscribe_callback(self.on_header)
-        self.rpc_server.set_interface(self.interface)
+        self.interface.add_header_subscribe_callback(self.on_new_header)
         self.loop.create_task(self.interface.start(self.on_connected))
-        self.loop.create_task(self.rpc_server.start())
 
-    async def sync_headers(self):
+    async def check_headers(self):
+        if not self.synced or self.lock.locked():
+            Logger.electrum.debug(
+                'Not synced yet or in sync (%s), retrying fallback headers check in 120s', self.lock.locked()
+            )
+            self.loop.create_task(self.delayed_task(self.check_headers(), 120))
+            return
+
+        if self._last_processed_header:
+            since_last_header = int(time.time()) - self._last_processed_header['timestamp']
+        else:
+            since_last_header = 0
+        if since_last_header < self.new_headers_fallback_poll_interval:
+            retry_in = self.new_headers_fallback_poll_interval - since_last_header
+            retry_in = retry_in > 0 and retry_in or self.new_headers_fallback_poll_interval // 2
+            Logger.electrum.debug(
+                'No best header or too recent header (%s), trying again in %s', since_last_header, retry_in
+            )
+            self.loop.create_task(self.delayed_task(self.check_headers(), retry_in))
+            return
         Logger.electrum.debug('Syncing headers, errors until now: %s' % self._sync_errors)
         if self._sync_errors > 100:
             raise exceptions.SprunedException('Too many sync errors. Suspending Sync')
         try:
-            best_header_response = await self.interface.get_last_network_best_header()
+            best_header_response = self._last_processed_header and \
+                                   await self.interface.get_header(
+                                       self._last_processed_header['block_height'] + 1,
+                                       fail_silent_out_of_range=True
+                                   )
             if not best_header_response:
-                Logger.electrum.warning('No best header ?')
-                self.loop.call_later(30, self.sync_headers())
+                Logger.electrum.debug(
+                    'Looks like current header (%s) is best header', self._last_processed_header['block_height']
+                )
+                self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
                 return
 
             peer, network_best_header = best_header_response
         except exceptions.NoPeersException:
             Logger.electrum.warning('Electrod is not able to find peers to sync headers. Sleeping 30 secs')
-            self.loop.call_later(30, self.sync_headers())
+            self.loop.create_task(self.delayed_task(self.check_headers(), 30))
             return
 
         if network_best_header and network_best_header != self._last_processed_header:
-            sync = await self.on_header(peer, network_best_header)
-            reschedule = 0 if not sync else 120
-            self.loop.call_later(reschedule, self.sync_headers())  # loop or fallback
+            sync = await self.on_new_header(peer, network_best_header)
+            reschedule = 0 if not sync else self.new_headers_fallback_poll_interval
+            self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # loop or fallback
             Logger.electrum.debug('Rescheduling sync_headers (sync: %s) in %ss', sync, reschedule)
         else:
-            reschedule = 120
-            self.loop.call_later(reschedule, self.sync_headers())  # fallback (ping?)
+            reschedule = self.new_headers_fallback_poll_interval
+            self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # fallback (ping?)
             Logger.electrum.debug('Rescheduling sync_headers in %ss', reschedule)
 
     @database.atomic
-    async def on_header(self, peer, network_best_header: Dict):
+    async def on_new_header(self, peer, network_best_header: Dict, _r=0):
         assert network_best_header
+        if self._last_processed_header and \
+                self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
+                self._last_processed_header['block_height'] == network_best_header['block_height']:
+            self.synced = True
+            return
         await self.lock.acquire()
         try:
             local_best_header = self.repo.get_best_header()
             if not local_best_header or local_best_header['block_height'] < network_best_header['block_height']:
+                self.synced = False
                 await self.on_local_headers_behind(local_best_header, network_best_header)
-                return False
+                return
             elif local_best_header['block_height'] > network_best_header['block_height']:
                 await self.on_network_headers_behind(local_best_header, peer=peer)
-                return False
-
+                return
             block_hash = self.repo.get_block_hash(network_best_header['block_height'])
-            if block_hash != local_best_header['block_hash']:
-                raise exceptions.HeadersInconsistencyException(network_best_header)
+            if block_hash != network_best_header['block_hash']:
+                self.interface.handle_peer_error(peer)
+                Logger.electrum.error('Inconsistency error with peer %s: (%s), %s',
+                                      peer.server_info, network_best_header, block_hash
+                                      )
+                return  # fixme
             self.set_last_processed_header(network_best_header)
-            return True
+            self.synced = True
+        except exceptions.NoPeersException:
+            if not _r:
+                await asyncio.sleep(5)
+                return await self.on_new_header(peer, network_best_header, _r + 1)
+            self._sync_errors += 1
+            self.lock.release()
         finally:
             self.lock.release()
 
@@ -109,6 +155,7 @@ class ElectrodReactor:
                 self.set_last_processed_header(saved_headers and saved_headers[-1])
             elif local_best_header['block_height'] == network_best_header['block_height'] - 1:
                 # A new header is found, download again from multiple peers to verify it.
+                Logger.electrum.debug('Fetching headers')
                 header = await self.interface.get_header(
                     network_best_header['block_height'],
                     force_peers=len(self.interface.get_all_connected_peers()) // 2
@@ -116,6 +163,7 @@ class ElectrodReactor:
                 if not header:
                     # Other peers doesn't have it yet, sleep 3 seconds, we'll try again later.
                     await asyncio.sleep(3)
+                    Logger.electrum.warning('Header fetch failed')
                     return
                 if header['block_hash'] != network_best_header['block_hash']:
                     raise exceptions.HeadersInconsistencyException(
@@ -164,8 +212,10 @@ class ElectrodReactor:
             Logger.electrum.exception('Inconsistency!')
             self.set_last_processed_header(None)
             await self.handle_headers_inconsistency()
-        except Exception:
-            raise
+        except exceptions.NoPeersException as e:
+            Logger.electrum.warning('Not enough peers to fetch data: %s', e)
+            await asyncio.sleep(3)
+            return
 
     @database.atomic
     async def on_network_headers_behind(self, local_best_header: Dict, peer=None):
@@ -200,11 +250,11 @@ class ElectrodReactor:
         )
 
 
-def build_electrod(headers_repository, network, socket, concurrency=3) -> ElectrodReactor:
-    electrod_rpc_server = ElectrodRPCServer(socket, headers_repository)
+def build_electrod(headers_repository, network, concurrency=3) -> Tuple[ElectrodReactor, ElectrodService]:
     electrod_interface = ElectrodInterface(
         network,
         concurrency=concurrency
     )
-    electrod = ElectrodReactor(headers_repository, electrod_interface, electrod_rpc_server)
-    return electrod
+    electrod = ElectrodReactor(headers_repository, electrod_interface)
+    electrod_service = ElectrodService(electrod_interface)
+    return electrod, electrod_service

@@ -11,7 +11,7 @@ from spruned.services.chainflyer_service import ChainFlyerService
 from spruned.services.chainso_service import ChainSoService
 from spruned.services.blockcypher_service import BlockCypherService
 from spruned.services.localbitcoins_service import LocalbitcoinsService
-from spruned.services.electrod_service import ElectrodService
+from spruned.daemon.electrod.electrod_service import ElectrodService
 from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 
 # system
@@ -19,10 +19,9 @@ from spruned.daemon.electrod.headers_repository import HeadersSQLiteRepository
 headers_repository = HeadersSQLiteRepository(database.session)
 cache = CacheFileInterface(settings.CACHE_ADDRESS)
 storage = CacheFileInterface(settings.STORAGE_ADDRESS, compress=False)
-electrod_daemon = build_electrod(
-    headers_repository, settings.NETWORK, settings.ELECTROD_SOCKET, settings.ELECTROD_CONCURRENCY
+electrod_daemon, electrod_service = build_electrod(
+    headers_repository, settings.NETWORK, settings.ELECTROD_CONCURRENCY
 )
-electrod_service = ElectrodService(settings.ELECTROD_SOCKET)
 
 
 # services
