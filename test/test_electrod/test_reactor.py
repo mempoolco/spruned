@@ -15,7 +15,7 @@ class TestElectrodReactor(unittest.TestCase):
         self.repo = create_autospec(HeadersRepository)
         self.interface = create_autospec(ElectrodInterface)
         self.electrod_loop = Mock()
-        self.electrod_loop.create_task.side_effect: lambda x: x
+        self.electrod_loop.create_task.side_effect = lambda x: x
         self.delay_task_runner = Mock()
         self.sut = ElectrodReactor(
             self.repo, self.interface, loop=self.electrod_loop, delayed_task=self.delay_task_runner
