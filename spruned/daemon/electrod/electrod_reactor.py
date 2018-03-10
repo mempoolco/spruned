@@ -112,9 +112,6 @@ class ElectrodReactor:
             Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers in %ss', reschedule)
 
     async def on_new_header(self, peer, network_best_header: Dict, _r=0):
-        if self.lock.locked():
-            Logger.electrum.debug('on_new_header locked, skipping network_best_header %s', network_best_header['block_height'])
-            return
         if not network_best_header:
             Logger.electrum.warning('Weird. No best header received on call')
         await self.lock.acquire()
@@ -210,17 +207,22 @@ class ElectrodReactor:
             elif local_best_header['block_height'] == network_best_header['block_height'] - 1:
                 # A new header is found, download again from multiple peers to verify it.
                 Logger.electrum.debug('Fetching headers')
-                await asyncio.sleep(1)  # reduce race conditions and peers annoying
-                # fixme - verify pow, disable multi headers fetch.
-                header = await self.interface.get_header(
-                    network_best_header['block_height'],
-                    fail_silent_out_of_range=True
-                )
-                if not header:
+                i = 0
+                while 1:
+                    await asyncio.sleep(5)  # reduce race conditions and peers annoying
+                    # fixme - verify pow, disable multi headers fetch.
+                    header = await self.interface.get_header(
+                        network_best_header['block_height'],
+                        fail_silent_out_of_range=True
+                    )
+                    if header:
+                        break
                     # Other peers doesn't have it yet, sleep 10 seconds, we'll try again later.
                     await asyncio.sleep(10)
                     Logger.electrum.warning('Header fetch failed')
-                    return
+                    if i > 3:
+                        return
+                    i += 1
                 if header['block_hash'] != network_best_header['block_hash']:
                     raise exceptions.HeadersInconsistencyException(
                         'New header differs from the network at the same height'
