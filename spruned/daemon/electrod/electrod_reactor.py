@@ -158,11 +158,11 @@ class ElectrodReactor:
                 Logger.electrum.debug('Fetching headers')
                 header = await self.interface.get_header(
                     network_best_header['block_height'],
-                    force_peers=len(self.interface.get_all_connected_peers()) // 2
+                    fail_silent_out_of_range=True
                 )
                 if not header:
-                    # Other peers doesn't have it yet, sleep 3 seconds, we'll try again later.
-                    await asyncio.sleep(3)
+                    # Other peers doesn't have it yet, sleep 10 seconds, we'll try again later.
+                    await asyncio.sleep(10)
                     Logger.electrum.warning('Header fetch failed')
                     return
                 if header['block_hash'] != network_best_header['block_hash']:
@@ -183,7 +183,6 @@ class ElectrodReactor:
                 headers = await self.interface.get_headers_in_range(
                     local_best_header['block_height'],
                     network_best_header['block_height'],
-                    force_peers=len(self.interface.get_all_connected_peers()) // 2
                 )
                 if not headers:
                     Logger.electrum.warning(
