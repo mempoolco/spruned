@@ -2,9 +2,8 @@
 #### A Bitcoin full node emulator with a limited set of APIs
 <p>sPRUNED emulate the bitcoind rpc server as a full node of BTC mainnet</p>
 
-![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)
-![coverage](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)
-
+[![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
+[![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
 
 #### Usage
 w.i.p., not usable yet. follow the project and come back later!
