@@ -56,7 +56,7 @@ class ElectrodReactor:
     async def check_headers(self):
         if not self.synced or self.lock.locked():
             Logger.electrum.debug(
-                'Fallback headers check: Not synced yet or in sync (%s), retrying fallback headers check in 120s',
+                'Fallback headers check: Not synced yet or sync locked (%s), retrying fallback headers check in 120s',
                 self.lock.locked()
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), 120))
@@ -111,19 +111,19 @@ class ElectrodReactor:
             self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # fallback (ping?)
             Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers in %ss', reschedule)
 
-    @database.atomic
     async def on_new_header(self, peer, network_best_header: Dict, _r=0):
         if self.lock.locked():
             Logger.electrum.debug('on_new_header locked, skipping network_best_header %s', network_best_header['block_height'])
             return
+        if not network_best_header:
+            Logger.electrum.warning('Weird. No best header received on call')
         await self.lock.acquire()
-        assert network_best_header
-        if self._last_processed_header and \
-                self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
-                self._last_processed_header['block_height'] == network_best_header['block_height']:
-            self.synced = True
-            return
         try:
+            if self._last_processed_header and \
+                    self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
+                    self._last_processed_header['block_height'] == network_best_header['block_height']:
+                self.synced = True
+                return
             local_best_header = self.repo.get_best_header()
             if not local_best_header or local_best_header['block_height'] < network_best_header['block_height']:
                 self.synced = False
@@ -133,7 +133,7 @@ class ElectrodReactor:
                 await self.on_network_headers_behind(network_best_header, peer=peer)
                 return
             block_hash = self.repo.get_block_hash(network_best_header['block_height'])
-            if block_hash != network_best_header['block_hash']:
+            if block_hash and block_hash != network_best_header['block_hash']:
                 self.interface.handle_peer_error(peer)
                 Logger.electrum.error('Inconsistency error with peer %s: (%s), %s',
                                       peer.server_info, network_best_header, block_hash
@@ -141,9 +141,9 @@ class ElectrodReactor:
                 await asyncio.sleep(self.sleep_time_on_inconsistency)
                 if not await self.on_inconsistent_header_received(peer, network_best_header, block_hash):
                     return
-
             self.set_last_processed_header(network_best_header)
             self.synced = True
+
         except exceptions.NoPeersException:
             if not _r:
                 await asyncio.sleep(5)
@@ -160,7 +160,7 @@ class ElectrodReactor:
         one at the same height saved in the db.
         check which one we should trust
         """
-        _, response = await self.interface.get_header(received_header['block_height'], fail_silent_out_of_range=True)
+        response = await self.interface.get_header(received_header['block_height'], fail_silent_out_of_range=True)
         if not response:
             return
         if response['block_hash'] == local_hash:

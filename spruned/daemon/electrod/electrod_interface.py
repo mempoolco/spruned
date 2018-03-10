@@ -263,7 +263,6 @@ class ElectrodInterface:
         self._peers_errors.pop(peer)
         peer.close()
         self.blacklisted.append(peer.server_info)
-        del peer
 
     async def getaddresshistory(self, scripthash: str, force_peers=None):
         responses = []
