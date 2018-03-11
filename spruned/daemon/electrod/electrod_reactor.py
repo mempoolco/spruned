@@ -242,6 +242,7 @@ class ElectrodReactor:
             raise exceptions.NoHeadersException
         saved_headers = self.repo.save_headers(headers[1:])
         self.set_last_processed_header(saved_headers[-1])
+        self.synced = True
 
     async def _fetch_header(self, network_best_header: Dict):
         # A new header is found, download again from multiple peers to verify it.

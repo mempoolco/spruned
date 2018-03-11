@@ -318,3 +318,48 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertEqual(4, len(self.interface.method_calls))
         self.assertEqual(5, len(self.repo.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
+
+    def test_on_new_headers_5_blocks_behind(self):
+        """
+        local height is 10
+        remote height is 15
+        5 headers are requested with interface.get_headers_in_range api (no chunks)
+        due race conditions, two errors are triggered: no peers, empty response
+        the third retry headers are fetched
+        headers are saved
+        best height is 15
+        sync true
+        """
+        header_timestamp = int(time.time())
+        net_header = {
+            "block_height": 15,
+            "block_hash": "55" * 32,
+            "timestamp": header_timestamp,
+            "prev_block_hash": "54" * 32,
+            "header_bytes": b"0"*80
+        }
+        peer = Mock(server_info='mock_peer')
+        loc_header = {
+            "block_height": 10,
+            "block_hash": "bb" * 32,
+            "timestamp": header_timestamp - 600*5,
+            "prev_block_hash": "aa" * 32,
+            "header_bytes": b"0"*80
+        }
+        self.repo.get_best_header.return_value = loc_header
+        headers = make_headers(11, 15, 'bb'*32) + [net_header]
+
+        self.interface.get_headers_in_range.side_effect = [
+            exceptions.NoPeersException,
+            async_coro(None),
+            async_coro(headers),
+        ]
+        self.interface.get_header.return_value = async_coro(net_header)
+        self.repo.save_headers.side_effect = lambda x, **k: x
+
+        self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
+        self.assertEqual(self.sut._last_processed_header, net_header)
+        self.assertTrue(self.sut.synced)
+        self.assertEqual(3, len(self.interface.method_calls))
+        self.assertEqual(4, len(self.repo.method_calls))
+        self.assertEqual(0, len(self.electrod_loop.method_calls))
