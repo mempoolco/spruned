@@ -2,6 +2,8 @@ import asyncio
 import unittest
 from unittest.mock import Mock, create_autospec
 import time
+
+from spruned.application import settings
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
@@ -252,3 +254,43 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertEqual(0, len(self.electrod_loop.method_calls), msg=str(self.electrod_loop.method_calls))
         self.assertFalse(self.sut.synced)
         self.assertFalse(self.sut.lock.locked())
+
+    def test_no_local_headers(self):
+        """
+        a new header is received, best_height is 3000
+        there is no local header
+        the chunk 0 is requested, but there are no peers available due race condition
+        then the chunk 0 is fetched and saved
+        then the chunk 1 is fetched and saved
+        new height is 3000
+        reactor is in sync with the network
+        """
+        header_timestamp = int(time.time())
+        net_header = {
+            "block_height": 3000,
+            "block_hash": "cc" * 32,
+            "timestamp": header_timestamp,
+            "prev_block_hash": "00" * 32,
+            "header_bytes": b"0"*80
+        }
+        peer = Mock(server_info='mock_peer')
+        loc_header = None
+        self.repo.get_best_header.return_value = loc_header
+        _chunk_1 = make_headers(0, 2015, settings.CHECKPOINTS[0])
+        _chunk_2 = make_headers(2016, 2999, _chunk_1[-1]['block_height'])
+        _chunk_2.append(net_header)
+
+        self.interface.get_headers_in_range_from_chunks.side_effect = [
+            exceptions.NoPeersException,
+            async_coro(_chunk_1),
+            async_coro(_chunk_2)
+        ]
+        self.interface.get_header.return_value = async_coro(net_header)
+        self.repo.save_headers.side_effect = lambda x, **k: x
+
+        self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
+        self.assertEqual(self.sut._last_processed_header, net_header)
+        self.assertTrue(self.sut.synced)
+        self.assertEqual(3, len(self.interface.method_calls))
+        self.assertEqual(4, len(self.repo.method_calls))
+        self.assertEqual(0, len(self.electrod_loop.method_calls))

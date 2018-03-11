@@ -120,7 +120,9 @@ class ElectrodReactor:
     async def on_new_header(self, peer, network_best_header: Dict, _r=0):
         if not network_best_header:
             Logger.electrum.warning('Weird. No best header received on call')
-        await self.lock.acquire()
+            return
+        if not _r:
+            await self.lock.acquire()
         try:
             if self._last_processed_header and \
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
@@ -148,16 +150,12 @@ class ElectrodReactor:
             self.synced = True
 
         except exceptions.NoPeersException:
-            if not _r:
-                await asyncio.sleep(5)
-                return await self.on_new_header(peer, network_best_header, _r + 1)
             self._sync_errors += 1
-            self.lock.release()
-        except (TimeoutError, asyncio.TimeoutError):
-            Logger.electrum.exception('on_new_headers: TimeoutError')
-            return
+            if _r < 3:
+                return await self.on_new_header(peer, network_best_header, _r + 1)
         finally:
-            self.lock.release()
+            if not _r:
+                self.lock.release()
 
     @database.atomic
     async def on_inconsistent_header_received(self, peer: StratumClient, received_header: Dict, local_hash: str):
@@ -200,90 +198,27 @@ class ElectrodReactor:
 
     @database.atomic
     async def on_local_headers_behind(self, local_best_header: Dict, network_best_header: Dict):
+        MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS = 10
+
         chunks_at_time = 1
         try:
-            if not local_best_header:
-                # No local best header? This comes from the db, it must be a boostrap session.
-                headers = await self.interface.get_headers_in_range_from_chunks(0, chunks_at_time)
-                if not headers:
-                    await asyncio.sleep(3)
-                    Logger.electrum.warning(
-                        'Missing headers on <on_local_headers_behind> chunks: 0, %s', chunks_at_time
-                    )
-                    return
-                saved_headers = headers and self.repo.save_headers(headers)
-                self.set_last_processed_header(saved_headers and saved_headers[-1])
+            if not local_best_header or \
+                    local_best_header['block_height'] < network_best_header['block_height'] - \
+                    MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS:
+                """
+                bootstrap or behind of more than <N> headers
+                """
+                await self._fetch_headers_chunks(chunks_at_time, local_best_header, network_best_header)
             elif local_best_header['block_height'] == network_best_header['block_height'] - 1:
-                # A new header is found, download again from multiple peers to verify it.
-                Logger.electrum.debug('Fetching headers')
-                i = 0
-                while 1:
-                    await asyncio.sleep(5)  # reduce race conditions and peers annoying
-                    # fixme - verify pow, disable multi headers fetch.
-                    header = await self.interface.get_header(
-                        network_best_header['block_height'],
-                        fail_silent_out_of_range=True
-                    )
-                    if header:
-                        break
-                    # Other peers doesn't have it yet, sleep 10 seconds, we'll try again later.
-                    await asyncio.sleep(10)
-                    Logger.electrum.warning('Header fetch failed')
-                    if i > 3:
-                        return
-                    i += 1
-                if header['block_hash'] != network_best_header['block_hash']:
-                    raise exceptions.HeadersInconsistencyException(
-                        'New header differs from the network at the same height'
-                    )
-
-                self.repo.save_header(
-                    network_best_header['block_hash'],
-                    network_best_header['block_height'],
-                    network_best_header['header_bytes'],
-                    network_best_header['prev_block_hash']
-                )
-                self.set_last_processed_header(network_best_header)
-                self.synced = True
-            elif local_best_header['block_height'] > network_best_header['block_height'] - 30:
-                # The last saved header is old! It must be a while since the last time spruned synced.
-                # Download the headers with a chunk, instead of tons of calls to servers..
-                headers = await self.interface.get_headers_in_range(
-                    local_best_header['block_height'],
-                    network_best_header['block_height'],
-                )
-                if not headers:
-                    Logger.electrum.warning('Missing headers on <on_local_headers_behind>')
-                    await asyncio.sleep(3)
-                    return
-                saved_headers = self.repo.save_headers(headers[1:])
-                self.set_last_processed_header(saved_headers[-1])
+                """
+                behind of 1 header
+                """
+                await self._fetch_header(network_best_header)
             else:
-                i = 0
-                current_height = local_best_header['block_height']
-                while 1:
-                    Logger.electrum.debug(
-                        'Behind of %s blocks, fetching chunks',
-                        network_best_header['block_height'] - current_height
-                    )
-                    rewind_from = (get_nearest_parent(local_best_header['block_height'], 2016) // 2016) + i
-                    _from = rewind_from
-                    _to = rewind_from + chunks_at_time
-                    if _from > (network_best_header['block_height'] // 2016):
-                        self.synced = True
-                        return
-                    headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
-                    if not headers:
-                        return
-                    saving_headers = [h for h in headers if h['block_height'] > local_best_header['block_height']]
-                    saved_headers = headers and self.repo.save_headers(saving_headers)
-                    Logger.electrum.debug(
-                        'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
-                        len(headers), _from, _to, len(saved_headers), len(saving_headers)
-                    )
-                    self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
-                    current_height = self._last_processed_header['block_height']
-                    i += 1
+                """
+                behind of less than MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS, download single headers and don't use chunks
+                """
+                await self._fetch_multiple_headers(local_best_header, network_best_header)
         except exceptions.HeadersInconsistencyException:
             Logger.electrum.error('Inconsistency error, rolling back')
             self.set_last_processed_header(None)
@@ -292,7 +227,86 @@ class ElectrodReactor:
         except exceptions.NoPeersException as e:
             Logger.electrum.warning('Not enough peers to fetch data: %s', e)
             await asyncio.sleep(3)
+            raise
+
+    async def _fetch_multiple_headers(self, local_best_header: Dict, network_best_header: Dict):
+        # The last saved header is old! It must be a while since the last time spruned synced.
+        # Download the headers with a chunk, instead of tons of calls to servers..
+        headers = await self.interface.get_headers_in_range(
+            local_best_header['block_height'],
+            network_best_header['block_height'],
+        )
+        if not headers:
+            Logger.electrum.warning('Missing headers on <on_local_headers_behind>')
+            await asyncio.sleep(3)
             return
+        saved_headers = self.repo.save_headers(headers[1:])
+        self.set_last_processed_header(saved_headers[-1])
+
+    async def _fetch_header(self, network_best_header: Dict):
+        # A new header is found, download again from multiple peers to verify it.
+        Logger.electrum.debug('Fetching headers')
+        i = 0
+        while 1:
+            await asyncio.sleep(5)  # reduce race conditions and peers annoying
+            # fixme - verify pow, disable multi headers fetch.
+            header = await self.interface.get_header(
+                network_best_header['block_height'],
+                fail_silent_out_of_range=True
+            )
+            if header:
+                break
+            # Other peers doesn't have it yet, sleep 10 seconds, we'll try again later.
+            await asyncio.sleep(10)
+            Logger.electrum.warning('Header fetch failed')
+            if i > 3:
+                return
+            i += 1
+        if header['block_hash'] != network_best_header['block_hash']:
+            raise exceptions.HeadersInconsistencyException(
+                'New header differs from the network at the same height'
+            )
+
+        self.repo.save_header(
+            network_best_header['block_hash'],
+            network_best_header['block_height'],
+            network_best_header['header_bytes'],
+            network_best_header['prev_block_hash']
+        )
+        self.set_last_processed_header(network_best_header)
+        self.synced = True
+
+    async def _fetch_headers_chunks(self, chunks_at_time, local_best_header, network_best_header):
+        """
+        fetch chunks from local height to network best height, download <chunks_at_time> (>1 is unstable)
+        """
+        i = 0
+        current_height = local_best_header and local_best_header['block_height'] or 0
+        while 1:
+            Logger.electrum.debug(
+                'Behind of %s blocks, fetching chunks',
+                network_best_header['block_height'] - current_height
+
+            )
+            local_best_height = local_best_header and local_best_header['block_height'] or 0
+            rewind_from = get_nearest_parent(local_best_height, 2016) // 2016 + i
+            _from = rewind_from
+            _to = rewind_from + chunks_at_time
+            if _from > (network_best_header['block_height'] // 2016):
+                self.synced = True
+                return
+            headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
+            if not headers:
+                return
+            saving_headers = [h for h in headers if h['block_height'] > local_best_height]
+            saved_headers = headers and self.repo.save_headers(saving_headers)
+            Logger.electrum.debug(
+                'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
+                len(headers), _from, _to, len(saved_headers), len(saving_headers)
+            )
+            self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
+            current_height = self._last_processed_header['block_height']
+            i += 1
 
     @database.atomic
     async def on_network_headers_behind(self, network_best_header: Dict, peer=None):
