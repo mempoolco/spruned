@@ -3,7 +3,7 @@ import json
 import random
 import binascii
 import os
-from typing import Dict, Tuple
+from typing import Dict
 
 import async_timeout
 import time
@@ -19,7 +19,14 @@ from spruned.application.tools import blockheader_to_blockhash, deserialize_head
 class ElectrodInterface:
     MAX_ERRORS_PER_PEER_BEFORE_DISCONNECTING = 5
 
-    def __init__(self, coin, concurrency=1, connections_concurrency_ratio=3, loop=asyncio.get_event_loop()):
+    def __init__(
+            self,
+            coin,
+            concurrency=1,
+            connections_concurrency_ratio=3,
+            loop=asyncio.get_event_loop(),
+            stratum_client=StratumClient
+    ):
         assert coin.value == 1
         self._coin = coin
         self._serversfile_attr = {
@@ -39,6 +46,7 @@ class ElectrodInterface:
         self.on_new_header_callback = False
         self.loop = loop
         self._peer_ban_time = 120
+        self._stratum_client = stratum_client
 
     def add_header_subscribe_callback(self, value):
         self.on_new_header_callback = value
@@ -82,7 +90,7 @@ class ElectrodInterface:
             if i > 50:
                 raise exceptions.SprunedException('Cannot find electrum servers to connect')
         _server_info = ServerInfo(binascii.hexlify(os.urandom(6)).decode(), server[0], server[1])
-        peer = StratumClient()
+        peer = self._stratum_client()
         try:
             with async_timeout.timeout(10):
                 await peer.connect(_server_info, disable_cert_verify=True)
@@ -296,12 +304,15 @@ class ElectrodInterface:
             return self._handle_electrum_exception(e)
         return responses and self._handle_responses(responses)
 
-    async def get_header(self, height: int, force_peers=None, fail_silent_out_of_range=False):
+    async def get_header(self, height: int, force_peers=None, fail_silent_out_of_range=False, get_peer=False):
         responses = []
+        peers = self._pick_peers(force_peers=force_peers)
         futures = [
             self._rpc_call(peer, 'blockchain.block.get_header', height)
-            for peer in self._pick_peers(force_peers=force_peers)
+            for peer in peers
         ]
+        if get_peer and force_peers != 1:
+            raise exceptions.SprunedException('Incompatible params')
         try:
             for response in await asyncio.gather(*futures):
                 response and responses.append(response)
@@ -311,6 +322,8 @@ class ElectrodInterface:
                     return
             return self._handle_electrum_exception(e)
         response = self._handle_responses(responses)
+        if get_peer:
+            return peers[0], (response and self._parse_header(response))
         return response and self._parse_header(response)
 
     async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int):

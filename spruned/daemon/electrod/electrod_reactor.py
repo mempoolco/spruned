@@ -54,6 +54,10 @@ class ElectrodReactor:
         self.loop.create_task(self.interface.start(self.on_connected))
 
     async def check_headers(self):
+        if self._sync_errors >= 100:
+            raise exceptions.SprunedException(
+                'Fallback headers check: Too many sync errors. Suspending Sync'
+            )
         if not self.synced or self.lock.locked():
             Logger.electrum.debug(
                 'Fallback headers check: Not synced yet or sync locked (%s), retrying fallback headers check in 120s',
@@ -62,11 +66,8 @@ class ElectrodReactor:
             self.loop.create_task(self.delayed_task(self.check_headers(), 120))
             return
 
-        if self._last_processed_header:
-            since_last_header = int(time.time()) - self._last_processed_header['timestamp']
-        else:
-            since_last_header = 0
-        if since_last_header < self.new_headers_fallback_poll_interval:
+        since_last_header = self._last_processed_header and int(time.time()) - self._last_processed_header['timestamp']
+        if int(since_last_header) < self.new_headers_fallback_poll_interval:
             retry_in = self.new_headers_fallback_poll_interval - since_last_header
             retry_in = retry_in > 0 and retry_in or self.new_headers_fallback_poll_interval // 2
             Logger.electrum.debug(
@@ -80,15 +81,12 @@ class ElectrodReactor:
             self._last_processed_header and self._last_processed_header['block_height'],
             self._sync_errors
         )
-        if self._sync_errors > 100:
-            raise exceptions.SprunedException(
-                'Fallback headers check: Too many sync errors. Suspending Sync'
-            )
         try:
             best_header_response = self._last_processed_header and \
                                    await self.interface.get_header(
                                        self._last_processed_header['block_height'] + 1,
-                                       fail_silent_out_of_range=True
+                                       fail_silent_out_of_range=True,
+                                       get_peer=True
                                    )
             if not best_header_response:
                 Logger.electrum.debug(
@@ -342,7 +340,8 @@ class ElectrodReactor:
         )
 
 
-def build_electrod(headers_repository, network, concurrency) -> Tuple[ElectrodReactor, ElectrodService]:
+def build_electrod(headers_repository, network, concurrency) \
+        -> Tuple[ElectrodReactor, ElectrodService]:  # pragma: no cover
     electrod_interface = ElectrodInterface(
         network,
         concurrency=concurrency

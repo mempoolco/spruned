@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock, create_autospec, call
 import time
 
 from spruned.application import settings
@@ -29,6 +29,7 @@ class TestElectrodReactor(unittest.TestCase):
         self.repo.reset_mock()
         self.interface.reset_mock()
         self.electrod_loop.reset_mock()
+        self.delay_task_runner.reset_mock()
 
     def test_last_header_received_less_than_min_polling_interval(self):
         """
@@ -37,7 +38,7 @@ class TestElectrodReactor(unittest.TestCase):
         """
         header_timestamp = int(time.time()) - 100
         loc_header = {"block_height": 1, "block_hash": "ff"*32, "timestamp": header_timestamp}
-        self.interface.get_header.return_value = async_coro(None)
+
         self.sut.synced = True
         self.sut.set_last_processed_header(loc_header)
         self.loop.run_until_complete(self.sut.check_headers())
@@ -62,7 +63,28 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertFalse(self.sut.lock.locked())
 
         Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 660)
-        Mock.assert_called_with(self.interface.get_header, 2, fail_silent_out_of_range=True)
+        Mock.assert_called_with(self.interface.get_header, 2, fail_silent_out_of_range=True, get_peer=True)
+        Mock.assert_called_once_with(self.electrod_loop.create_task, self.delay_task_runner())
+
+        self.assertEqual(1, len(self.interface.method_calls))
+        self.assertEqual(1, len(self.electrod_loop.method_calls))
+        self.assertEqual(0, len(self.repo.method_calls))
+
+    def test_fallback_check_error(self):
+        """
+        test reactor.check_headers method
+        interface didn't returned any best header. will try again in
+        """
+        header_timestamp = int(time.time()) - self.sut.new_headers_fallback_poll_interval - 1
+        loc_header = {"block_height": 1, "block_hash": "ff" * 32, "timestamp": header_timestamp}
+        self.interface.get_header.side_effect = [exceptions.NoPeersException]
+        self.sut.synced = True
+        self.sut.set_last_processed_header(loc_header)
+        self.loop.run_until_complete(self.sut.check_headers())
+        self.assertFalse(self.sut.lock.locked())
+
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 30)
+        Mock.assert_called_with(self.interface.get_header, 2, fail_silent_out_of_range=True, get_peer=True)
         Mock.assert_called_once_with(self.electrod_loop.create_task, self.delay_task_runner())
 
         self.assertEqual(1, len(self.interface.method_calls))
@@ -84,13 +106,12 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertFalse(self.sut.lock.locked())
 
         Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 30)
-        Mock.assert_called_with(self.interface.get_header, 2, fail_silent_out_of_range=True)
+        Mock.assert_called_with(self.interface.get_header, 2, fail_silent_out_of_range=True, get_peer=True)
         Mock.assert_called_once_with(self.electrod_loop.create_task, self.delay_task_runner())
 
         self.assertEqual(1, len(self.interface.method_calls))
         self.assertEqual(1, len(self.electrod_loop.method_calls))
         self.assertEqual(0, len(self.repo.method_calls))
-
 
     def test_network_header_behind(self):
         """
@@ -363,3 +384,105 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertEqual(3, len(self.interface.method_calls))
         self.assertEqual(4, len(self.repo.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
+
+    def test_check_headers_new_header(self):
+        """
+        test on fallback method check_headers
+        new header received
+        """
+        header_timestamp = int(time.time()) - 100
+        loc_header = {
+            "block_height": 1,
+            "block_hash": "ff"*32, "timestamp": header_timestamp - 700, 'header_bytes': b'', 'prev_block_hash': '00'*32
+        }
+        net_header = {
+            "block_height": 2,
+            "block_hash": "aa"*32, "timestamp": header_timestamp, 'header_bytes': b'', 'prev_block_hash': 'ff'*32
+        }
+        peer = Mock()
+        self.interface.get_header.side_effect = [async_coro((peer, net_header)), async_coro(net_header)]
+        self.sut.synced = True
+        self.sut.set_last_processed_header(loc_header)
+        self.assertFalse(self.sut.lock.locked())
+        peer = Mock(server_info='mock_peer')
+        peer.close.return_value = True
+        self.repo.get_best_header.return_value = loc_header
+        self.repo.save_header.side_effect = lambda a, b, c, d: True
+
+        self.loop.run_until_complete(self.sut.check_headers())
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(0, 1))
+        Mock.assert_has_calls(
+            self.interface.get_header,
+            calls=[
+                call(2, fail_silent_out_of_range=True, get_peer=True),
+                call(2, fail_silent_out_of_range=True)
+            ], any_order=True
+        )
+        Mock.assert_called_once(self.repo.get_best_header)
+        Mock.assert_called_once_with(
+            self.repo.save_header,
+            net_header['block_hash'], net_header['block_height'],
+            net_header['header_bytes'], net_header['prev_block_hash']
+        )
+        self.assertEqual(2, len(self.interface.method_calls))
+        self.assertEqual(1, len(self.electrod_loop.method_calls))
+        self.assertEqual(2, len(self.repo.method_calls))
+
+    def test_check_new_header_same_header(self):
+        """
+        test on fallback method check_headers
+        no new header received
+        """
+        header_timestamp = int(time.time()) - 100
+        loc_header = net_header = {
+            "block_height": 1,
+            "block_hash": "ff"*32, "timestamp": header_timestamp - 700, 'header_bytes': b'', 'prev_block_hash': '00'*32
+        }
+        peer = Mock()
+        self.interface.get_header.side_effect = [async_coro((peer, net_header))]
+        self.sut.synced = True
+        self.sut.set_last_processed_header(loc_header)
+        self.assertFalse(self.sut.lock.locked())
+        peer = Mock(server_info='mock_peer')
+        self.loop.run_until_complete(self.sut.check_headers())
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(655, 660))
+        Mock.assert_has_calls(
+            self.interface.get_header,
+            calls=[
+                call(2, fail_silent_out_of_range=True, get_peer=True),
+            ], any_order=True
+        )
+        self.assertEqual(1, len(self.interface.method_calls))
+        self.assertEqual(1, len(self.electrod_loop.method_calls))
+        self.assertEqual(0, len(self.repo.method_calls))
+
+    def test_mixed(self):
+        self.sut._sync_errors = 101
+        with self.assertRaises(exceptions.SprunedException):
+            self.loop.run_until_complete(self.sut.check_headers())
+        self.sut._sync_errors = 0
+
+        # I'm not sure this can happen. Anyway, just drop the call
+        self.loop.run_until_complete(self.sut.on_new_header(Mock(), {}))
+
+        self.loop.run_until_complete(self.sut.start())
+        Mock.assert_called(self.electrod_loop.create_task)
+        self.assertEqual(len(self.electrod_loop.method_calls), 1)
+
+    def test_no_store_headers(self):
+        self.sut.store_headers = False
+        self.loop.run_until_complete(self.sut.on_connected())
+        Mock.assert_not_called(self.electrod_loop.create_task)
+
+    def test_not_synced_yet_fallback_task(self):
+        self.sut.synced = False
+        self.loop.run_until_complete(self.sut.check_headers())
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(120, 121))
+
+    def test_locked_get_header_fallback_task(self):
+        self.sut.synced = True
+        self.loop.run_until_complete(self.sut.lock.acquire())
+        self.loop.run_until_complete(self.sut.check_headers())
+        self.sut.lock.release()
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(120, 121))
+
