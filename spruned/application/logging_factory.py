@@ -1,8 +1,5 @@
 import logging
 import sys
-
-import os
-
 from spruned.application import settings
 
 
@@ -44,10 +41,26 @@ class LoggingFactory:
         return logging.getLogger('bitcoind')
 
 
-Logger = LoggingFactory(
-    logfile=settings.LOGFILE if not os.getenv('TESTING') else None,
-    loglevel=(settings.DEBUG and logging.DEBUG or logging.INFO) if not os.getenv('TESTING') else logging.DEBUG,
-    stdout=True
-)  # type: LoggingFactory
+if settings.TESTING:
+    Logger = LoggingFactory(
+        logfile=None,
+        loglevel=logging.DEBUG,
+        stdout=True
+    )  # type: LoggingFactory
 
-logging.getLogger('connectrum').setLevel(logging.WARNING)
+elif settings.DEBUG:
+    Logger = LoggingFactory(
+        logfile=settings.LOGFILE,
+        loglevel=logging.DEBUG,
+        stdout=True
+    )  # type: LoggingFactory
+
+else:
+    logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
+    logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
+    logging.getLogger('connectrum').setLevel(logging.WARNING)
+    Logger = LoggingFactory(
+        logfile=settings.LOGFILE,
+        loglevel=logging.INFO,
+        stdout=False
+    )  # type: LoggingFactory
