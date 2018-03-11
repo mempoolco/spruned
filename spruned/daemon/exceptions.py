@@ -15,3 +15,7 @@ class ConsistencyCheckRetryException(SprunedException):
 
 class NoPeersException(SprunedException):
     pass
+
+
+class NetworkHeadersInconsistencyException(SprunedException):
+    pass

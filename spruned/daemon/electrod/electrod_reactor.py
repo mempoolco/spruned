@@ -75,9 +75,15 @@ class ElectrodReactor:
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), retry_in))
             return
-        Logger.electrum.debug('Fallback headers check, errors until now: %s' % self._sync_errors)
+        Logger.electrum.debug(
+            'Fallback headers check, current height: %s, errs: %s',
+            self._last_processed_header and self._last_processed_header['block_height'],
+            self._sync_errors
+        )
         if self._sync_errors > 100:
-            raise exceptions.SprunedException('Fallback headers check: Too many sync errors. Suspending Sync')
+            raise exceptions.SprunedException(
+                'Fallback headers check: Too many sync errors. Suspending Sync'
+            )
         try:
             best_header_response = self._last_processed_header and \
                                    await self.interface.get_header(
@@ -147,6 +153,9 @@ class ElectrodReactor:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
             self._sync_errors += 1
             self.lock.release()
+        except (TimeoutError, asyncio.TimeoutError):
+            Logger.electrum.exception('on_new_headers: TimeoutError')
+            return
         finally:
             self.lock.release()
 
@@ -235,6 +244,7 @@ class ElectrodReactor:
                     network_best_header['prev_block_hash']
                 )
                 self.set_last_processed_header(network_best_header)
+                self.synced = True
             elif local_best_header['block_height'] > network_best_header['block_height'] - 30:
                 # The last saved header is old! It must be a while since the last time spruned synced.
                 # Download the headers with a chunk, instead of tons of calls to servers..
@@ -256,10 +266,10 @@ class ElectrodReactor:
                         'Behind of %s blocks, fetching chunks',
                         network_best_header['block_height'] - current_height
                     )
-                    rewind_from = (get_nearest_parent(local_best_header['block_height'], 2016) // 2016) + 1 + i
+                    rewind_from = (get_nearest_parent(local_best_header['block_height'], 2016) // 2016) + i
                     _from = rewind_from
                     _to = rewind_from + chunks_at_time
-                    if _from > (network_best_header['block_height'] // 2016) + 1:
+                    if _from > (network_best_header['block_height'] // 2016):
                         self.synced = True
                         return
                     headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
@@ -317,7 +327,7 @@ class ElectrodReactor:
         )
 
 
-def build_electrod(headers_repository, network, concurrency=3) -> Tuple[ElectrodReactor, ElectrodService]:
+def build_electrod(headers_repository, network, concurrency) -> Tuple[ElectrodReactor, ElectrodService]:
     electrod_interface = ElectrodInterface(
         network,
         concurrency=concurrency

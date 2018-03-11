@@ -199,12 +199,13 @@ class TestElectrodReactor(unittest.TestCase):
         self.interface.get_headers_in_range_from_chunks.side_effect = [async_coro(_headers), async_coro(None)]
         self.interface.get_header.return_value = async_coro(net_header)
         self.repo.save_headers.side_effect = lambda x, **k: x
+
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
 
         Mock.assert_called_with(self.repo.save_headers, [h for h in _headers if h['block_height'] > 2020])
         Mock.assert_not_called(peer.close)
         self.assertEqual(self.sut._last_processed_header, _headers[-1])
-        self.assertEqual(self.sut.synced, True)  # will resync on the next iteration
+        self.assertEqual(self.sut.synced, True)
         self.assertEqual(1, len(self.interface.method_calls))
         self.assertEqual(2, len(self.repo.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
