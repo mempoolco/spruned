@@ -19,3 +19,7 @@ class NoPeersException(SprunedException):
 
 class NetworkHeadersInconsistencyException(SprunedException):
     pass
+
+
+class NoHeadersException(SprunedException):
+    pass

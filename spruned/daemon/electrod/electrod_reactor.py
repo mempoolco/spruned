@@ -149,7 +149,7 @@ class ElectrodReactor:
             self.set_last_processed_header(network_best_header)
             self.synced = True
 
-        except exceptions.NoPeersException:
+        except (exceptions.NoHeadersException, exceptions.NoPeersException):
             self._sync_errors += 1
             if _r < 3:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
@@ -239,7 +239,7 @@ class ElectrodReactor:
         if not headers:
             Logger.electrum.warning('Missing headers on <on_local_headers_behind>')
             await asyncio.sleep(3)
-            return
+            raise exceptions.NoHeadersException
         saved_headers = self.repo.save_headers(headers[1:])
         self.set_last_processed_header(saved_headers[-1])
 
@@ -297,7 +297,7 @@ class ElectrodReactor:
                 return
             headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
             if not headers:
-                return
+                raise exceptions.NoHeadersException
             saving_headers = [h for h in headers if h['block_height'] > local_best_height]
             saved_headers = headers and self.repo.save_headers(saving_headers)
             Logger.electrum.debug(

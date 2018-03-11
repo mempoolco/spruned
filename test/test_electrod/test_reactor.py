@@ -69,6 +69,29 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertEqual(1, len(self.electrod_loop.method_calls))
         self.assertEqual(0, len(self.repo.method_calls))
 
+    def test_error_fetching_new_network_best_header(self):
+        """
+        test reactor.check_headers method
+        interface can't find, due race conditions, peers to fetch the headers
+        NoPeersException is raised
+        """
+        header_timestamp = int(time.time()) - self.sut.new_headers_fallback_poll_interval - 1
+        loc_header = {"block_height": 1, "block_hash": "ff" * 32, "timestamp": header_timestamp}
+        self.interface.get_header.side_effect = exceptions.NoPeersException
+        self.sut.synced = True
+        self.sut.set_last_processed_header(loc_header)
+        self.loop.run_until_complete(self.sut.check_headers())
+        self.assertFalse(self.sut.lock.locked())
+
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 30)
+        Mock.assert_called_with(self.interface.get_header, 2, fail_silent_out_of_range=True)
+        Mock.assert_called_once_with(self.electrod_loop.create_task, self.delay_task_runner())
+
+        self.assertEqual(1, len(self.interface.method_calls))
+        self.assertEqual(1, len(self.electrod_loop.method_calls))
+        self.assertEqual(0, len(self.repo.method_calls))
+
+
     def test_network_header_behind(self):
         """
         test reactor.on_header method
@@ -230,9 +253,9 @@ class TestElectrodReactor(unittest.TestCase):
         peer = Mock(server_info='mock_peer')
         loc_header = {"block_height": 2020, "block_hash": "ff" * 32, "timestamp": header_timestamp - 1000}
         net_header = {
-            "block_height": 2021, 
-            "block_hash": "aa" * 32, 
-            "timestamp": header_timestamp, 
+            "block_height": 2021,
+            "block_hash": "aa" * 32,
+            "timestamp": header_timestamp,
             "prev_block_hash": "00"*32,
             "header_bytes": b""
         }
@@ -282,6 +305,7 @@ class TestElectrodReactor(unittest.TestCase):
 
         self.interface.get_headers_in_range_from_chunks.side_effect = [
             exceptions.NoPeersException,
+            async_coro(None),
             async_coro(_chunk_1),
             async_coro(_chunk_2)
         ]
@@ -291,6 +315,6 @@ class TestElectrodReactor(unittest.TestCase):
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
         self.assertEqual(self.sut._last_processed_header, net_header)
         self.assertTrue(self.sut.synced)
-        self.assertEqual(3, len(self.interface.method_calls))
-        self.assertEqual(4, len(self.repo.method_calls))
+        self.assertEqual(4, len(self.interface.method_calls))
+        self.assertEqual(5, len(self.repo.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
