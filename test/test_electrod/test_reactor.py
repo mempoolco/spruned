@@ -205,23 +205,53 @@ class TestElectrodReactor(unittest.TestCase):
         self.sut.set_last_processed_header(loc_header)
 
         peer = Mock(server_info='mock_peer')
+        self.repo.get_block_hash.return_value = 'ff' * 32
         self.interface.get_header.return_value = async_coro(net_header)
+        self.repo.remove_header_at_height.return_value = loc_header
+        self.repo.get_best_header.return_value = loc_header
+        self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
 
-        self.repo.get_header_at_height(2).return_value = loc_header
+        Mock.assert_called_with(self.repo.remove_header_at_height, 2020)
+        Mock.assert_not_called(peer.close)
+
+        self.assertEqual(2, len(self.interface.method_calls))
+        self.assertEqual(3, len(self.repo.method_calls))
+        self.assertEqual(0, len(self.electrod_loop.method_calls))
+        self.assertFalse(self.sut.synced)
+        self.assertIn(loc_header, self.sut.orphans_headers)
+
+    def test_orphan_received_saved_ok(self):
+        """
+        test reactor.on_header
+
+        received an orphan block, but local is ok, other peers says
+        """
+        header_timestamp = int(time.time())
+        loc_header = {"block_height": 2020, "block_hash": "ff" * 32, "timestamp": header_timestamp - 10}
+        net_header = {"block_height": 2020, "block_hash": "00" * 32, "timestamp": header_timestamp}
+        self.sut.synced = True
+        self.sut.sleep_time_on_inconsistency = 1
+        self.sut.set_last_processed_header(loc_header)
+
+        peer = Mock(server_info='mock_peer')
+        self.interface.get_header.return_value = async_coro(loc_header)
+        self.interface.handle_peer_error.return_value = True
+
         self.repo.get_best_header.return_value = loc_header
         self.repo.get_block_hash.return_value = 'ff' * 32
         self.repo.remove_header_at_height.return_value = loc_header
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
 
-        Mock.assert_called_with(self.repo.get_header_at_height, 2)
-        Mock.assert_called_with(self.repo.remove_header_at_height, 2020)
-        Mock.assert_not_called(peer.close)
+        Mock.assert_not_called(self.repo.remove_header_at_height)
+        Mock.assert_called_with(self.interface.handle_peer_error, peer)
+        Mock.assert_called_with(self.interface.get_header, 2020, fail_silent_out_of_range=True)
 
-        self.assertEqual(2, len(self.interface.method_calls))
-        self.assertEqual(4, len(self.repo.method_calls))
+        self.assertEqual(3, len(self.interface.method_calls))
+        self.assertEqual(2, len(self.repo.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
-        self.assertFalse(self.sut.synced)
-        self.assertIn(loc_header, self.sut.orphans_headers)
+        self.assertTrue(self.sut.synced)
+        self.assertNotIn(loc_header, self.sut.orphans_headers)
+
 
     def test_local_db_behind_100_headers(self):
         """
@@ -510,3 +540,27 @@ class TestElectrodReactor(unittest.TestCase):
         self.sut.lock.release()
         Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(29, 30))
 
+    def test_on_new_header_inconsistency_between_peers(self):
+        """
+        test reactor.on_header method
+
+        header ff*32 is saved at height 2020
+        received a new header at height 2021 with hash aa*32
+        header is saved to disk
+        best header is updated at height 2021
+        """
+        self.sut.synced = False
+        peer = Mock(server_info='mock_peer')
+        loc_header = {'block_height': 2020, 'block_hash': 'ff' * 32}
+        net_header = {'block_height': 2021, 'block_hash': 'aa' * 32, 'prev_block_hash': 'ff'*32, 'header_bytes': b''}
+        net_header_b = {'block_height': 2021, 'block_hash': 'bb' * 32, 'prev_block_hash': 'ff' * 32, 'header_bytes': b''}
+        self.interface.get_header.side_effect = [async_coro(net_header_b), async_coro(net_header)]
+
+        self.repo.get_best_header.return_value = loc_header
+
+        self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
+        Mock.assert_called(self.repo.get_best_header)
+
+        self.assertEqual(2, len(self.interface.method_calls))
+        self.assertEqual(0, len(self.electrod_loop.method_calls))
+        self.assertEqual(3, len(self.repo.method_calls))

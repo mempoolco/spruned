@@ -103,10 +103,6 @@ class ElectrodReactor:
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), 30))
             return
-        except:
-            Logger.electrum.exception('Unhandled exception on check_headers')
-            self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
-            return
 
         if network_best_header and network_best_header != self._last_processed_header:
             self.loop.create_task(self.on_new_header(peer, network_best_header))
@@ -153,18 +149,17 @@ class ElectrodReactor:
             self.set_last_processed_header(network_best_header)
             self.synced = True
 
-        except (exceptions.NoHeadersException, exceptions.NoPeersException) as e:
+        except (
+                exceptions.NoQuorumOnResponsesException,
+                exceptions.NoPeersException,
+                exceptions.NoHeadersException
+        ) as e:
             self._sync_errors += 1
             if _r < 3:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
-        except:
-            Logger.electrum.exception('on_new_headers: unhandled exception')
         finally:
-            try:
-                not _r and self.lock.release()
-            except ValueError:
-                Logger.electrum.exception('The must be a race condition on the lock')
+            not _r and self.lock.release()
 
     @database.atomic
     async def on_inconsistent_header_received(self, peer: StratumClient, received_header: Dict, local_hash: str):
@@ -233,10 +228,6 @@ class ElectrodReactor:
             self.set_last_processed_header(None)
             await self.handle_headers_inconsistency()
             return
-        except exceptions.NoPeersException as e:
-            Logger.electrum.warning('Not enough peers to fetch data: %s', e)
-            await asyncio.sleep(3)
-            raise
 
     async def _fetch_multiple_headers(self, local_best_header: Dict, network_best_header: Dict):
         # The last saved header is old! It must be a while since the last time spruned synced.
@@ -273,7 +264,7 @@ class ElectrodReactor:
                 return
             i += 1
         if header['block_hash'] != network_best_header['block_hash']:
-            raise exceptions.HeadersInconsistencyException(
+            raise exceptions.NoQuorumOnResponsesException(
                 'New header differs from the network at the same height'
             )
 
@@ -324,7 +315,7 @@ class ElectrodReactor:
         await asyncio.sleep(3)
         await self.ensure_consistency(network_best_header, peer)
 
-    async def ensure_consistency(self, network_best_header: Dict, peer: StratumClient):
+    async def ensure_consistency(self, network_best_header: Dict, peer: StratumClient, _r=0):
         repo_header = self.repo.get_header_at_height(network_best_header['block_height'])
         if repo_header['block_hash'] != network_best_header['block_hash']:
             Logger.electrum.error(
