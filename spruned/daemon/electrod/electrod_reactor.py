@@ -60,10 +60,10 @@ class ElectrodReactor:
             )
         if not self.synced or self.lock.locked():
             Logger.electrum.debug(
-                'Fallback headers check: Not synced yet or sync locked (%s), retrying fallback headers check in 120s',
+                'Fallback headers check: Not synced yet or sync locked (%s), retrying fallback headers check in 30s',
                 self.lock.locked()
             )
-            self.loop.create_task(self.delayed_task(self.check_headers(), 120))
+            self.loop.create_task(self.delayed_task(self.check_headers(), 30))
             return
 
         since_last_header = self._last_processed_header and int(time.time()) - self._last_processed_header['timestamp']
@@ -105,7 +105,7 @@ class ElectrodReactor:
             return
 
         if network_best_header and network_best_header != self._last_processed_header:
-            sync = await self.on_new_header(peer, network_best_header)
+            sync = self.loop.create_task(self.on_new_header(peer, network_best_header))
             reschedule = 0 if not sync else self.new_headers_fallback_poll_interval
             self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # loop or fallback
             Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers (sync: %s) in %ss',
@@ -119,9 +119,9 @@ class ElectrodReactor:
         if not network_best_header:
             Logger.electrum.warning('Weird. No best header received on call')
             return
-        if not _r:
-            await self.lock.acquire()
         try:
+            if not _r:
+                await self.lock.acquire()
             if self._last_processed_header and \
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
@@ -147,13 +147,18 @@ class ElectrodReactor:
             self.set_last_processed_header(network_best_header)
             self.synced = True
 
-        except (exceptions.NoHeadersException, exceptions.NoPeersException):
+        except (exceptions.NoHeadersException, exceptions.NoPeersException) as e:
             self._sync_errors += 1
             if _r < 3:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
+            Logger.electrum.error('Excessive recursion on new_header. %s', e)
+        except:
+            Logger.electrum.exception('on_new_headers: unhandled exception')
         finally:
-            if not _r:
-                self.lock.release()
+            try:
+                not _r and self.lock.release()
+            except ValueError:
+                Logger.electrum.exception('The must be a race condition on the lock')
 
     @database.atomic
     async def on_inconsistent_header_received(self, peer: StratumClient, received_header: Dict, local_hash: str):
