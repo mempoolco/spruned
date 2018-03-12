@@ -96,7 +96,7 @@ class ElectrodReactor:
                 self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
                 return
             peer, network_best_header = best_header_response
-            Logger.electrum.debug('Best header obtained from peer: on_new_header(): %s', peer, network_best_header)
+            Logger.electrum.debug('Best header obtained from peer %s: on_new_header(): %s', peer, network_best_header)
         except exceptions.NoPeersException:
             Logger.electrum.warning(
                 'Fallback headers check: Electrod is not able to find peers to sync headers. Sleeping 30 secs'
