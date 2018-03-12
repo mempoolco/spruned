@@ -65,11 +65,15 @@ def get_nearest_parent(number: int, divisor: int):
     return int(number)
 
 
-async def async_delayed_task(task, seconds: int, disable_log=False):
-    from spruned.application.logging_factory import Logger
-    not disable_log and Logger.root.debug('Scheduling task %s in %s seconds', task, seconds)
-    await asyncio.sleep(seconds)
-    return await task
+async def async_delayed_task(task, seconds: int, disable_log=False, eb=None):
+    try:
+        from spruned.application.logging_factory import Logger
+        not disable_log and Logger.root.debug('Scheduling task %s in %s seconds', task, seconds)
+        await asyncio.sleep(seconds)
+        return await task
+    except Exception as e:
+        Logger.root.exception('Exception in delayed task propagated')
+        eb and eb(e)
 
 
 def decode_raw_transaction(rawtx: str):

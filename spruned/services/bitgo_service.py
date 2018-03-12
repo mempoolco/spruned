@@ -1,5 +1,6 @@
 from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService
+from spruned.application.logging_factory import Logger
 from spruned.application.tools import normalize_transaction
 from spruned.services.http_client import HTTPClient
 

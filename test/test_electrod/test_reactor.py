@@ -400,7 +400,7 @@ class TestElectrodReactor(unittest.TestCase):
             "block_hash": "aa"*32, "timestamp": header_timestamp, 'header_bytes': b'', 'prev_block_hash': 'ff'*32
         }
         peer = Mock()
-        self.interface.get_header.side_effect = [async_coro((peer, net_header)), async_coro(net_header)]
+        self.interface.get_header.side_effect = [async_coro((peer, net_header))]
         self.sut.synced = True
         self.sut.set_last_processed_header(loc_header)
         self.assertFalse(self.sut.lock.locked())
@@ -410,11 +410,37 @@ class TestElectrodReactor(unittest.TestCase):
         self.repo.save_header.side_effect = lambda a, b, c, d: True
 
         self.loop.run_until_complete(self.sut.check_headers())
-        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(0, 1))
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 660)
+        self.assertEqual(1, len(self.interface.method_calls))
+        self.assertEqual(2, len(self.electrod_loop.method_calls))
+        self.assertEqual(0, len(self.repo.method_calls))
+
+    def test_on_new_headers_new_header(self):
+        """
+        test on fallback method check_headers
+        new header received
+        """
+        header_timestamp = int(time.time()) - 100
+        loc_header = {
+            "block_height": 1,
+            "block_hash": "ff"*32, "timestamp": header_timestamp - 700, 'header_bytes': b'', 'prev_block_hash': '00'*32
+        }
+        net_header = {
+            "block_height": 2,
+            "block_hash": "aa"*32, "timestamp": header_timestamp, 'header_bytes': b'', 'prev_block_hash': 'ff'*32
+        }
+        self.interface.get_header.side_effect = [async_coro(net_header)]
+        self.sut.synced = True
+        self.sut.set_last_processed_header(loc_header)
+        self.assertFalse(self.sut.lock.locked())
+        peer = Mock(server_info='mock_peer')
+        self.repo.get_best_header.return_value = loc_header
+        self.repo.save_header.side_effect = lambda a, b, c, d: True
+
+        self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
         Mock.assert_has_calls(
             self.interface.get_header,
             calls=[
-                call(2, fail_silent_out_of_range=True, get_peer=True),
                 call(2, fail_silent_out_of_range=True)
             ], any_order=True
         )
@@ -424,9 +450,6 @@ class TestElectrodReactor(unittest.TestCase):
             net_header['block_hash'], net_header['block_height'],
             net_header['header_bytes'], net_header['prev_block_hash']
         )
-        self.assertEqual(2, len(self.interface.method_calls))
-        self.assertEqual(1, len(self.electrod_loop.method_calls))
-        self.assertEqual(2, len(self.repo.method_calls))
 
     def test_check_new_header_same_header(self):
         """
@@ -477,12 +500,12 @@ class TestElectrodReactor(unittest.TestCase):
     def test_not_synced_yet_fallback_task(self):
         self.sut.synced = False
         self.loop.run_until_complete(self.sut.check_headers())
-        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(120, 121))
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(29, 30))
 
     def test_locked_get_header_fallback_task(self):
         self.sut.synced = True
         self.loop.run_until_complete(self.sut.lock.acquire())
         self.loop.run_until_complete(self.sut.check_headers())
         self.sut.lock.release()
-        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(120, 121))
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(29, 30))
 

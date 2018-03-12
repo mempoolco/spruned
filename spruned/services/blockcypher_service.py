@@ -70,7 +70,10 @@ class BlockCypherService(RPCAPIService):
 
     @staticmethod
     def _normalize_scripttype(script_type):
-        return {"pay-to-pubkey-hash": "pubkeyhash"}[script_type]
+        return {
+            "pay-to-pubkey-hash": "pubkeyhash",
+            "pay-to-script-hash": "scripthash"
+        }[script_type]
         # this is broken and needs to be extended
 
     def _format_txout(self, data: Dict, index: int):
