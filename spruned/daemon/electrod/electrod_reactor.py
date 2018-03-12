@@ -88,32 +88,36 @@ class ElectrodReactor:
                                        fail_silent_out_of_range=True,
                                        get_peer=True
                                    )
-            if not best_header_response:
+            if best_header_response is None:
                 Logger.electrum.debug(
                     'Fallback headers check: Looks like current header (%s) is best header',
-                    self._last_processed_header['block_height']
+                    self._last_processed_header and self._last_processed_header['block_height']
                 )
                 self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
                 return
-
             peer, network_best_header = best_header_response
+            Logger.electrum.debug('Best header obtained from peer: on_new_header(): %s', peer, network_best_header)
         except exceptions.NoPeersException:
             Logger.electrum.warning(
                 'Fallback headers check: Electrod is not able to find peers to sync headers. Sleeping 30 secs'
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), 30))
             return
+        except:
+            Logger.electrum.exception('Unhandled exception on check_headers')
+            self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
+            return
 
         if network_best_header and network_best_header != self._last_processed_header:
-            sync = self.loop.create_task(self.on_new_header(peer, network_best_header))
-            reschedule = 0 if not sync else self.new_headers_fallback_poll_interval
-            self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # loop or fallback
-            Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers (sync: %s) in %ss',
-                                  sync, reschedule)
+            self.loop.create_task(self.on_new_header(peer, network_best_header))
+            self.loop.create_task(self.delayed_task(self.check_headers(), 5))  # loop or fallback
+            Logger.electrum.debug('Fallback headers check: Rescheduling sync_header in %ss', 5)
         else:
-            reschedule = self.new_headers_fallback_poll_interval
-            self.loop.create_task(self.delayed_task(self.check_headers(), reschedule))  # fallback (ping?)
-            Logger.electrum.debug('Fallback headers check: Rescheduling sync_headers in %ss', reschedule)
+            self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
+            Logger.electrum.debug(
+                'Fallback headers check: Rescheduling sync_headers in %ss',
+                self.new_headers_fallback_poll_interval
+            )
 
     async def on_new_header(self, peer, network_best_header: Dict, _r=0):
         if not network_best_header:
@@ -128,6 +132,7 @@ class ElectrodReactor:
                 self.synced = True
                 return
             local_best_header = self.repo.get_best_header()
+
             if not local_best_header or local_best_header['block_height'] < network_best_header['block_height']:
                 self.synced = False
                 await self.on_local_headers_behind(local_best_header, network_best_header)
@@ -135,6 +140,7 @@ class ElectrodReactor:
             elif local_best_header['block_height'] > network_best_header['block_height']:
                 await self.on_network_headers_behind(network_best_header, peer=peer)
                 return
+
             block_hash = self.repo.get_block_hash(network_best_header['block_height'])
             if block_hash and block_hash != network_best_header['block_hash']:
                 self.interface.handle_peer_error(peer)
@@ -328,6 +334,7 @@ class ElectrodReactor:
                 str(peer.server_info), network_best_header, repo_header
             )
             # FIXME. understand what's going on, maybe rollback
+            # TODO - This is STILL an important issue.
 
         await self.interface.disconnect_from_peer(peer)
         peer.close()

@@ -42,6 +42,7 @@ class ElectrodInterface:
         self._current_status = None
         self._electrum_servers = self._load_electrum_servers()
         self._peers_errors = {}
+        self._peers_versions = {}
         self._keep_connecting = False
         self.on_new_header_callback = lambda a, b: True
         self.loop = loop
@@ -68,13 +69,9 @@ class ElectrodInterface:
 
     async def _rpc_call(self, peer: StratumClient, *args, _r=0):
         try:
-            return await peer.RPC(*args)
-        except asyncio.InvalidStateError:
-            Logger.electrum.debug('InvalidStateError', exc_info=True)
-            if not _r:
-                return await self._rpc_call(peer, *args, _r+1)  # retry
-            return self.handle_peer_error(peer)
-        except (TimeoutError, asyncio.TimeoutError) as e:
+            async with async_timeout.timeout(10):
+                return await peer.RPC(*args)
+        except (TimeoutError, asyncio.TimeoutError, asyncio.InvalidStateError) as e:
             Logger.electrum.error('Timeout error: %s', e)
             self._peers_errors[peer] = 99
             self.handle_peer_error(peer)
@@ -93,9 +90,12 @@ class ElectrodInterface:
         peer = self._stratum_client()
         try:
             with async_timeout.timeout(10):
-                await peer.connect(_server_info, disable_cert_verify=True)
+                # short term cause we handle ping by ourselves
+                await peer.connect(_server_info, disable_cert_verify=True, short_term=True)
                 version = await self._rpc_call(peer, 'server.version')
-                version and self._peers.append(peer)
+                if version:
+                    self._peers.append(peer)
+                    self._peers_versions[peer] = version
                 self._update_status('connecting, %s' % len(self._peers))
                 Logger.electrum.debug('Connected to electrum server %s:%s', server[0], server[1])
                 return peer
@@ -139,7 +139,7 @@ class ElectrodInterface:
                 Logger.electrum.exception('Error disconnecting from peer')
         return
 
-    async def _keep_connections(self, on_connected=None, r=1):
+    async def _keep_connections(self, on_connected=None, r=0):
         if not self._keepalive:
             await self._disconnect()
             return
@@ -160,13 +160,24 @@ class ElectrodInterface:
             self._keep_connecting = False
             on_connected and self.loop.create_task(on_connected())
             self.loop.create_task(async_delayed_task(self._keep_connections(r=r+1), 5, disable_log=False))
+        if not r % 12:  # one minute keep-alive
+            self._peers and self.loop.create_task(self._ping_peer(random.choice(self._peers)))
 
-    async def _ping_peer(self, peer):
+    async def _ping_peer(self, peer: StratumClient):
+        # the guys out the doesn't upgrade
+        # try:
+        #     # a = self._peers_versions[peer].split(' ')
+        #     # command = 'server.ping' if a[-1] >= '1.2.1' else 'server.version'
+        # except:
+        #     Logger.electrum.exception('Unable to set command from %s', self._peers_versions.get(peer, None))
+        #     command = 'server.version'
+        command = 'server.version'
         try:
-            res = await self._rpc_call(peer, 'server.version')
-            Logger.electrum.debug('Ping peer %s: Pong %s', peer.server_info, res)
+            res = await self._rpc_call(peer, command)
+            Logger.electrum.debug('Ping peer %s (%s): Pong %s', peer.server_info, command, res)
             assert peer.protocol
         except:
+            Logger.electrum.exception('Ping failed')
             self.handle_peer_error(peer)
 
     async def start(self, on_connected=None):
@@ -213,7 +224,8 @@ class ElectrodInterface:
     async def subscribe_headers(self, peer: StratumClient):
         try:
             first = True
-            future, q = peer.subscribe('blockchain.headers.subscribe')
+            async with async_timeout.timeout(10):
+                future, q = peer.subscribe('blockchain.headers.subscribe')
             header = await future
             while peer.protocol:
                 if first:
@@ -222,12 +234,20 @@ class ElectrodInterface:
                                           peer.server_info, parsed_header['block_hash'], parsed_header['block_height'])
                     self.loop.create_task(self.on_new_header_callback(peer, parsed_header))
                     Logger.electrum.debug('waiting for new headers from peer %s', peer.server_info)
-                header = await q.get()
+                Logger.electrum.debug('Subscribing headers from Queue %s' % id(q))
+                try:
+                    header = await q.get()
+                    Logger.electrum.debug('Data received from Queue %s' % id(q))
+                except Exception as e:
+                    Logger.electrum.debug('Subscribe from Queue %s failed, raising %s', id(q), e)
+                    raise
                 first = False
                 Logger.electrum.debug('new header from peer (%s): %s', peer.server_info, header[0])
                 self.loop.create_task(self.on_new_header_callback(peer, self._parse_header(header[0])))
             Logger.electrum.error('Lost subscription on peer %s', peer and peer.server_info)
-            self.handle_peer_error(peer)
+            if self.handle_peer_error(peer):
+                Logger.electrum.warning('Subscription rescheduling on peer %s', peer.server_info)
+                self.loop.create_task(self.subscribe_headers(peer))
         except (TimeoutError, ConnectionError, asyncio.TimeoutError, asyncio.CancelledError):
             Logger.electrum.exception('Subscribe exception for peer %s' % peer.server_info)
             peer_errors = self.handle_peer_error(peer)
