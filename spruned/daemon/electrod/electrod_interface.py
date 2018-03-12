@@ -90,8 +90,7 @@ class ElectrodInterface:
         peer = self._stratum_client()
         try:
             with async_timeout.timeout(10):
-                # short term cause we handle ping by ourselves
-                await peer.connect(_server_info, disable_cert_verify=True, short_term=True)
+                await peer.connect(_server_info, disable_cert_verify=True)
                 version = await self._rpc_call(peer, 'server.version')
                 if version:
                     self._peers.append(peer)
@@ -145,6 +144,7 @@ class ElectrodInterface:
             return
         for peer in self._peers:
             if not peer.protocol:
+                self._peers_errors[peer] = 99
                 self.handle_peer_error(peer)
         peers_under_target = len(self._peers) < self.concurrency * self._connections_concurrency_ratio
         if peers_under_target:
@@ -159,26 +159,7 @@ class ElectrodInterface:
             self._keep_connecting and Logger.electrum.debug('Connected to %s peers' % len(self._peers))
             self._keep_connecting = False
             on_connected and self.loop.create_task(on_connected())
-            self.loop.create_task(async_delayed_task(self._keep_connections(r=r+1), 5, disable_log=False))
-        if not r % 12:  # one minute keep-alive
-            self._peers and self.loop.create_task(self._ping_peer(random.choice(self._peers)))
-
-    async def _ping_peer(self, peer: StratumClient):
-        # the guys out the doesn't upgrade
-        # try:
-        #     # a = self._peers_versions[peer].split(' ')
-        #     # command = 'server.ping' if a[-1] >= '1.2.1' else 'server.version'
-        # except:
-        #     Logger.electrum.exception('Unable to set command from %s', self._peers_versions.get(peer, None))
-        #     command = 'server.version'
-        command = 'server.version'
-        try:
-            res = await self._rpc_call(peer, command)
-            Logger.electrum.debug('Ping peer %s (%s): Pong %s', peer.server_info, command, res)
-            assert peer.protocol
-        except:
-            Logger.electrum.exception('Ping failed')
-            self.handle_peer_error(peer)
+            self.loop.create_task(async_delayed_task(self._keep_connections(r=r+1), 5, disable_log=True))
 
     async def start(self, on_connected=None):
         self._update_status('stopped')
