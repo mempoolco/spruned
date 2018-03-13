@@ -440,7 +440,7 @@ class TestElectrodReactor(unittest.TestCase):
         self.repo.save_header.side_effect = lambda a, b, c, d: True
 
         self.loop.run_until_complete(self.sut.check_headers())
-        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 5)
+        Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), 30)
         self.assertEqual(1, len(self.interface.method_calls))
         self.assertEqual(2, len(self.electrod_loop.method_calls))
         self.assertEqual(0, len(self.repo.method_calls))

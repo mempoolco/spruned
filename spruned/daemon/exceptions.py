@@ -23,3 +23,7 @@ class NetworkHeadersInconsistencyException(SprunedException):
 
 class NoHeadersException(SprunedException):
     pass
+
+
+class ElectrodMissingResponseException(SprunedException):
+    pass

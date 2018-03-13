@@ -4,6 +4,7 @@ from typing import Dict, Tuple
 import time
 from connectrum.client import StratumClient
 from spruned.application.abstracts import HeadersRepository
+from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon import database, exceptions
 from spruned.application.logging_factory import Logger
@@ -97,7 +98,11 @@ class ElectrodReactor:
                 return
             peer, network_best_header = best_header_response
             Logger.electrum.debug('Best header obtained from peer %s: on_new_header(): %s', peer, network_best_header)
-        except exceptions.NoPeersException:
+        except (
+                exceptions.NoQuorumOnResponsesException,
+                exceptions.NoPeersException,
+                exceptions.NoHeadersException
+        ):
             Logger.electrum.warning(
                 'Fallback headers check: Electrod is not able to find peers to sync headers. Sleeping 30 secs'
             )
@@ -106,8 +111,8 @@ class ElectrodReactor:
 
         if network_best_header and network_best_header != self._last_processed_header:
             self.loop.create_task(self.on_new_header(peer, network_best_header))
-            self.loop.create_task(self.delayed_task(self.check_headers(), 5))  # loop or fallback
-            Logger.electrum.debug('Fallback headers check: Rescheduling sync_header in %ss', 5)
+            self.loop.create_task(self.delayed_task(self.check_headers(), 30))  # loop or fallback
+            Logger.electrum.debug('Fallback headers check: Rescheduling sync_header in %ss', 30)
         else:
             self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
             Logger.electrum.debug(
@@ -120,8 +125,7 @@ class ElectrodReactor:
             Logger.electrum.warning('Weird. No best header received on call')
             return
         try:
-            if not _r:
-                await self.lock.acquire()
+            not _r and await self.lock.acquire()
             if self._last_processed_header and \
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
@@ -139,7 +143,7 @@ class ElectrodReactor:
 
             block_hash = self.repo.get_block_hash(network_best_header['block_height'])
             if block_hash and block_hash != network_best_header['block_hash']:
-                self.interface.handle_peer_error(peer)
+                await self.interface.handle_peer_error(peer)
                 Logger.electrum.error('Inconsistency error with peer %s: (%s), %s',
                                       peer.server_info, network_best_header, block_hash
                                       )
@@ -174,7 +178,7 @@ class ElectrodReactor:
         if response['block_hash'] == local_hash:
             Logger.electrum.warning('Received a controversial header (%s), handling error with peer %s',
                                     received_header, peer.server_info)
-            self.interface.handle_peer_error(peer)
+            await self.interface.handle_peer_error(peer)
             return True
 
         elif response['block_hash'] == received_header['block_hash']:
@@ -190,7 +194,7 @@ class ElectrodReactor:
                 received_header, response, local_hash
             )
             self.synced = False
-            self.interface.handle_peer_error(peer)
+            await self.interface.handle_peer_error(peer)
 
     @database.atomic
     async def on_new_orphan(self, header: Dict):
@@ -315,7 +319,7 @@ class ElectrodReactor:
         await asyncio.sleep(3)
         await self.ensure_consistency(network_best_header, peer)
 
-    async def ensure_consistency(self, network_best_header: Dict, peer: StratumClient, _r=0):
+    async def ensure_consistency(self, network_best_header: Dict, peer: StratumClient):
         repo_header = self.repo.get_header_at_height(network_best_header['block_height'])
         if repo_header['block_hash'] != network_best_header['block_hash']:
             Logger.electrum.error(
@@ -343,12 +347,11 @@ class ElectrodReactor:
         )
 
 
-def build_electrod(headers_repository, network, concurrency) \
+def build_electrod(headers_repository, network, connections) \
         -> Tuple[ElectrodReactor, ElectrodService]:  # pragma: no cover
-    electrod_interface = ElectrodInterface(
-        network,
-        concurrency=concurrency
-    )
-    electrod = ElectrodReactor(headers_repository, electrod_interface)
+
+    electrod_pool = ElectrodConnectionPool(connections=connections)
+    electrod_interface = ElectrodInterface(electrod_pool)
+    electrod_reactor = ElectrodReactor(headers_repository, electrod_interface)
     electrod_service = ElectrodService(electrod_interface)
-    return electrod, electrod_service
+    return electrod_reactor, electrod_service
