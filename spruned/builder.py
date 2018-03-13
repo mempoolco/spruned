@@ -22,7 +22,7 @@ headers_repository = HeadersSQLiteRepository(database.session)
 cache = CacheFileInterface(settings.CACHE_ADDRESS)
 storage = CacheFileInterface(settings.STORAGE_ADDRESS, compress=False)
 electrod_daemon, electrod_service = build_electrod(
-    headers_repository, settings.NETWORK, settings.ELECTROD_CONCURRENCY
+    headers_repository, settings.NETWORK, settings.ELECTROD_CONNECTIONS
 )
 
 

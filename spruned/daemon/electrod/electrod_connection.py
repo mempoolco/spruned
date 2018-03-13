@@ -87,8 +87,8 @@ class ElectrodConnection:
             await self.on_connect()
         except Exception as e:
             self._score -= 4
-            Logger.electrum.exception('Exception connecting to %s', self.hostname)
-            self.on_error(e)
+            Logger.electrum.error('Exception connecting to %s (%s)', self.hostname, e)
+            self.loop.create_task(self.on_error(e))
 
     @property
     def version(self):
@@ -126,7 +126,7 @@ class ElectrodConnection:
     async def rpc_call(self, method: str, *args):
         try:
             async with async_timeout.timeout(self._timeout):
-                return self.client.RPC(method, *args)
+                return await self.client.RPC(method, *args)
         except Exception as e:
             Logger.electrum.exception('call')
             self.loop.create_task(self._task(self.on_error(e)))
@@ -165,12 +165,12 @@ class ElectrodConnection:
 
 
 class ElectrodConnectionPool:
-    def __init__(self, connections=3, loop=asyncio.get_event_loop(), use_tor=False):
+    def __init__(self, connections=3, loop=asyncio.get_event_loop(), use_tor=False, electrum_servers=[]):
         self._use_tor = use_tor
-        self._servers = []
+        self._servers = electrum_servers
         self._connections = []
         self._required_connections = connections
-        self._keepalive = None
+        self._keepalive = True
         self.loop = loop
         self._connections_keepalive_time = 120
         self._headers_observers = []
@@ -183,15 +183,23 @@ class ElectrodConnectionPool:
     def add_header_observer(self, observer):
         self._headers_observers.append(observer)
 
-    def on_peer_connected(self, peer: ElectrodConnection):
-        peer.subscribe('blockchain.headers.subscribe', self.on_peer_received_header, self.on_peer_received_header)
+    async def on_peer_connected(self, peer: ElectrodConnection):
+        self.loop.create_task(
+            self._task(
+                peer.subscribe(
+                    'blockchain.headers.subscribe',
+                    self.on_peer_received_header,
+                    self.on_peer_received_header
+                )
+            )
+        )
 
     def on_peer_disconnected(self, peer: ElectrodConnection):
         pass
 
     async def on_peer_received_header(self, peer: ElectrodConnection):
         for observer in self._headers_observers:
-            self.loop.create_task(self._task(observer(peer.last_header)))
+            self.loop.create_task(self._task(observer(peer, peer.last_header)))
 
     async def on_peer_received_peers(self, peer: ElectrodConnection):
         for observer in self._new_peers_observers:
@@ -207,63 +215,115 @@ class ElectrodConnectionPool:
 
     @property
     def established_connections(self):
-        return [connection for connection in self._connections if connection.connected]
+        return [connection for connection in self.connections if connection.connected]
 
     def _pick_server(self):
         i = 0
         while 1:
             server = random.choice(self._servers)
-            if server[0] not in [connection.hostname for connection in self.established_connections]:
+            if server[0] not in [connection.hostname for connection in self.connections]:
                 return server
             i += 1
             if i > 100:
                 raise exceptions.NoPeersException
 
+    def _pick_multiple_servers(self, howmany: int):
+        i = 0
+        servers = []
+        while 1:
+            server = self._pick_server()
+            if server in servers:
+                continue
+            servers.append(server)
+            if len(servers) == howmany:
+                return servers
+            if i > 100:
+                raise exceptions.NoPeersException
+            i += 1
+
+    def _pick_connection(self):
+        i = 0
+        while 1:
+            connection = random.choice(self.established_connections)
+            if connection.connected and connection.score > 0:
+                return connection
+            i += 1
+            if i > 100:
+                raise exceptions.NoPeersException
+
+    def _pick_multiple_connections(self, howmany: int):
+        i = 0
+        connections = []
+        while 1:
+            connection = self._pick_connection()
+            if connection in connections:
+                continue
+            connections.append(connection)
+            if len(connections) == howmany:
+                return connections
+            if i > 100:
+                raise exceptions.NoPeersException
+            i += 1
+
     def stop(self):
         self._keepalive = False
 
     async def connect(self):
+        self._keepalive = True
         while self._keepalive:
-            self.loop.create_task(self._connect_servers(self._required_connections - len(self.established_connections)))
+            Logger.electrum.debug('Main pool loop')
+            missings = self._required_connections - len(self.established_connections)
+            missings and Logger.electrum.debug('ConnectionPool: connect, needed: %s', missings)
+            self.loop.create_task(self._connect_servers(missings))
             await asyncio.sleep(10)
 
     async def _connect_servers(self, howmany: int):
-        servers = [self._pick_server() for _ in range(howmany)]
+        servers = self._pick_multiple_servers(howmany)
+        servers and Logger.electrum.debug('Connecting to servers (%s)', howmany)
         for server in servers:
             instance = ElectrodConnection(
                 hostname=server[0],
                 protocol=server[1],
                 keepalive=self._connections_keepalive_time,
                 use_tor=self._use_tor,
-                loop=self.loop
+                loop=self.loop,
             )
             instance.add_on_connect_callback(self.on_peer_connected)
             instance.add_on_header_callbacks(self.on_peer_received_header)
             instance.add_on_peers_callback(self.on_peer_received_peers)
             instance.add_on_error_callback(self.on_peer_error)
-            instance.add_on_error_callback(self._handle_peer_error)
-
             self._connections.append(instance)
+            Logger.electrum.debug('Created client instance: %s', server[0])
             self.loop.create_task(instance.connect())
 
     @property
     def servers(self):
         return self._servers
 
-    async def call(self, method, params, agreement=1) -> Dict:
+    async def call(self, method, params, agreement=1, get_peer=False) -> Dict:
+        if get_peer and agreement > 1:
+            raise ValueError('Error!')
         if agreement > self._required_connections:
             raise ValueError('Agreement requested is out of range %s' % self._required_connections)
-        elif agreement > len(self.established_connections):
+        if agreement > len(self.established_connections):
             raise exceptions.NoPeersException
-        responses = await asyncio.gather(
-            connection.rpc_call(method, params) for connection in self._connections
-        )
-        responses = [r for r in responses if r is not None]
-        if len(responses) < agreement:
-            Logger.electrum.exception('call, requested %s responses, received %s', agreement, len(responses))
-            Logger.electrum.debug('call, requested %s responses, received %s', agreement, responses)
+
+        if agreement > 1:
+            servers = self._pick_multiple_connections(agreement)
+            responses = await asyncio.gather(
+                connection.rpc_call(method, params) for connection in servers
+            )
+            responses = [r for r in responses if r is not None]
+            if len(responses) < agreement:
+                Logger.electrum.exception('call, requested %s responses, received %s', agreement, len(responses))
+                Logger.electrum.debug('call, requested %s responses, received %s', agreement, responses)
+                raise exceptions.ElectrodMissingResponseException
+            return self._handle_responses(responses)
+        connection = self._pick_connection()
+        response = await connection.rpc_call(method, params)
+        if not response:
             raise exceptions.ElectrodMissingResponseException
-        return self._handle_responses(responses)
+        return (connection, response) if get_peer else response
 
     @staticmethod
     def _handle_responses(responses) -> Dict:

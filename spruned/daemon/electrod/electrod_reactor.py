@@ -1,7 +1,10 @@
 import asyncio
+import json
 from typing import Dict, Tuple
 
 import time
+
+import os
 from connectrum.client import StratumClient
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
@@ -350,7 +353,15 @@ class ElectrodReactor:
 def build_electrod(headers_repository, network, connections) \
         -> Tuple[ElectrodReactor, ElectrodService]:  # pragma: no cover
 
-    electrod_pool = ElectrodConnectionPool(connections=connections)
+    def load_electrum_servers(network):
+        _current_path = os.path.dirname(os.path.abspath(__file__))
+        with open(_current_path + '/electrum_servers.json', 'r') as f:
+            servers = json.load(f)
+        return servers[network]
+
+    electrod_pool = ElectrodConnectionPool(
+        connections=connections, electrum_servers=load_electrum_servers("bc_mainnet")
+    )
     electrod_interface = ElectrodInterface(electrod_pool)
     electrod_reactor = ElectrodReactor(headers_repository, electrod_interface)
     electrod_service = ElectrodService(electrod_interface)

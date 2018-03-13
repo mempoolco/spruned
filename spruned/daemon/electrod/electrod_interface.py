@@ -4,14 +4,14 @@ from typing import Dict
 from spruned.application import settings
 from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
-from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
+from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
 
 
 class ElectrodInterface:
-    def __init__(self, connectionpool: ElectrodConnectionPool):
+    def __init__(self, connectionpool: ElectrodConnectionPool, loop=asyncio.get_event_loop()):
         self.pool = connectionpool
-        self.pool.add_header_observer(self)
         self._checkpoints = settings.CHECKPOINTS
+        self.loop = loop
 
     def _parse_header(self, electrum_header: Dict):
         header_hex = serialize_header(electrum_header)
@@ -29,16 +29,21 @@ class ElectrodInterface:
         }
 
     def add_header_subscribe_callback(self, callback):
-        self.pool.add_header_observer(callback)
+        async def parse_and_go(peer, res):
+            header = self._parse_header(res)
+            return await callback(peer, header)
+        self.pool.add_header_observer(parse_and_go)
 
-    async def get_header(self, height: int, fail_silent_out_of_range=False):
+    async def get_header(self, height: int, fail_silent_out_of_range=False, get_peer=False):
         try:
-            response = await self.pool.call('blockchain.block.get_header', height)
+            response = await self.pool.call('blockchain.block.get_header', height, get_peer=get_peer)
         except exceptions.NoQuorumOnResponsesException:
             if fail_silent_out_of_range:
                 return
             raise
-        return self._parse_header(response)
+        if not get_peer:
+            return self._parse_header(response)
+        return response[0], self._parse_header(response[1])
 
     async def handle_peer_error(self, peer):
         await self.pool.on_peer_error(peer)
@@ -87,3 +92,10 @@ class ElectrodInterface:
             header['block_hash'] = header.pop('hash')
             headers.append(header)
         return headers
+
+    async def start(self, callback):
+        await self.pool.connect()
+        self.loop.create_task(callback())
+
+    async def disconnect_from_peer(self, peer: ElectrodConnection):
+        self.loop.create_task(peer.disconnect())

@@ -205,6 +205,7 @@ class TestElectrodReactor(unittest.TestCase):
         self.sut.set_last_processed_header(loc_header)
 
         peer = Mock(server_info='mock_peer')
+        self.interface.handle_peer_error.return_value = async_coro(True)
         self.repo.get_block_hash.return_value = 'ff' * 32
         self.interface.get_header.return_value = async_coro(net_header)
         self.repo.remove_header_at_height.return_value = loc_header
@@ -235,7 +236,7 @@ class TestElectrodReactor(unittest.TestCase):
 
         peer = Mock(server_info='mock_peer')
         self.interface.get_header.return_value = async_coro(loc_header)
-        self.interface.handle_peer_error.return_value = True
+        self.interface.handle_peer_error.side_effect = [async_coro(True), async_coro(True)]
 
         self.repo.get_best_header.return_value = loc_header
         self.repo.get_block_hash.return_value = 'ff' * 32
@@ -251,7 +252,6 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertEqual(0, len(self.electrod_loop.method_calls))
         self.assertTrue(self.sut.synced)
         self.assertNotIn(loc_header, self.sut.orphans_headers)
-
 
     def test_local_db_behind_100_headers(self):
         """
