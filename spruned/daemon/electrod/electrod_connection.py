@@ -14,7 +14,7 @@ from spruned.daemon import exceptions
 
 class ElectrodConnection:
     def __init__(
-            self, hostname: str, protocol: str, keepalive=120,
+            self, hostname: str, protocol: str, keepalive=180,
             client=StratumClient, nickname=None, use_tor=False, loop=None,
             start_score=10, timeout=10
     ):
@@ -127,7 +127,7 @@ class ElectrodConnection:
             async with async_timeout.timeout(self._timeout):
                 return await self.client.RPC(method, *args)
         except Exception as e:
-            Logger.electrum.exception('call')
+            Logger.electrum.error('exception on rpc call: %s', e)
             self.loop.create_task(async_delayed_task(self.on_error(e)))
 
     async def subscribe(self, channel: str, on_subscription: callable, on_traffic: callable):
@@ -272,7 +272,6 @@ class ElectrodConnectionPool:
     async def connect(self):
         self._keepalive = True
         while self._keepalive:
-            Logger.electrum.debug('Main pool loop')
             missings = int(self._required_connections - len(self.established_connections))
             if missings > 0:
                 Logger.electrum.debug('ConnectionPool: connect, needed: %s', missings)
@@ -310,7 +309,7 @@ class ElectrodConnectionPool:
     def servers(self):
         return self._servers
 
-    async def call(self, method, params, agreement=1, get_peer=False) -> Dict:
+    async def call(self, method, params, agreement=1, get_peer=False, fail_silent=False) -> Dict:
         if get_peer and agreement > 1:
             raise ValueError('Error!')
         if agreement > self._required_connections:
@@ -324,14 +323,14 @@ class ElectrodConnectionPool:
                 connection.rpc_call(method, params) for connection in servers
             )
             responses = [r for r in responses if r is not None]
-            if len(responses) < agreement:
+            if len(responses) < agreement and not fail_silent:
                 Logger.electrum.exception('call, requested %s responses, received %s', agreement, len(responses))
                 Logger.electrum.debug('call, requested %s responses, received %s', agreement, responses)
                 raise exceptions.ElectrodMissingResponseException
             return self._handle_responses(responses)
         connection = self._pick_connection()
         response = await connection.rpc_call(method, params)
-        if not response:
+        if not response and not fail_silent:
             raise exceptions.ElectrodMissingResponseException
         return (connection, response) if get_peer else response
 

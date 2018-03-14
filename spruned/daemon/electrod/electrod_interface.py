@@ -39,8 +39,10 @@ class ElectrodInterface:
 
     async def get_header(self, height: int, fail_silent_out_of_range=False, get_peer=False):
         try:
-            response = await self.pool.call('blockchain.block.get_header', height, get_peer=get_peer)
-        except exceptions.NoQuorumOnResponsesException:
+            response = await self.pool.call(
+                'blockchain.block.get_header', height, get_peer=get_peer
+            )
+        except exceptions.ElectrodMissingResponseException:
             if fail_silent_out_of_range:
                 return
             raise
