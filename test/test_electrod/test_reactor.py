@@ -136,7 +136,6 @@ class TestElectrodReactor(unittest.TestCase):
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
 
         Mock.assert_called_once_with(self.repo.get_header_at_height, 1)
-        Mock.assert_called_once_with(peer.close)
         self.assertEqual(1, len(self.interface.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
         self.assertEqual(2, len(self.repo.method_calls))
