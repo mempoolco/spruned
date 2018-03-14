@@ -37,7 +37,7 @@ class ElectrodInterface:
                 header = self._parse_header(res)
                 return await callback(peer, header)
             except InvalidPOWException:
-                Logger.electrum.exception('Wrong POW for header %s from peer %s. Banning', res, peer)
+                Logger.electrum.error('Wrong POW for header %s from peer %s. Banning', res, peer)
                 self.loop.create_task(peer.disconnect())
         self.pool.add_header_observer(parse_and_go)
 
@@ -56,8 +56,8 @@ class ElectrodInterface:
             raise
         try:
             parsed_header = self._parse_header(header)
-        except InvalidPOWException:
-            Logger.electrum.exception('Wrong POW for header %s from peer %s. Banning', res, peer)
+        except (exceptions.NetworkHeadersInconsistencyException, InvalidPOWException):
+            Logger.electrum.error('Wrong POW for header %s from peer %s. Banning', header, peer)
             self.loop.create_task(peer.disconnect())
             return
 

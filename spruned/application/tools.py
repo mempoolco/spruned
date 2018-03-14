@@ -50,9 +50,7 @@ def deserialize_header(header: (str, bytes)):
 
 def verify_pow(header, blockhash):
     bits = header[72:76][::-1]
-    exponent = int.from_bytes(bytes(bits[0]), 'big')
-    coefficient = int.from_bytes(bytes(bits[1:]), 'big')
-    target = coefficient * 2 ** (8 * (exponent - 3))
+    target = int.from_bytes(bits[1:], 'big') * 2 ** (8 * (bits[0] - 3))
     if target < int.from_bytes(blockhash, 'little'):
         return True
     raise exceptions.InvalidPOWException
