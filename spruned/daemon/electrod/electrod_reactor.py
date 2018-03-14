@@ -5,9 +5,8 @@ from typing import Dict, Tuple
 import time
 
 import os
-from connectrum.client import StratumClient
 from spruned.application.abstracts import HeadersRepository
-from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
+from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon import database, exceptions
 from spruned.application.logging_factory import Logger
@@ -55,7 +54,8 @@ class ElectrodReactor:
 
     async def start(self):
         self.interface.add_header_subscribe_callback(self.on_new_header)
-        self.loop.create_task(self.interface.start(self.on_connected))
+        self.interface.add_on_connected_callback(self.on_connected)
+        self.loop.create_task(self.interface.start())
 
     async def check_headers(self):
         if self._sync_errors >= 100:
@@ -169,7 +169,7 @@ class ElectrodReactor:
             not _r and self.lock.release()
 
     @database.atomic
-    async def on_inconsistent_header_received(self, peer: StratumClient, received_header: Dict, local_hash: str):
+    async def on_inconsistent_header_received(self, peer: ElectrodConnection, received_header: Dict, local_hash: str):
         """
         received an inconsistent header, this network header differs for hash from
         one at the same height saved in the db.
@@ -322,7 +322,7 @@ class ElectrodReactor:
         await asyncio.sleep(3)
         await self.ensure_consistency(network_best_header, peer)
 
-    async def ensure_consistency(self, network_best_header: Dict, peer: StratumClient):
+    async def ensure_consistency(self, network_best_header: Dict, peer: ElectrodConnection):
         repo_header = self.repo.get_header_at_height(network_best_header['block_height'])
         if repo_header['block_hash'] != network_best_header['block_hash']:
             Logger.electrum.error(
@@ -335,7 +335,6 @@ class ElectrodReactor:
             # TODO - This is STILL an important issue.
 
         await self.interface.disconnect_from_peer(peer)
-        peer.close()
         Logger.electrum.info('Closing with peer %s', str(peer.server_info))
 
     @database.atomic

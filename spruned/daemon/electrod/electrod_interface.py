@@ -34,6 +34,9 @@ class ElectrodInterface:
             return await callback(peer, header)
         self.pool.add_header_observer(parse_and_go)
 
+    def add_on_connected_callback(self, callback):
+        self.pool.add_on_connected_observer(callback)
+
     async def get_header(self, height: int, fail_silent_out_of_range=False, get_peer=False):
         try:
             response = await self.pool.call('blockchain.block.get_header', height, get_peer=get_peer)
@@ -93,9 +96,8 @@ class ElectrodInterface:
             headers.append(header)
         return headers
 
-    async def start(self, callback):
-        await self.pool.connect()
-        self.loop.create_task(callback())
+    async def start(self):
+        self.loop.create_task(self.pool.connect())
 
     async def disconnect_from_peer(self, peer: ElectrodConnection):
         self.loop.create_task(peer.disconnect())

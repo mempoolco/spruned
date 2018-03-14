@@ -8,6 +8,7 @@ import async_timeout
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 from spruned.application.logging_factory import Logger
+from spruned.application.tools import async_delayed_task
 from spruned.daemon import exceptions
 
 
@@ -21,6 +22,7 @@ class ElectrodConnection:
         self.protocol = protocol
         self.keepalive = keepalive
         self.client: StratumClient = client()
+        self.client.keepalive_interval = keepalive
         self.nickname = nickname or binascii.hexlify(os.urandom(8)).decode()
         self.use_tor = use_tor
         self._version = None
@@ -36,10 +38,6 @@ class ElectrodConnection:
         self._timeout = timeout
         self._errors = []
         self._peers = []
-
-    async def _task(self, task, delay=0):
-        await asyncio.sleep(delay)
-        await task
 
     def add_on_header_callbacks(self, callback):
         self._on_headers_callbacks.append(callback)
@@ -65,7 +63,7 @@ class ElectrodConnection:
         for callback in self._on_connect_callbacks:
             self.loop.create_task(callback(self))
 
-    async def on_disconnect(self, *_, **__):
+    def on_connectrum_disconnect(self, *_, **__):
         for callback in self._on_disconnect_callbacks:
             self.loop.create_task(callback(self))
 
@@ -77,14 +75,15 @@ class ElectrodConnection:
 
     async def connect(self):
         try:
-            self._version = await self.client.connect(
-                ServerInfo(self.nickname, hostname=self.hostname, ports=self.protocol, version='1.2'),
-                disconnect_callback=self.on_disconnect,
-                disable_cert_verify=True,
-                use_tor=self.use_tor
-            )
-            Logger.electrum.debug('Connected to %s', self.hostname)
-            await self.on_connect()
+            with async_timeout.timeout(self._timeout):
+                self._version = await self.client.connect(
+                    ServerInfo(self.nickname, hostname=self.hostname, ports=self.protocol, version='1.2'),
+                    disconnect_callback=self.on_connectrum_disconnect,
+                    disable_cert_verify=True,
+                    use_tor=self.use_tor
+                )
+                Logger.electrum.debug('Connected to %s', self.hostname)
+                await self.on_connect()
         except Exception as e:
             self._score -= 4
             Logger.electrum.error('Exception connecting to %s (%s)', self.hostname, e)
@@ -129,7 +128,7 @@ class ElectrodConnection:
                 return await self.client.RPC(method, *args)
         except Exception as e:
             Logger.electrum.exception('call')
-            self.loop.create_task(self._task(self.on_error(e)))
+            self.loop.create_task(async_delayed_task(self.on_error(e)))
 
     async def subscribe(self, channel: str, on_subscription: callable, on_traffic: callable):
         try:
@@ -142,19 +141,19 @@ class ElectrodConnection:
             self.loop.create_task(self._poll_queue(q, on_traffic))
         except Exception as e:
             Logger.electrum.exception('subscribe %s failed', channel)
-            self.loop.create_task(self._task(self.on_error(e)))
+            self.loop.create_task(async_delayed_task(self.on_error(e)))
 
     async def _poll_queue(self, queue: asyncio.Queue, callback):
         try:
             header = await queue.get()
             Logger.electrum.debug('new data from queue: %s', header)
             self._last_header = header[0]
-            self.loop.create_task(self._task(callback(self)))
-            self.loop.create_task(self._task(self._poll_queue(queue, callback)))
+            self.loop.create_task(async_delayed_task(callback(self)))
+            self.loop.create_task(async_delayed_task(self._poll_queue(queue, callback)))
         except Exception as e:
             Logger.electrum.exception('queue poll failed')
             self._score -= 1
-            self.loop.create_task(self._task(self.on_error(e)))
+            self.loop.create_task(async_delayed_task(self.on_error(e)))
 
     async def disconnect(self):
         try:
@@ -175,35 +174,33 @@ class ElectrodConnectionPool:
         self._connections_keepalive_time = 120
         self._headers_observers = []
         self._new_peers_observers = []
+        self._on_connect_observers = []
+        self._connection_notified = False
 
-    async def _task(self, task, delay=0):
-        await asyncio.sleep(delay)
-        await task
+    def add_on_connected_observer(self, observer):
+        self._on_connect_observers.append(observer)
 
     def add_header_observer(self, observer):
         self._headers_observers.append(observer)
 
     async def on_peer_connected(self, peer: ElectrodConnection):
-        self.loop.create_task(
-            self._task(
-                peer.subscribe(
-                    'blockchain.headers.subscribe',
-                    self.on_peer_received_header,
-                    self.on_peer_received_header
-                )
-            )
+        future = peer.subscribe(
+            'blockchain.headers.subscribe',
+            self.on_peer_received_header,
+            self.on_peer_received_header
         )
+        self.loop.create_task(async_delayed_task(future))
 
     def on_peer_disconnected(self, peer: ElectrodConnection):
         pass
 
     async def on_peer_received_header(self, peer: ElectrodConnection):
         for observer in self._headers_observers:
-            self.loop.create_task(self._task(observer(peer, peer.last_header)))
+            self.loop.create_task(async_delayed_task(observer(peer, peer.last_header)))
 
     async def on_peer_received_peers(self, peer: ElectrodConnection):
         for observer in self._new_peers_observers:
-            self.loop.create_task(self._task(observer(peer.peers)))
+            self.loop.create_task(async_delayed_task(observer(peer.peers)))
 
     async def on_peer_error(self, peer: ElectrodConnection):
         Logger.electrum.debug('Peer %s error', peer)
@@ -228,6 +225,7 @@ class ElectrodConnectionPool:
                 raise exceptions.NoPeersException
 
     def _pick_multiple_servers(self, howmany: int):
+        assert howmany >= 1
         i = 0
         servers = []
         while 1:
@@ -241,7 +239,7 @@ class ElectrodConnectionPool:
                 raise exceptions.NoPeersException
             i += 1
 
-    def _pick_connection(self):
+    def _pick_connection(self, fail_silent=False):
         i = 0
         while 1:
             connection = random.choice(self.established_connections)
@@ -249,9 +247,12 @@ class ElectrodConnectionPool:
                 return connection
             i += 1
             if i > 100:
-                raise exceptions.NoPeersException
+                if not fail_silent:
+                    raise exceptions.NoPeersException
+                break
 
     def _pick_multiple_connections(self, howmany: int):
+        assert howmany >= 1
         i = 0
         connections = []
         while 1:
@@ -272,10 +273,19 @@ class ElectrodConnectionPool:
         self._keepalive = True
         while self._keepalive:
             Logger.electrum.debug('Main pool loop')
-            missings = self._required_connections - len(self.established_connections)
-            missings and Logger.electrum.debug('ConnectionPool: connect, needed: %s', missings)
-            self.loop.create_task(self._connect_servers(missings))
-            await asyncio.sleep(10)
+            missings = int(self._required_connections - len(self.established_connections))
+            if missings > 0:
+                Logger.electrum.debug('ConnectionPool: connect, needed: %s', missings)
+                self.loop.create_task(self._connect_servers(missings))
+            elif missings < 0:
+                Logger.electrum.warning('Too much peers.')
+                connection = self._pick_connection(fail_silent=True)
+                self.loop.create_task(connection.disconnect())
+            elif not self._connection_notified:
+                for observer in self._on_connect_observers:
+                    self.loop.create_task(observer())
+                self._connection_notified = True
+            await asyncio.sleep(missings and 2 or 10)
 
     async def _connect_servers(self, howmany: int):
         servers = self._pick_multiple_servers(howmany)
@@ -340,8 +350,8 @@ class ElectrodConnectionPool:
             return
         if not peer.score:
             Logger.electrum.error('Disconnecting from peer %s, score: %s', peer.hostname, peer.score)
-            self.loop.create_task(self._task(peer.disconnect()))
+            self.loop.create_task(async_delayed_task(peer.disconnect()))
 
         if not await peer.ping(timeout=2):
             Logger.electrum.error('Ping timeout from peer %s, score: %s', peer.hostname, peer.score)
-            self.loop.create_task(self._task(peer.disconnect()))
+            self.loop.create_task(async_delayed_task(peer.disconnect()))

@@ -17,13 +17,5 @@ class TestElectrodInterface(unittest.TestCase):
         self.delay_task_runner = Mock()
         self.connectrum = Mock()
         self.electrod_loop = Mock()
-        self.sut = ElectrodInterface(
-            settings.NETWORK,
-            concurrency=1,
-            connections_concurrency_ratio=1,
-            loop=self.electrod_loop,
-            stratum_client=self.connectrum
-        )
-        self.loop = asyncio.get_event_loop()
-        warnings.filterwarnings("ignore")
+
 
