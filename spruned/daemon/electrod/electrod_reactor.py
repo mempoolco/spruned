@@ -306,7 +306,8 @@ class ElectrodReactor:
             headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
             if not headers:
                 raise exceptions.NoHeadersException
-            saving_headers = [h for h in headers if h['block_height'] > local_best_height]
+            saving_headers = [h for h in headers if h['block_height'] > local_best_height] if local_best_height \
+                else headers
             saved_headers = headers and self.repo.save_headers(saving_headers)
             Logger.electrum.debug(
                 'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
@@ -329,13 +330,13 @@ class ElectrodReactor:
                 'Warning! A peer (%s), behind in height, '
                 'have an header (%s) which differ from our, '
                 'saved in the db: %s',
-                str(peer.server_info), network_best_header, repo_header
+                str(peer.hostname), network_best_header, repo_header
             )
             # FIXME. understand what's going on, maybe rollback
             # TODO - This is STILL an important issue.
 
         await self.interface.disconnect_from_peer(peer)
-        Logger.electrum.info('Closing with peer %s', str(peer.server_info))
+        Logger.electrum.info('Closing with peer %s', str(peer.hostname))
 
     @database.atomic
     async def handle_headers_inconsistency(self):

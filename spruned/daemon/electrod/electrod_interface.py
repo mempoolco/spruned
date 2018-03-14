@@ -2,6 +2,8 @@ import asyncio
 import binascii
 from typing import Dict
 from spruned.application import settings
+from spruned.application.exceptions import InvalidPOWException
+from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
@@ -19,6 +21,7 @@ class ElectrodInterface:
         if electrum_header['block_height'] in self._checkpoints:
             if self._checkpoints[electrum_header['block_height']] != blockhash_from_header:
                 raise exceptions.NetworkHeadersInconsistencyException
+
         header_data = deserialize_header(header_hex)
         return {
             'block_hash': blockhash_from_header,
@@ -30,8 +33,12 @@ class ElectrodInterface:
 
     def add_header_subscribe_callback(self, callback):
         async def parse_and_go(peer, res):
-            header = self._parse_header(res)
-            return await callback(peer, header)
+            try:
+                header = self._parse_header(res)
+                return await callback(peer, header)
+            except InvalidPOWException:
+                Logger.electrum.exception('Wrong POW for header %s from peer %s. Banning', res, peer)
+                self.loop.create_task(peer.disconnect())
         self.pool.add_header_observer(parse_and_go)
 
     def add_on_connected_callback(self, callback):
@@ -40,15 +47,23 @@ class ElectrodInterface:
     async def get_header(self, height: int, fail_silent_out_of_range=False, get_peer=False):
         try:
             response = await self.pool.call(
-                'blockchain.block.get_header', height, get_peer=get_peer
+                'blockchain.block.get_header', height, get_peer=True
             )
+            peer, header = response
         except exceptions.ElectrodMissingResponseException:
             if fail_silent_out_of_range:
                 return
             raise
+        try:
+            parsed_header = self._parse_header(header)
+        except InvalidPOWException:
+            Logger.electrum.exception('Wrong POW for header %s from peer %s. Banning', res, peer)
+            self.loop.create_task(peer.disconnect())
+            return
+
         if not get_peer:
-            return self._parse_header(response)
-        return response[0], self._parse_header(response[1])
+            return parsed_header
+        return peer, parsed_header
 
     async def handle_peer_error(self, peer):
         await self.pool.on_peer_error(peer)

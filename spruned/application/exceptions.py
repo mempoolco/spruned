@@ -12,3 +12,7 @@ class HTTPClientException(SprunedException):
 
 class SpentTxOutException(SprunedException):
     pass
+
+
+class InvalidPOWException(SprunedException):
+    pass
