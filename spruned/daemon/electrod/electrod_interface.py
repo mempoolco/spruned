@@ -68,8 +68,8 @@ class ElectrodInterface:
     async def handle_peer_error(self, peer):
         await self.pool.on_peer_error(peer)
 
-    async def getrawtransaction(self, height: str, verbose=False):
-        return await self.pool.call('blockchain.block.get_header', height, verbose)
+    async def getrawtransaction(self, txid: str, verbose=False):
+        return await self.pool.call('blockchain.transaction.get', txid, verbose)
 
     async def listunspents(self, address: str):
         return await self.pool.call('blockchain.address.listunspent', address)
