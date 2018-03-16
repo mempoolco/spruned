@@ -329,6 +329,8 @@ class ElectrodConnectionPool:
                     'Looks like there is no internet connection available. Sleeping the connection loop for 30s'
                 )
                 await asyncio.sleep(30)
+                await self._check_internet_connectivity()
+                continue
             missings = int(self._required_connections - len(self.established_connections))
             if missings > 0:
                 Logger.electrum.debug('ConnectionPool: connect, needed: %s', missings)
