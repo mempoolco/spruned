@@ -17,7 +17,7 @@ class ElectrodInterface:
 
     @property
     def is_pool_online(self):  # pragma: no cover
-        return self.pool.is_online
+        return self.pool.is_online()
 
     def _parse_header(self, electrum_header: Dict):
         header_hex = serialize_header(electrum_header)
