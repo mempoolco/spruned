@@ -85,7 +85,7 @@ class JSONRPCServer:
             return {"error": {"code": -8, "message": "Block height out of range"}}
         return response
 
-    async def getblockheader(self, blockhash: str, verbose=False):
+    async def getblockheader(self, blockhash: str, verbose=True):
         try:
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64

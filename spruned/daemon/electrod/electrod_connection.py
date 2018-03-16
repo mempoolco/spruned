@@ -16,7 +16,7 @@ class ElectrodConnection:
     def __init__(
             self, hostname: str, protocol: str, keepalive=180,
             client=StratumClient, nickname=None, use_tor=False, loop=None,
-            start_score=10, timeout=10
+            start_score=10, timeout=10, expire_errors_after=180
     ):
         self.hostname = hostname
         self.protocol = protocol
@@ -32,12 +32,13 @@ class ElectrodConnection:
         self._on_errors_callbacks = []
         self._on_peers_callbacks = []
         self.loop = loop or asyncio.get_event_loop()
-        self._score = start_score
+        self._start_score = start_score
         self._last_header = None
         self._subscriptions = []
         self._timeout = timeout
         self._errors = []
         self._peers = []
+        self._expire_errors_after = expire_errors_after
 
     def add_on_header_callbacks(self, callback):
         self._on_headers_callbacks.append(callback)
@@ -68,8 +69,7 @@ class ElectrodConnection:
             self.loop.create_task(callback(self))
 
     async def on_error(self, error):
-        self._errors.append(error)
-        self._score -= 1
+        self._errors.append(int(time.time()))
         for callback in self._on_errors_callbacks:
             self.loop.create_task(callback(self))
 
@@ -85,7 +85,7 @@ class ElectrodConnection:
                 Logger.electrum.debug('Connected to %s', self.hostname)
                 await self.on_connect()
         except Exception as e:
-            self._score -= 4
+            self.errors.append(int(time.time()))
             Logger.electrum.error('Exception connecting to %s (%s)', self.hostname, e)
             self.loop.create_task(self.on_error(e))
 
@@ -116,7 +116,13 @@ class ElectrodConnection:
 
     @property
     def score(self):
-        return self._score
+        return self._start_score - len(self.errors)
+
+    @property
+    def errors(self):
+        now = int(time.time())
+        self._errors = [error for error in self._errors if now - error < self._expire_errors_after]
+        return self._errors
 
     @property
     def peers(self):
@@ -152,7 +158,7 @@ class ElectrodConnection:
             self.loop.create_task(async_delayed_task(self._poll_queue(queue, callback)))
         except Exception as e:
             Logger.electrum.exception('queue poll failed')
-            self._score -= 1
+            self._errors.append(int(time.time()))
             self.loop.create_task(async_delayed_task(self.on_error(e)))
 
     async def disconnect(self):

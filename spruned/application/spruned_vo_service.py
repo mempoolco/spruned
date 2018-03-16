@@ -165,7 +165,7 @@ class SprunedVOService(RPCAPIService):
         if not transaction.get('rawtx'):
             electrod_transaction = await self.electrod.getrawtransaction(txid)
             if electrod_transaction:
-                transaction['rawtx'] = electrod_transaction.get('response')
+                transaction['rawtx'] = electrod_transaction
                 transaction['source'] += ', electrum'
         if not self._is_complete(transaction):
             _exclude_services.extend(services)
@@ -272,7 +272,7 @@ class SprunedVOService(RPCAPIService):
         unspents = await self.electrod.listunspents(data['addresses'][0])
         if not unspents:
             return
-        for unspent in unspents.get("response"):
+        for unspent in unspents:
             if unspent['tx_hash'] == txid and unspent['tx_pos'] == index:
                 found = unspent
                 break
