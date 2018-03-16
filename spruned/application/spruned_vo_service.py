@@ -333,7 +333,7 @@ class SprunedVOService(RPCAPIService):
         _deserialized_header = deserialize_header(best_header['data'])
         return {
             "chain": "main",
-            "version": "spruned v%s. emulating bitcoind v%s" % (settings.VERSION, settings.BITCOIND_API_VERSION),
+            "warning": "spruned v%s. emulating bitcoind v%s" % (settings.VERSION, settings.BITCOIND_API_VERSION),
             "blocks": best_header["block_height"],
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],

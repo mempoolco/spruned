@@ -11,7 +11,7 @@ from spruned.daemon.exceptions import ElectrodMissingResponseException
 from test.utils import async_coro
 
 
-class TestElectrodInterface(unittest.TestCase):
+class TestElectrodConnection(unittest.TestCase):
     def setUp(self):
         self.client = Mock()
         self.sut = ElectrodConnection('hostname', 's', client=self.client, expire_errors_after=3)
