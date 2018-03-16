@@ -37,6 +37,23 @@ CACHE = 1024
 NETWORK = Network.BITCOIN
 SPRUNED_SERVICE_URL = 'https://spruned.mempool.co/data/'
 MIN_DATA_SOURCES = 1
+CHECK_NETWORK_HOST = [
+    'a.root-servers.net',
+    'b.root-servers.net',
+    'c.root-servers.net',
+    'd.root-servers.net',
+    'e.root-servers.net',
+    'f.root-servers.net',
+    'g.root-servers.net',
+    'h.root-servers.net',
+    'i.root-servers.net',
+    'j.root-servers.net',
+    'k.root-servers.net',
+    'l.root-servers.net',
+    'm.root-servers.net',
+    'www.bitcoin.org',
+    'www.google.com'
+]
 
 # third-party secrets
 BLOCKTRAIL_API_KEY = os.getenv('BLOCKTRAIL_API_KEY')

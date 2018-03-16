@@ -15,6 +15,10 @@ class ElectrodInterface:
         self._checkpoints = settings.CHECKPOINTS
         self.loop = loop
 
+    @property
+    def is_pool_online(self):  # pragma: no cover
+        return self.pool.is_online
+
     def _parse_header(self, electrum_header: Dict):
         header_hex = serialize_header(electrum_header)
         blockhash_from_header = blockheader_to_blockhash(header_hex)

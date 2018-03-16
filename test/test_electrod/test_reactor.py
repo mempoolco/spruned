@@ -563,3 +563,9 @@ class TestElectrodReactor(unittest.TestCase):
         self.assertEqual(2, len(self.interface.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
         self.assertEqual(3, len(self.repo.method_calls))
+
+    def test_connectionpool_offline(self):
+        self.interface.is_pool_online = False
+        self.loop.run_until_complete(self.sut.check_headers())
+        Mock.assert_called_with(self.delay_task_runner, coro_call('check_headers'),
+                                self.sut.new_headers_fallback_poll_interval)

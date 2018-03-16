@@ -58,6 +58,13 @@ class ElectrodReactor:
         self.loop.create_task(self.interface.start())
 
     async def check_headers(self):
+        if not self.interface.is_pool_online:
+            Logger.electrum.error(
+                'Looks like there is no internet connection. check_headers delayed %s',
+                self.new_headers_fallback_poll_interval
+            )
+            self.loop.create_task(self.delayed_task(self.check_headers(), self.new_headers_fallback_poll_interval))
+            return
         if self._sync_errors >= 100:
             raise exceptions.SprunedException(
                 'Fallback headers check: Too many sync errors. Suspending Sync'
