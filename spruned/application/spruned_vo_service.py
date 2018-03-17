@@ -73,9 +73,10 @@ class SprunedVOService(RPCAPIService):
         electrod_rawtx = await self.electrod.getrawtransaction(txid)
         transaction['rawtx'] = electrod_rawtx
         transaction['source'] += ', electrum'
-        blockheader = self.repository.get_block_header(transaction['blockhash'])
-        merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
-        assert merkleproof  # todo verify
+        if transaction.get('blockhash'):
+            blockheader = self.repository.get_block_header(transaction['blockhash'])
+            merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
+            assert merkleproof  # todo verify
         return transaction
 
     async def gettxout(self, txid: str, index: int):
@@ -169,7 +170,7 @@ class SprunedVOService(RPCAPIService):
 
     async def getbestblockheader(self, verbose=True):
         best_header = self.repository.get_best_header()
-        return self.getblockheader(best_header['block_hash'], verbose=verbose)
+        return await self.getblockheader(best_header['block_hash'], verbose=verbose)
 
     async def getblockchaininfo(self):
         best_header = self.repository.get_best_header()
