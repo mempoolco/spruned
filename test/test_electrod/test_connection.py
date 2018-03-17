@@ -127,9 +127,9 @@ class TestElectrodConnection(unittest.TestCase):
         res = self.loop.run_until_complete(self.sut.ping(timeout=1))
         self.assertIsNone(res)
 
-    def test_subscribe(self):
+    def test_subscribe_and_fail(self):
         queue = Mock()
-        queue.get.side_effect = [async_coro([{'2nd': 'header'}]), None]
+        queue.get.side_effect = [async_coro([{'2nd': 'header'}]), ConnectionError]
         future = {'1st': 'header'}
         self.client.subscribe.return_value = async_coro(future), queue
         sub_called = False

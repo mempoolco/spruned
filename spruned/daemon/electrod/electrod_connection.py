@@ -176,7 +176,7 @@ class ElectrodConnection:
             self.loop.create_task(self.delayer(callback(self)))
             self.loop.create_task(self.delayer(self._poll_queue(queue, callback)))
         except Exception as e:
-            Logger.electrum.exception('queue poll failed')
+            Logger.electrum.error('queue poll failed')
             self.loop.create_task(self.delayer(self.on_error(e)))
 
     async def disconnect(self):
