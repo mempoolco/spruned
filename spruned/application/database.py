@@ -18,7 +18,7 @@ class Header(Base):
 
 
 engine = create_engine('sqlite:///' + settings.SQLITE_DBNAME)
-if not os.path.exists(settings.SQLITE_DBNAME):
+if not settings.SQLITE_DBNAME or os.path.exists(settings.SQLITE_DBNAME):
     Base.metadata.create_all(engine)
 
 session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))

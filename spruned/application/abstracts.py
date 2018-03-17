@@ -80,7 +80,7 @@ class HeadersRepository(metaclass=abc.ABCMeta):
         pass  # pragma: no cover
 
     @abc.abstractmethod
-    def save_headers(self, headers: List[Dict], force=False):
+    def save_headers(self, headers: List[Dict]):
         pass  # pragma: no cover
 
     @abc.abstractmethod

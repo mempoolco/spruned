@@ -2,14 +2,11 @@ import asyncio
 import os
 import binascii
 import random
-import subprocess
 import time
 from typing import Dict, List
 import async_timeout
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
-
-from spruned.application import settings
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task, check_internet_connection
 from spruned.daemon import exceptions
@@ -264,57 +261,64 @@ class ElectrodConnectionPool:
     def _pick_server(self):
         i = 0
         while 1:
-            server = random.choice(self._servers)
-            if server[0] not in [connection.hostname for connection in self.connections]:
-                return server
-            i += 1
-            if i > 100:
-                raise exceptions.NoServersException
+            if self.servers:
+                server = random.choice(self.servers)
+                if server[0] not in [connection.hostname for connection in self.connections]:
+                    return server
+                i += 1
+                if i < 100:
+                    continue
+            raise exceptions.NoServersException
 
     def _pick_multiple_servers(self, howmany: int):
         assert howmany >= 1
         i = 0
         servers = []
         while 1:
-            server = self._pick_server()
-            if server in servers:
-                continue
-            servers.append(server)
-            if len(servers) == howmany:
-                return servers
-            if i > 100:
-                raise exceptions.NoServersException
-            i += 1
+            if self.servers:
+                server = self._pick_server()
+                if server in servers:
+                    continue
+                servers.append(server)
+                if len(servers) == howmany:
+                    return servers
+                if i < 100:
+                    continue
+            raise exceptions.NoServersException
 
     def _pick_connection(self, fail_silent=False):
         i = 0
         while 1:
-            connection = random.choice(self.established_connections)
-            if connection.connected and connection.score > 0:
-                return connection
-            i += 1
-            if i > 10:
-                if not fail_silent:
-                    raise exceptions.NoPeersException
-                break
+            if self.established_connections:
+                connection = random.choice(self.established_connections)
+                if connection.connected and connection.score > 0:
+                    return connection
+                i += 1
+                if i < 100:
+                    continue
+            if not fail_silent:
+                raise exceptions.NoPeersException
+            return
 
     def _pick_multiple_connections(self, howmany: int):
         assert howmany >= 1
         i = 0
         connections = []
         while 1:
-            connection = self._pick_connection()
-            if connection in connections:
-                i += 1
-                if i > 100:
-                    raise exceptions.NoPeersException
-                continue
-            connections.append(connection)
-            if len(connections) == howmany:
-                return connections
-            if i > 100:
-                raise exceptions.NoPeersException
+            if self.established_connections:
+                connection = self._pick_connection()
+                if connection in connections:
+                    i += 1
+                    if i > 100:
+                        raise exceptions.NoPeersException
+                    continue
+                connections.append(connection)
+                if len(connections) == howmany:
+                    return connections
             i += 1
+            if i < 100:
+                continue
+            raise exceptions.NoPeersException
 
     def stop(self):
         self._keepalive = False
@@ -424,7 +428,7 @@ class ElectrodConnectionPool:
         if not peer.score:
             Logger.electrum.error('Disconnecting from peer %s, score: %s', peer.hostname, peer.score)
             self.loop.create_task(self.delayer(peer.disconnect()))
-
+            return
         if not await peer.ping(timeout=2):
             Logger.electrum.error('Ping timeout from peer %s, score: %s', peer.hostname, peer.score)
             self.loop.create_task(self.delayer(peer.disconnect()))

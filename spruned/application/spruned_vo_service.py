@@ -105,7 +105,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _verify_block_with_local_header(self, block):
         repo_header = self.repository.get_block_header(block['hash'])
-        _header = binascii.hexlify(repo_header['data']).decode()
+        _header = binascii.hexlify(repo_header['header_bytes']).decode()
         header = deserialize_header(_header)
         block['version'] = header['version']
         block['time'] = header['timestamp']
@@ -297,7 +297,7 @@ class SprunedVOService(RPCAPIService):
         header = self.repository.get_block_header(blockhash)
         if verbose:
             _best_header = self.repository.get_best_header()
-            _deserialized_header = deserialize_header(binascii.hexlify(header['data']).decode())
+            _deserialized_header = deserialize_header(binascii.hexlify(header['header_bytes']).decode())
             res = {
                   "hash": _deserialized_header['hash'],
                   "confirmations": _best_header['block_height'] - header['block_height'] + 1,
@@ -315,7 +315,7 @@ class SprunedVOService(RPCAPIService):
                   "nextblockhash": header.get('next_block_hash')
                 }
         else:
-            res = binascii.hexlify(header['data']).decode()
+            res = binascii.hexlify(header['header_bytes']).decode()
         return res
 
     async def getblockcount(self):
@@ -330,7 +330,7 @@ class SprunedVOService(RPCAPIService):
 
     async def getblockchaininfo(self):
         best_header = self.repository.get_best_header()
-        _deserialized_header = deserialize_header(best_header['data'])
+        _deserialized_header = deserialize_header(best_header['header_bytes'])
         return {
             "chain": "main",
             "warning": "spruned v%s. emulating bitcoind v%s" % (settings.VERSION, settings.BITCOIND_API_VERSION),

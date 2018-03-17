@@ -2,7 +2,8 @@ from typing import List, Dict
 from sqlalchemy.exc import IntegrityError
 from spruned.application.abstracts import HeadersRepository
 from spruned.application.logging_factory import Logger
-from spruned.daemon import database, exceptions
+from spruned.daemon import exceptions
+from spruned.application import database
 
 
 class HeadersSQLiteRepository(HeadersRepository):
@@ -10,18 +11,25 @@ class HeadersSQLiteRepository(HeadersRepository):
         self.session = session
 
     @staticmethod
-    def _header_model_to_dict(header: database.Header, nextblockhash: str) -> Dict:
-        return {
+    def _header_model_to_dict(header: database.Header, nextblockhash: (None, str), prevblockhash: (None, str)) -> Dict:
+        res = {
             'block_height': header.blockheight,
             'block_hash': header.blockhash,
-            'data': header.data,
-            'next_block_hash': nextblockhash
+            'header_bytes': header.data,
+            'next_block_hash': nextblockhash,
+            'prev_block_hash': prevblockhash
         }
+        if not res['prev_block_hash']:
+            res.pop('prev_block_hash')
+        if not res['next_block_hash']:
+            res.pop('next_block_hash')
+        return res
 
     def get_best_header(self):
         session = self.session()
         res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
-        res = res and self._header_model_to_dict(res, None)
+        prevblockhash = res.blockheight != 0 and self.get_block_hash(res.blockheight - 1)
+        res = res and self._header_model_to_dict(res, None, prevblockhash)
         return res
 
     def get_header_at_height(self, height: int):
@@ -33,7 +41,11 @@ class HeadersSQLiteRepository(HeadersRepository):
         headers = session.query(database.Header).filter(database.Header.blockheight >= height)\
             .order_by(database.Header.blockheight.asc()).all()
         return headers and [
-            self._header_model_to_dict(h, self.get_block_hash(h.blockheight+1)) for h in headers
+            self._header_model_to_dict(
+                h,
+                nextblockhash=self.get_block_hash(h.blockheight+1),
+                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1)
+            ) for h in headers
         ] or []
 
     @database.atomic
@@ -47,33 +59,24 @@ class HeadersSQLiteRepository(HeadersRepository):
                 session.flush()
             except IntegrityError:
                 raise exceptions.HeadersInconsistencyException
+            return model
 
         if blockheight == 0:
-            _save()
+            model = _save()
+            prev_block = None
         else:
-            prev_block = session.query(database.Header).filter_by(blockheight=blockheight-1).one()
-            assert prev_block.blockhash == prev_block_hash
-            _save()
-        return {
-            'block_hash': blockheight,
-            'block_height': blockheight,
-            'prev_block_hash': prev_block_hash,
-            'header_bytes': headerbytes
-        }
+            prev_block = session.query(database.Header).filter_by(blockheight=blockheight - 1).one()
+            if prev_block.blockhash != prev_block_hash:
+                raise exceptions.HeadersInconsistencyException
+
+            model = _save()
+        return model and self._header_model_to_dict(
+            model, prevblockhash=prev_block and prev_block.blockhash, nextblockhash=None
+        )
 
     @database.atomic
-    def save_headers(self, headers: List[Dict], force=False):
+    def save_headers(self, headers: List[Dict]):
         session = self.session()
-        if force:
-            starts_from = headers[0]['block_height']
-            ends_to = headers[-1]['block_height']
-            existings = session.query(database.Header)\
-                .filter(database.Header.blockheight >= starts_from).filter(database.Header.blockheight <= ends_to).all()
-            _ = [session.delete(existing) for existing in existings]
-            Logger.repository.debug(
-                'Force mode, deleted headers from %s to %s (included)', starts_from, ends_to
-            )
-            session.flush()
         for i, header in enumerate(headers):
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
@@ -103,7 +106,7 @@ class HeadersSQLiteRepository(HeadersRepository):
     def remove_header_at_height(self, blockheight: int) -> Dict:
         session = self.session()
         header = session.query(database.Header).filter(database.Header.blockheight == blockheight).one()
-        removing_dict = self._header_model_to_dict(header, "")
+        removing_dict = self._header_model_to_dict(header, "", "")
         session.delete(header)
         session.flush()
         return removing_dict
@@ -122,4 +125,5 @@ class HeadersSQLiteRepository(HeadersRepository):
         session = self.session()
         header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
         nextblockhash = self.get_block_hash(header.blockheight + 1)
-        return header and self._header_model_to_dict(header, nextblockhash)
+        prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1)
+        return header and self._header_model_to_dict(header, nextblockhash, prevblockhash)

@@ -206,3 +206,55 @@ class TestElectrodConnectionPool(unittest.TestCase):
                 self.sut.call('cafe', 'babe', agreement=2, fail_silent=True)
             )
         )
+
+    def test_call_missing_response(self):
+        conn = Mock(connected=True, protocol=True, score=10)
+        conn2 = Mock(connected=True, protocol=True, score=10)
+        conn.rpc_call.return_value = async_coro(None)
+        conn2.rpc_call.return_value = async_coro(None)
+        self.sut._connections = [conn, conn2]
+        with self.assertRaises(exceptions.ElectrodMissingResponseException):
+            self.loop.run_until_complete(
+                self.sut.call('cafe', 'babe', agreement=2)
+            )
+
+    def test_corners(self):
+        s = [s for s in self.sut._servers]
+        self.sut._servers = []
+        with self.assertRaises(exceptions.NoServersException):
+            self.sut._pick_server()
+        with self.assertRaises(exceptions.NoServersException):
+            self.sut._pick_multiple_servers(2)
+        self.sut._servers = s
+        with self.assertRaises(exceptions.NoPeersException):
+            self.sut._pick_connection()
+        with self.assertRaises(exceptions.NoPeersException):
+            self.sut._pick_multiple_connections(2)
+        self.assertIsNone(
+            self.sut._pick_connection(fail_silent=True)
+        )
+
+    def test__handle_peer_error_disconnected(self):
+        conn = Mock(connected=False)
+        res = self.loop.run_until_complete(self.sut._handle_peer_error(conn))
+        self.assertIsNone(res)
+
+    def test_handle_peer_error_noscore(self):
+        conn = Mock(connected=True, score=0)
+        conn.disconnect.return_value = 'disconnect'
+        self.delayer.return_value = 'delayer'
+        res = self.loop.run_until_complete(self.sut._handle_peer_error(conn))
+        self.assertIsNone(res)
+        Mock.assert_called_with(self.electrod_loop.create_task, 'delayer')
+        Mock.assert_called_with(self.delayer, 'disconnect')
+
+    def test_handle_peer_error_ping_timeout(self):
+        conn = Mock(connected=True, score=10)
+        conn.ping.return_value = async_coro(None)
+        conn.disconnect.return_value = 'disconnect'
+        self.delayer.return_value = 'delayer'
+
+        res = self.loop.run_until_complete(self.sut._handle_peer_error(conn))
+        self.assertIsNone(res)
+        Mock.assert_called_with(self.electrod_loop.create_task, 'delayer')
+        Mock.assert_called_with(self.delayer, 'disconnect')

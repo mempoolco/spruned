@@ -8,7 +8,8 @@ import os
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon import database, exceptions
+from spruned.daemon import exceptions
+from spruned.application import database
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import get_nearest_parent, async_delayed_task
 from spruned.daemon.electrod.electrod_service import ElectrodService
