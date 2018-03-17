@@ -84,6 +84,9 @@ class ElectrodInterface:
     async def get_chunk(self, chunks_index: int):
         return await self.pool.call('blockchain.block.get_chunk', chunks_index)
 
+    async def get_merkleproof(self, txid: str, block_height: int):
+        return await self.pool.call('blockchain.transaction.get_merkle', txid, block_height)
+
     async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int):
         futures = []
         for chunk_index in range(starts_from, ends_to):

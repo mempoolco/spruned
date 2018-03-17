@@ -11,6 +11,7 @@ class ChainFlyerService(RPCAPIService):
         self.throttling_error_codes = []
 
     async def getrawtransaction(self, txid, **_):
+        """
         data = await self.get('tx/' + txid)
         return data and {
             'rawtx': None,
@@ -19,6 +20,8 @@ class ChainFlyerService(RPCAPIService):
             'txid': data['tx_hash'],
             'source': 'chainflyer'
         }
+        """
+        pass
 
     async def getblock(self, blockhash):
         Logger.third_party.debug('getblock from %s' % self.__class__)

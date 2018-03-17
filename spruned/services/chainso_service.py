@@ -37,39 +37,11 @@ class ChainSoService(RPCAPIService):
             'tx': data['data']['txs']
         }
 
-    def _track_spents(self, data):
-        data.get('is_spent') and self.utxo_tracker.track_utxo_spent(
-            data['txid'],
-            data['output_no'],
-            spent_by=data['spent']['txid'],
-            spent_at_index=data['spent']['input_no']
-        )
-
-    @staticmethod
-    def _format_txout(_: Dict, __: int):
-        return {
-            "in_block": None,
-            "in_block_height": None,
-            "value_satoshi": None,
-            "script_hex": None,
-            "script_asm": None,
-            "script_type": None,
-            "addresses": None,
-            "unspent": True
-        }
-
     async def gettxout(self, txid: str, index: int):
         """
         https://chain.so/api#get-is-tx-output-spent
         """
-        return  # looks like chainso is unreliable for unspents :-(
-
-        data = await self.get('is_tx_spent/' + self._coin_url + txid + '/' + str(index))
-        if not data.get('status') == 'success':
-            return
-        if data['data']['is_spent']:
-            self.utxo_tracker and self._track_spents(data)
-        return self._format_txout(data, index)
+        pass
 
 
 if __name__ == '__main__':

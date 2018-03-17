@@ -144,7 +144,7 @@ class ElectrodConnection:
     def peers(self):
         return self._peers
 
-    async def rpc_call(self, method: str, *args):
+    async def rpc_call(self, method: str, args):
         try:
             async with async_timeout.timeout(self._timeout):
                 return await self.client.RPC(method, *args)
@@ -380,7 +380,7 @@ class ElectrodConnectionPool:
     def servers(self):
         return self._servers
 
-    async def call(self, method, params, agreement=1, get_peer=False, fail_silent=False) -> (None, Dict):
+    async def call(self, method, *params, agreement=1, get_peer=False, fail_silent=False) -> (None, Dict):
         if get_peer and agreement > 1:
             raise ValueError('Error!')
         if agreement > self._required_connections:

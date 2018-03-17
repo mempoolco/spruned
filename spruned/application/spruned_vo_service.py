@@ -1,8 +1,6 @@
-import json
 import typing
 import random
 import binascii
-import asyncio
 from spruned.application.tools import deserialize_header
 from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService, StorageInterface
@@ -24,43 +22,6 @@ class SprunedVOService(RPCAPIService):
     def available(self):
         raise NotImplementedError
 
-    @staticmethod
-    def _join_data(data: typing.List[typing.Dict]) -> typing.Dict:
-        def _get_key(_k, _data):
-            _dd = [x[_k] for x in data if x.get(_k) is not None]
-            for i, x in enumerate(_dd):
-                if i < len(_dd) - 2:
-                    if _k in ('source', 'time', 'confirmations'):
-                        pass
-                    elif _k == 'size' and data[i].get('hash'):
-                        return min([x, _dd[i + 1]])
-                    else:
-                        try:
-                            assert x == _dd[i+1], \
-                                (_k, x, _dd[i+1], data[i]['source'], data[i+1]['source'])
-                        except AssertionError:
-                            print(json.dumps(data, indent=4))
-                            return None
-            return _dd and _dd[0] or None
-
-        for k in data:
-            assert isinstance(k, dict), k
-        res = data[0]
-        for k, v in res.items():
-            res[k] = _get_key(k, data)
-        res['source'] = ', '.join(x['source'] for x in data)
-        return res
-
-    @staticmethod
-    def _is_complete(data):
-        if data.get('txid'):
-            if not data.get('blockhash') or not data.get('rawtx'):
-                return False
-        elif data.get('hash'):
-            if not data.get('tx'):
-                return False
-        return data
-
     def _get_from_cache(self, *a):
         if self.cache:
             data = self.cache.get(a[0], a[1])
@@ -75,32 +36,11 @@ class SprunedVOService(RPCAPIService):
         assert isinstance(service, RPCAPIService)
         self.sources.append(service)
 
-    def add_primary_source(self, service: RPCAPIService):
-        assert isinstance(service, RPCAPIService)
-        self.primary.append(service)
-
-    def _pick_sources(self, _exclude_services=None):
-        excluded = _exclude_services and [x.__class__.__name__ for x in _exclude_services] or []
-        res = []
-        maxiter = 50
-        i = 0
-        while len(res) < self.min_sources:
-            i += 1
-            if i > maxiter:
-                return res
-            c = random.choice(self.sources)
-            c not in res and (not excluded or c.__class__.__name__ not in excluded) and c.available and res.append(c)
-        for p in self.primary:
-            excluded is None or (p.__class__.__name__ not in excluded) and res.append(p)
-        return res
-
-    def _verify_transaction(self, transaction: dict):
-        # TODO
-        return 1
-
     @cache_block
     async def getblock(self, blockhash: str):
-        block = await self._getblock(blockhash)
+        source = random.choice(self.sources)
+        block = await source.getblock(blockhash)
+        await self._verify_block_with_local_header(block)
         return block
 
     async def _verify_block_with_local_header(self, block):
@@ -123,143 +63,46 @@ class SprunedVOService(RPCAPIService):
         block.pop('confirmations', None)
         return block
 
-    async def _getblock(self, blockhash: str, _res=None, _exclude_services=None, _r=0):
-        if _r > 5:
-            return
-        _exclude_services = _exclude_services or []
-        services = self._pick_sources(_exclude_services)
-
-        responses = _res or []
-        futures = [service.getblock(blockhash) for service in services]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
-        if not responses:
-            _exclude_services.extend(services)
-            return await self._getblock(blockhash, _res=responses, _exclude_services=services)
-        block = self._join_data(responses)
-        if not self._is_complete(block):
-            _exclude_services.extend(services)
-            return await self._getblock(blockhash, _res=responses, _exclude_services=services)
-        await self._verify_block_with_local_header(block)
-        return block
-
     @cache_transaction
     async def getrawtransaction(self, txid: str, verbose=False):
-        return await self._getrawtransaction(txid, verbose=verbose)
-
-    async def _getrawtransaction(self, txid: str, verbose=False, _res=None, _exclude_services=None, _r=0):
-        if _r > 5:
+        source = random.choice(self.sources)
+        transaction = await source.getrawtransaction(txid, verbose)
+        if not transaction:
+            # design fixme
             return
-        _exclude_services = _exclude_services or []
-        services = self._pick_sources(_exclude_services)
-        responses = _res or []
-        futures = [service.getrawtransaction(txid) for service in services]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
-        if not responses:
-            _exclude_services.extend(services)
-            return await self._getrawtransaction(
-                txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services, _r=_r+1
-            )
-        transaction = self._join_data(responses)
-        if not transaction.get('rawtx'):
-            electrod_transaction = await self.electrod.getrawtransaction(txid)
-            if electrod_transaction:
-                transaction['rawtx'] = electrod_transaction
-                transaction['source'] += ', electrum'
-        if not self._is_complete(transaction):
-            _exclude_services.extend(services)
-            return await self._getrawtransaction(
-                txid, verbose=verbose, _res=responses, _exclude_services=_exclude_services, _r=_r+1
-            )
-        assert transaction['rawtx']
+        electrod_rawtx = await self.electrod.getrawtransaction(txid)
+        transaction['rawtx'] = electrod_rawtx
+        transaction['source'] += ', electrum'
+        blockheader = self.repository.get_block_header(transaction['blockhash'])
+        merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
+        assert merkleproof  # todo verify
         return transaction
 
     async def gettxout(self, txid: str, index: int):
-        response = await self._gettxout(txid, index)
-        if not response:
+        source = random.choice(self.sources)
+        txout = await source.gettxout(txid, index)
+        if not txout:
             return
+        if not await self.ensure_unspent_consistency_with_electrum_network(txid, index, txout):
+            return
+
         best_block_header = self.repository.get_best_header()
-        tx_blockheader = self.repository.get_block_header(response['in_block'])
+        tx_blockheader = self.repository.get_block_header(txout['in_block'])
         in_block_height = tx_blockheader['block_height']
         confirmations = best_block_header['block_height'] - in_block_height
         return {
             "bestblock": best_block_header['block_hash'],
             "confirmations": confirmations,
-            "value": '{:.8f}'.format(response['value_satoshi'] / 10**8),
+            "value": '{:.8f}'.format(txout['value_satoshi'] / 10**8),
             "scriptPubKey": {
-                "asm": response['script_asm'],
-                "hex": response['script_hex'],
+                "asm": txout['script_asm'],
+                "hex": txout['script_hex'],
                 "reqSigs": "Not Implemented Yet",
-                "type": response["script_type"],
-                "addresses": response["addresses"]
+                "type": txout["script_type"],
+                "addresses": txout["addresses"]
             },
             "coinbase": "Not Implemented Yet"
         }
-
-
-    @staticmethod
-    def _join_txout(responses: typing.List):
-        count_unspent_vote = []
-        filtered_responses = []
-        for r in responses:
-            if r['in_block'] is None:
-                if r['unspent'] is not None:
-                    count_unspent_vote.append(r['unspent'])
-            else:
-                filtered_responses.append(r)
-        responses = filtered_responses
-        for x in [
-            'value_satoshi', 'script_hex', 'script_type', 'unspent', 'in_block'
-        ]:
-            try:
-                evaluation = [
-                    r[x] for r in responses if r[x] not in ([], None)
-                ] + (count_unspent_vote if x == 'unspent' else [])
-                assert len(set(evaluation)) <= 1
-            except AssertionError:
-                Logger.third_party.exception('Quorum on join tx out')
-                return
-        return responses and {
-            "in_block": responses[0]['in_block'],
-            "in_block_height": None,
-            "value_satoshi": responses[0]['value_satoshi'],
-            "script_hex": responses[0]['script_hex'],
-            "script_asm": random.choice([r['script_asm'] for r in responses if r] or [None]),  # FIXME - TODO - quorum
-            "script_type": responses[0]['script_type'],
-            "addresses": random.choice([r['addresses'] for r in responses if r] or [None]),  # FIXME - TODO - quorum
-            "unspent": responses[0]['unspent'],
-        }
-
-    @staticmethod
-    def _is_txout_complete(txout: typing.Dict):
-        res = txout and all([txout[v] for v in txout if v not in ['in_block_height', 'script_asm', 'unspent']])
-        return res and txout['unspent'] is not None
-
-    async def _gettxout(self, txid: str, index: int, _res=None, _exclude_services=None, _r=0):
-        if _r > 5:
-            return
-        _exclude_services = _exclude_services or []
-        services = self._pick_sources(_exclude_services)
-
-        responses = _res or []
-        futures = [service.gettxout(txid, index) for service in services]
-        for response in await asyncio.gather(*futures):
-            response and responses.append(response)
-        if not responses:
-            _exclude_services.extend(services)
-            return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r+1)
-        txout = self._join_txout(responses)
-        if not self._is_txout_complete(txout):
-            _exclude_services.extend(services)
-            return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r+1)
-        try:
-            if not await self.ensure_unspent_consistency_with_electrum_network(txid, index, txout):
-                return await self._gettxout(txid, index, _res=responses, _exclude_services=services, _r=_r + 1)
-        except exceptions.SpentTxOutException:
-            Logger.electrum.exception("Can't find a solution for gettxout between electrum and local services")
-            return
-        return txout
 
     async def ensure_unspent_consistency_with_electrum_network(self, txid: str, index: int, data: typing.Dict):
         if not data['addresses']:

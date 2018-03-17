@@ -117,3 +117,4 @@ def check_internet_connection():
         i += 1
     Logger.electrum.debug('No internet connectivity!')
     return False
+

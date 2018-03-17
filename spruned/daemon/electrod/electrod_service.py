@@ -21,6 +21,9 @@ class ElectrodService(RPCAPIService):
     async def listunspents(self, address: str):
         return await self.interface.listunspents(address)
 
+    async def getmerkleproof(self, txid: str, blockheight: int):
+        return await self.interface.get_merkleproof(txid, blockheight)
+
     @property
     def available(self) -> bool:
         return True
