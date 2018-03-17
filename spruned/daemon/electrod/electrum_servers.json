@@ -92,6 +92,7 @@
     ["walle.dedyn.io", "s"],
     ["ecdsa.net", "s"],
     ["erbium1.sytes.net", "s"],
-    ["gh05.geekhosters.com", "s"]
+    ["gh05.geekhosters.com", "s"],
+    ["electrum-1.mempool.co", "s"]
   ]
 }

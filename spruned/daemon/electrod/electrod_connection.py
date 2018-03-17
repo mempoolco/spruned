@@ -293,7 +293,7 @@ class ElectrodConnectionPool:
             if connection.connected and connection.score > 0:
                 return connection
             i += 1
-            if i > 100:
+            if i > 10:
                 if not fail_silent:
                     raise exceptions.NoPeersException
                 break
@@ -305,6 +305,9 @@ class ElectrodConnectionPool:
         while 1:
             connection = self._pick_connection()
             if connection in connections:
+                i += 1
+                if i > 100:
+                    raise exceptions.NoPeersException
                 continue
             connections.append(connection)
             if len(connections) == howmany:
@@ -373,7 +376,7 @@ class ElectrodConnectionPool:
     def servers(self):
         return self._servers
 
-    async def call(self, method, params, agreement=1, get_peer=False, fail_silent=False) -> Dict:
+    async def call(self, method, params, agreement=1, get_peer=False, fail_silent=False) -> (None, Dict):
         if get_peer and agreement > 1:
             raise ValueError('Error!')
         if agreement > self._required_connections:
@@ -382,16 +385,23 @@ class ElectrodConnectionPool:
             raise exceptions.NoPeersException
 
         if agreement > 1:
-            servers = self._pick_multiple_connections(agreement)
+            connections = self._pick_multiple_connections(agreement)
             responses = await asyncio.gather(
-                connection.rpc_call(method, params) for connection in servers
+                *[connection.rpc_call(method, params) for connection in connections]
             )
             responses = [r for r in responses if r is not None]
-            if len(responses) < agreement and not fail_silent:
+            if len(responses) < agreement:
                 Logger.electrum.exception('call, requested %s responses, received %s', agreement, len(responses))
                 Logger.electrum.debug('call, requested %s responses, received %s', agreement, responses)
+                if fail_silent:
+                    return
                 raise exceptions.ElectrodMissingResponseException
-            return self._handle_responses(responses)
+            try:
+                return self._handle_responses(responses)
+            except exceptions.NoQuorumOnResponsesException:
+                if fail_silent:
+                    return
+                raise
         connection = self._pick_connection()
         response = await connection.rpc_call(method, params)
         if not response and not fail_silent:

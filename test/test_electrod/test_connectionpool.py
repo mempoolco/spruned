@@ -6,6 +6,7 @@ import binascii
 import time
 
 from spruned.application.tools import async_delayed_task
+from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_connection import ElectrodConnection, ElectrodConnectionPool
 from test.utils import async_coro, coro_call
 
@@ -22,6 +23,7 @@ async def disconnect(m):
     m.connected = False
     m.protocol = None
     return m._disconnect()
+
 
 class TestElectrodConnectionPool(unittest.TestCase):
     def setUp(self):
@@ -133,3 +135,74 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.assertEqual(d, 1)
         self.assertEqual(c, 2)
         self.assertEqual(1, len([c for c in [conn1, conn2] if c.connected]))
+
+    def test_call_corners(self):
+        with self.assertRaises(ValueError):
+            self.loop.run_until_complete(self.sut.call('cafe', {'par': 'ams'}, get_peer=True, agreement=2))
+        with self.assertRaises(ValueError):
+            self.sut._required_connections = 2
+            self.loop.run_until_complete(
+                self.sut.call('cafe', {'par': 'ams'}, agreement=self.sut._required_connections+1)
+            )
+        with self.assertRaises(exceptions.NoPeersException):
+            self.loop.run_until_complete(self.sut.call('cafe', 'babe'))
+
+    def test_call_success(self):
+        response = 'some response'
+        conn = Mock(connected=True, protocol=True, score=10)
+        self.sut._connections = [conn]
+        conn.rpc_call.return_value = async_coro(response)
+        res = self.loop.run_until_complete(self.sut.call('cafe', 'babe'))
+        self.assertEqual(res, response)
+
+        conn.rpc_call.return_value = async_coro(response)
+        peer, res = self.loop.run_until_complete(self.sut.call('cafe', 'babe', get_peer=True))
+        self.assertEqual(peer, conn)
+        self.assertEqual(res, response)
+
+    def test_call_success_multiple_agreement(self):
+        response = 'some response'
+        conn = Mock(connected=True, protocol=True, score=10)
+        conn.rpc_call.return_value = async_coro(response)
+        conn2 = Mock(connected=True, protocol=True, score=10)
+        conn2.rpc_call.return_value = async_coro(response)
+        self.sut._connections = [conn, conn2]
+        res = self.loop.run_until_complete(self.sut.call('cafe', 'babe', agreement=2))
+        self.assertEqual(res, response)
+
+    def test_call_failure_not_enough_responses(self):
+        response = 'some response'
+        conn = Mock(connected=True, protocol=True, score=10)
+        conn.rpc_call.return_value = async_coro(response)
+        conn2 = Mock(connected=True, protocol=True, score=10)
+        conn2.rpc_call.return_value = async_coro(None)
+        self.sut._connections = [conn, conn2]
+        with self.assertRaises(exceptions.ElectrodMissingResponseException):
+            self.loop.run_until_complete(self.sut.call('cafe', 'babe', agreement=2))
+
+        conn.rpc_call.return_value = async_coro(response)
+        conn2.rpc_call.return_value = async_coro(None)
+        self.assertIsNone(
+            self.loop.run_until_complete(
+                self.sut.call('cafe', 'babe', agreement=2, fail_silent=True)
+            )
+        )
+
+    def test_call_failure_disagreement_on_responses(self):
+        response = 'some response'
+        response2 = 'another response'
+        conn = Mock(connected=True, protocol=True, score=10)
+        conn.rpc_call.return_value = async_coro(response)
+        conn2 = Mock(connected=True, protocol=True, score=10)
+        conn2.rpc_call.return_value = async_coro(response2)
+        self.sut._connections = [conn, conn2]
+        with self.assertRaises(exceptions.NoQuorumOnResponsesException):
+            self.loop.run_until_complete(self.sut.call('cafe', 'babe', agreement=2))
+
+        conn.rpc_call.return_value = async_coro(response)
+        conn2.rpc_call.return_value = async_coro(response2)
+        self.assertIsNone(
+            self.loop.run_until_complete(
+                self.sut.call('cafe', 'babe', agreement=2, fail_silent=True)
+            )
+        )

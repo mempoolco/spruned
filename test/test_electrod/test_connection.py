@@ -129,7 +129,7 @@ class TestElectrodConnection(unittest.TestCase):
 
     def test_subscribe(self):
         queue = Mock()
-        queue.get.side_effect = [async_coro([{'2nd': 'header'}]), ConnectionError]
+        queue.get.side_effect = [async_coro([{'2nd': 'header'}]), None]
         future = {'1st': 'header'}
         self.client.subscribe.return_value = async_coro(future), queue
         sub_called = False
@@ -141,7 +141,7 @@ class TestElectrodConnection(unittest.TestCase):
 
         self.sut.loop = self.loop
         self.sut.delayer = async_delayed_task
-        self.loop.run_until_complete(self.sut.subscribe('channel', on_subscription, lambda *a: True))
+        self.loop.run_until_complete(self.sut.subscribe('channel', on_subscription, lambda *a: async_coro(True)))
         Mock.assert_not_called(self.electrod_loop.create_task)
         self.assertTrue(sub_called)
         self.sut._last_header = {'2nd': 'header'}
