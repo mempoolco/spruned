@@ -11,7 +11,7 @@ from connectrum.svr_info import ServerInfo
 
 from spruned.application import settings
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import async_delayed_task
+from spruned.application.tools import async_delayed_task, check_internet_connection
 from spruned.daemon import exceptions
 
 
@@ -105,6 +105,10 @@ class ElectrodConnection:
             await self.on_error('connect')
 
     @property
+    def start_score(self):
+        return self._start_score
+
+    @property
     def version(self):
         return self._version
 
@@ -189,8 +193,10 @@ class ElectrodConnectionPool:
                  loop=asyncio.get_event_loop(),
                  use_tor=False,
                  electrum_servers=[],
-                 check_network_hosts=settings.CHECK_NETWORK_HOST,
-                 delayer=async_delayed_task
+                 network_checker=check_internet_connection,
+                 delayer=async_delayed_task,
+                 connection_factory=ElectrodConnection,
+                 sleep_no_internet=30
                  ):
         self._use_tor = use_tor
         self._servers = electrum_servers
@@ -204,8 +210,10 @@ class ElectrodConnectionPool:
         self._on_connect_observers = []
         self._connection_notified = False
         self._is_online = False
-        self._check_network_hosts = check_network_hosts
         self.delayer = delayer
+        self._network_checker = network_checker
+        self._connection_factory = connection_factory
+        self._sleep_on_no_internet_connectivity = sleep_no_internet
 
     def is_online(self):
         return self._is_online
@@ -244,6 +252,9 @@ class ElectrodConnectionPool:
 
     @property
     def connections(self):
+        self._connections = [
+            c for c in self._connections if c.protocol or (not c.protocol and c.score == c.start_score)
+        ]
         return self._connections
 
     @property
@@ -258,7 +269,7 @@ class ElectrodConnectionPool:
                 return server
             i += 1
             if i > 100:
-                raise exceptions.NoPeersException
+                raise exceptions.NoServersException
 
     def _pick_multiple_servers(self, howmany: int):
         assert howmany >= 1
@@ -272,7 +283,7 @@ class ElectrodConnectionPool:
             if len(servers) == howmany:
                 return servers
             if i > 100:
-                raise exceptions.NoPeersException
+                raise exceptions.NoServersException
             i += 1
 
     def _pick_connection(self, fail_silent=False):
@@ -305,20 +316,11 @@ class ElectrodConnectionPool:
     def stop(self):
         self._keepalive = False
 
-    async def _check_internet_connectivity(self):  # pragma: no cover
-        Logger.electrum.debug('Checking internet connectivity')
-        i = 0
-        while i < 10:
-            host = random.choice(self._check_network_hosts)
-            ret_code = subprocess.call(['ping', '-c', '1', '-W', '5', host],
-                                       stdout=open(os.devnull, 'w'),
-                                       stderr=open(os.devnull, 'w'))
-            if not ret_code:
-                self._is_online = True
-                return True
-            i += 1
-        Logger.electrum.debug('No internet connectivity!')
-        self._is_online = False
+    async def _check_internet_connectivity(self):
+        if self._network_checker is None:  # pragma: no cover
+            self._is_online = True
+            return
+        self._is_online = self._network_checker()
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -326,9 +328,11 @@ class ElectrodConnectionPool:
         while self._keepalive:
             if not self.is_online():
                 Logger.electrum.error(
-                    'Looks like there is no internet connection available. Sleeping the connection loop for 30s'
+                    'Looks like there is no internet connection available. '
+                    'Sleeping the connection loop for %s',
+                    self._sleep_on_no_internet_connectivity
                 )
-                await asyncio.sleep(30)
+                await asyncio.sleep(self._sleep_on_no_internet_connectivity)
                 await self._check_internet_connectivity()
                 continue
             missings = int(self._required_connections - len(self.established_connections))
@@ -349,7 +353,7 @@ class ElectrodConnectionPool:
         servers = self._pick_multiple_servers(howmany)
         servers and Logger.electrum.debug('Connecting to servers (%s)', howmany)
         for server in servers:
-            instance = ElectrodConnection(
+            instance = self._connection_factory(
                 hostname=server[0],
                 protocol=server[1],
                 keepalive=self._connections_keepalive_time,

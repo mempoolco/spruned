@@ -141,7 +141,7 @@ class TestElectrodConnection(unittest.TestCase):
 
         self.sut.loop = self.loop
         self.sut.delayer = async_delayed_task
-        self.loop.run_until_complete(self.sut.subscribe('channel', on_subscription, lambda: True))
+        self.loop.run_until_complete(self.sut.subscribe('channel', on_subscription, lambda *a: True))
         Mock.assert_not_called(self.electrod_loop.create_task)
         self.assertTrue(sub_called)
         self.sut._last_header = {'2nd': 'header'}

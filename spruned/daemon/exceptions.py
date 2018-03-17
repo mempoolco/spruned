@@ -27,3 +27,7 @@ class NoHeadersException(SprunedException):
 
 class ElectrodMissingResponseException(SprunedException):
     pass
+
+
+class NoServersException(SprunedException):
+    pass

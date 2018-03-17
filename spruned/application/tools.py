@@ -97,3 +97,23 @@ def load_config():
         os.makedirs(settings.STORAGE_ADDRESS)
     if not os.path.exists(settings.CACHE_ADDRESS):
         os.makedirs(settings.CACHE_ADDRESS)
+
+
+def check_internet_connection():
+    from spruned.application.logging_factory import Logger
+    from spruned.application.settings import CHECK_NETWORK_HOST
+    import subprocess
+    import os
+    Logger.electrum.debug('Checking internet connectivity')
+    i = 0
+    while i < 10:
+        import random
+        host = random.choice(CHECK_NETWORK_HOST)
+        ret_code = subprocess.call(['ping', '-c', '1', '-W', '5', host],
+                                   stdout=open(os.devnull, 'w'),
+                                   stderr=open(os.devnull, 'w'))
+        if not ret_code:
+            return True
+        i += 1
+    Logger.electrum.debug('No internet connectivity!')
+    return False
