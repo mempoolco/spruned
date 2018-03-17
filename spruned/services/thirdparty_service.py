@@ -71,7 +71,7 @@ class ThirdPartyServiceDelegate(RPCAPIService):
         return await self._get('gettxout', txid, index)
 
 
-def builder():
+def builder():  # pragma: no cover
     from spruned.application import settings
 
     from spruned.services.bitgo_service import BitGoService

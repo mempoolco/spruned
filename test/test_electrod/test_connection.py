@@ -101,18 +101,17 @@ class TestElectrodConnection(unittest.TestCase):
 
     def test_rpc_call_success(self):
         self.client.RPC.return_value = async_coro(True)
-        res = self.loop.run_until_complete(self.sut.rpc_call('method', {'cafe': 'babe'}))
+        res = self.loop.run_until_complete(self.sut.rpc_call('method', ('cafe', 'babe')))
         Mock.assert_called_once_with(
             self.client.RPC,
-            'method',
-            {'cafe': 'babe'}
+            'method', 'cafe', 'babe'
         )
         self.assertEqual(res, True)
 
     def test_rpc_call_error(self):
         self.delayer.return_value = 'delayed'
         self.client.RPC.return_value = ConnectionError
-        res = self.loop.run_until_complete(self.sut.rpc_call('method', {'cafe': 'babe'}))
+        res = self.loop.run_until_complete(self.sut.rpc_call('method', ('cafe', 'babe')))
         self.assertEqual(res, None)
         Mock.assert_called_once_with(self.electrod_loop.create_task, 'delayed')
         Mock.assert_called_once_with(self.delayer, coro_call('on_error'))
