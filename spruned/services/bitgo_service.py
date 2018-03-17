@@ -40,7 +40,7 @@ class BitGoService(RPCAPIService):
             'tx': data['transactions'],
         }
 
-    async def gettxout(self, txid: str, index: int):
+    async def gettxout(self, txid: str, index: int):  # pragma: no cover
         """
         looks like bitgo is a dead end for getxout
         """

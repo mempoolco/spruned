@@ -9,10 +9,3 @@ class LocalbitcoinsService(InsightService):
         self.client = httpclient(baseurl='https://localbitcoinschain.com/api/')
         self.throttling_error_codes = []
         self.utxo_tracker = utxo_tracker
-
-
-if __name__ == '__main__':
-    import asyncio
-    loop = asyncio.get_event_loop()
-    api = LocalbitcoinsService(settings.NETWORK)
-    print(loop.run_until_complete(api.gettxout('8e4c29e2c37a1107f732492a94a94197bbbc6f93aa97b7b3e58852d42680b923', 0)))

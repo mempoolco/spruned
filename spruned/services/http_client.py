@@ -41,9 +41,3 @@ class HTTPClient:
             Logger.third_party.exception('Exception on call: %s' % url)
             raise exceptions.HTTPClientException from e
         return res
-
-
-if __name__ == '__main__':
-    client = HTTPClient('http://ifconfig.co')
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(client.get('/json'))

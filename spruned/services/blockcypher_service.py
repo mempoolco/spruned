@@ -96,10 +96,3 @@ class BlockCypherService(RPCAPIService):
             return
         self.utxo_tracker and self._track_spents(data)
         return self._format_txout(data, index)
-
-
-if __name__ == '__main__':
-    import asyncio
-    loop = asyncio.get_event_loop()
-    api = BlockCypherService(settings.NETWORK, settings.BLOCKCYPHER_API_TOKEN)
-    print(loop.run_until_complete(api.gettxout('8e4c29e2c37a1107f732492a94a94197bbbc6f93aa97b7b3e58852d42680b923', 0)))

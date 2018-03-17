@@ -17,7 +17,7 @@ class InsightService(RPCAPIService):
             "source": self.__class__.__name__.replace("Service", "").lower(),
         }
 
-    async def getblock(self, blockhash):
+    async def getblock(self, blockhash):   # pragma: no cover
         pass
         """
         Logger.third_party.debug('getblock from %s' % self.__class__)

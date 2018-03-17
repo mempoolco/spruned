@@ -37,7 +37,7 @@ class ChainSoService(RPCAPIService):
             'tx': data['data']['txs']
         }
 
-    async def gettxout(self, txid: str, index: int):
+    async def gettxout(self, txid: str, index: int):   # pragma: no cover
         """
         https://chain.so/api#get-is-tx-output-spent
         """

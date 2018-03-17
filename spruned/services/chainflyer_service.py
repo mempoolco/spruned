@@ -32,7 +32,7 @@ class ChainFlyerService(RPCAPIService):
             'tx': data['tx_hashes'],
         }
 
-    async def gettxout(self, txid: str, index: int):
+    async def gettxout(self, txid: str, index: int):   # pragma: no cover
         """
         chainflyer doesn't provide enough informations to build gettxout
         """
