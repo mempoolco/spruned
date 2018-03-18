@@ -84,6 +84,10 @@ class ElectrodConnection:
         for callback in self._on_errors_callbacks:
             self.loop.create_task(callback(self, error_type=error))
 
+    async def on_peers(self):
+        for callback in self._on_peers_callbacks:
+            self.loop.create_task(callback(self))
+
     async def connect(self):
         try:
             with async_timeout.timeout(self._timeout):
@@ -230,19 +234,20 @@ class ElectrodConnectionPool:
         self.loop.create_task(self.delayer(future))
 
     def on_peer_disconnected(self, peer: ElectrodConnection):
-        pass
+        peer._errors.append(int(time.time()) + 180)  # put the peer at sleep for a while
 
     async def on_peer_received_header(self, peer: ElectrodConnection):
         for observer in self._headers_observers:
             self.loop.create_task(self.delayer(observer(peer, peer.last_header)))
 
-    async def on_peer_received_peers(self, peer: ElectrodConnection):
-        for observer in self._new_peers_observers:
-            self.loop.create_task(self.delayer(observer(peer.peers)))
+    async def on_peer_received_peers(self, peer: ElectrodConnection): # pragma: no cover
+        raise NotImplementedError
 
     async def on_peer_error(self, peer: ElectrodConnection, error_type=None):
         if error_type == 'connect':
-            await self._check_internet_connectivity()
+            if await self._check_internet_connectivity():
+                peer._errors.append(int(time.time()) + 180)
+            return
         if self.is_online:
             Logger.electrum.debug('Peer %s error', peer)
             await self._handle_peer_error(peer)
@@ -250,7 +255,7 @@ class ElectrodConnectionPool:
     @property
     def connections(self):
         self._connections = [
-            c for c in self._connections if c.protocol or (not c.protocol and c.score == c.start_score)
+            c for c in self._connections if (c.connected or (not c.connected and c.score < c.start_score))
         ]
         return self._connections
 
@@ -263,7 +268,7 @@ class ElectrodConnectionPool:
         while 1:
             if self.servers:
                 server = random.choice(self.servers)
-                if server[0] not in [connection.hostname for connection in self.connections]:
+                if server not in [connection.hostname for connection in self.connections]:
                     return server
                 i += 1
                 if i < 100:
@@ -328,6 +333,7 @@ class ElectrodConnectionPool:
             self._is_online = True
             return
         self._is_online = self._network_checker()
+        return self._is_online
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -424,6 +430,7 @@ class ElectrodConnectionPool:
     async def _handle_peer_error(self, peer: ElectrodConnection):
         Logger.electrum.debug('Handling connection error for %s', peer.hostname)
         if not peer.connected:
+            peer._errors.append(int(time.time()))
             return
         if not peer.score:
             Logger.electrum.error('Disconnecting from peer %s, score: %s', peer.hostname, peer.score)

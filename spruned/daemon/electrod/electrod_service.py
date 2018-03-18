@@ -9,14 +9,14 @@ class ElectrodService(RPCAPIService):
     async def getrawtransaction(self, txid, verbose=False):
         return await self.interface.getrawtransaction(txid)
 
-    async def getblock(self, txid, verbose=False):
-        return None
+    async def getblock(self, blockhash, verbose=False):  # pragma: no cover
+        raise NotImplementedError
 
     async def estimatefee(self, blocks: int):
         return await self.interface.estimatefee(blocks)
 
-    async def sendrawtransaction(self, rawtransaction: str):
-        return await self.interface.sendrawtransaction(rawtransaction)
+    async def sendrawtransaction(self, rawtransaction: str):  # pragma: no cover
+        raise NotImplementedError
 
     async def listunspents(self, address: str):
         return await self.interface.listunspents(address)

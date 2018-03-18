@@ -79,7 +79,12 @@ class SprunedVOService(RPCAPIService):
             assert merkleproof  # todo verify
         return transaction
 
-    async def gettxout(self, txid: str, index: int):
+    '''
+    async def gettxout(self, txid: str, index: int):  # pragma: no cover
+        """
+        This entire part need a rethinking
+        At the moment consider as we don't have a gettxout api available yet.
+        """
         source = random.choice(self.sources)
         txout = await source.gettxout(txid, index)
         if not txout:
@@ -105,7 +110,8 @@ class SprunedVOService(RPCAPIService):
             "coinbase": "Not Implemented Yet"
         }
 
-    async def ensure_unspent_consistency_with_electrum_network(self, txid: str, index: int, data: typing.Dict):
+    async def ensure_unspent_consistency_with_electrum_network(
+            self, txid: str, index: int, data: typing.Dict):   # pragma: no cover
         if not data['addresses']:
             if settings.ALLOW_UNSAFE_UTXO:
                 return True
@@ -121,7 +127,10 @@ class SprunedVOService(RPCAPIService):
                 found = unspent
                 break
         if not data['unspent'] and found:
-            Logger.third_party.debug('unspent not found in the electrum listunspent for the given address')
+            Logger.third_party.debug(
+                'unspent found in the electrum listunspent for the given address, '
+                'but marked as spent by the other sources'
+            )
             self.utxo_tracker and not data['unspent'] and self.utxo_tracker.invalidate_spent(txid, index)
             raise exceptions.SpentTxOutException
 
@@ -129,6 +138,7 @@ class SprunedVOService(RPCAPIService):
             if bool(data['value_satoshi'] != found['value']):
                 raise exceptions.SpentTxOutException
         return True
+    '''
 
     async def getbestblockhash(self):
         res = self.repository.get_best_header().get('block_hash')

@@ -100,10 +100,10 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.sut.loop = self.loop
         self.network_checker.return_value = True
         self.sut._required_connections = 2
-        conn1 = Mock(score=10, connected=False)
+        conn1 = Mock(score=10, connected=False, start_score=10)
         conn1.connect = lambda: connect(conn1)
         conn1.disconnect = lambda: disconnect(conn1)
-        conn2 = Mock(score=10, connected=False)
+        conn2 = Mock(score=10, connected=False, start_score=10)
         conn1.score = 10
         conn2.connect = lambda: connect(conn2)
         conn2.disconnect = lambda: disconnect(conn2)
@@ -233,6 +233,12 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.assertIsNone(
             self.sut._pick_connection(fail_silent=True)
         )
+        self.sut._servers = ['cafebabe']
+        self.sut._connections.append(Mock(hostname='cafebabe', connected=True))
+        with self.assertRaises(exceptions.NoServersException):
+            self.sut._pick_server()
+        with self.assertRaises(exceptions.NoServersException):
+            self.sut._pick_multiple_servers(1)
 
     def test__handle_peer_error_disconnected(self):
         conn = Mock(connected=False)
@@ -258,3 +264,47 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.assertIsNone(res)
         Mock.assert_called_with(self.electrod_loop.create_task, 'delayer')
         Mock.assert_called_with(self.delayer, 'disconnect')
+
+    def test_on_connected_callback(self):
+        peer = Mock()
+        cob = Mock()
+        self.network_checker.return_value = True
+        self.sut.add_on_connected_observer(cob)
+        peer.subscribe.return_value = 'subscriberrr'
+        self.delayer.return_value = 'delayerrr'
+        self.loop.run_until_complete(self.sut.on_peer_connected(peer))
+        Mock.assert_called_with(
+            peer.subscribe,
+            'blockchain.headers.subscribe',
+            self.sut.on_peer_received_header,
+            self.sut.on_peer_received_header,
+        )
+        Mock.assert_called_once_with(self.electrod_loop.create_task, 'delayerrr')
+        Mock.assert_called_once_with(self.delayer, 'subscriberrr')
+
+    def test_on_headers_callback(self):
+        peer = Mock(last_header='header')
+        hob = Mock()
+        hob.return_value = 'observing'
+        self.delayer.return_value = 'delayerr'
+        self.network_checker.return_value = True
+        self.sut.add_header_observer(hob)
+        self.loop.run_until_complete(self.sut.on_peer_received_header(peer))
+        Mock.assert_called_once_with(self.electrod_loop.create_task, 'delayerr')
+        Mock.assert_called_once_with(hob, peer, 'header')
+        Mock.assert_called_once_with(self.delayer, 'observing')
+
+    def test_on_peer_error(self):
+        peer = Mock(is_online=True, connected=False, _errors=[])
+        self.loop.run_until_complete(self.sut.on_peer_error(peer))
+        self.assertEqual(len(peer._errors), 1)
+
+    def test_on_peer_error_during_connection(self):
+        peer = Mock(is_online=True, connected=False, _errors=[])
+        self.network_checker.return_value = False
+        self.loop.run_until_complete(self.sut.on_peer_error(peer, error_type='connect'))
+        self.assertEqual(len(peer._errors), 0)
+
+        self.network_checker.return_value = True
+        self.loop.run_until_complete(self.sut.on_peer_error(peer, error_type='connect'))
+        self.assertEqual(len(peer._errors), 1)

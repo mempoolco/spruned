@@ -16,3 +16,7 @@ class SpentTxOutException(SprunedException):
 
 class InvalidPOWException(SprunedException):
     pass
+
+
+class SourcesDisagreementException(SprunedException):
+    pass

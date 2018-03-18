@@ -25,6 +25,7 @@ class TestElectrodConnection(unittest.TestCase):
             is_online_checker=self.checker, serverinfo=self.serverinfo, loop=self.electrod_loop,
             delayer=self.delayer
         )
+        self.assertEqual(self.sut.start_score, self.sut._start_score)
         self.loop = asyncio.get_event_loop()
 
     def tearDown(self):
@@ -50,7 +51,7 @@ class TestElectrodConnection(unittest.TestCase):
         self.sut.add_on_connect_callback(callback)
 
         self.loop.run_until_complete(self.sut.connect())
-        self.assertTrue(self.sut._version, 'ElectrumX 1.2')
+        self.assertTrue(self.sut.version, 'ElectrumX 1.2')
         Mock.assert_called_once_with(
             self.client.connect,
             'server info',
@@ -152,3 +153,28 @@ class TestElectrodConnection(unittest.TestCase):
         self.loop.run_until_complete(self.sut.subscribe('cafe', 'babe', 'c0ca'))
         Mock.assert_called_with(self.electrod_loop.create_task, 'delayer')
         Mock.assert_called_with(self.delayer, coro_call('on_error'))
+
+    def test_callbacks(self):
+        hcb = Mock(return_value=async_coro(True))
+        ccb = Mock(return_value=async_coro(True))
+        dcb = Mock(return_value=async_coro(True))
+        pcb = Mock(return_value=async_coro(True))
+        ecb = Mock(return_value=async_coro(True))
+        self.sut.add_on_header_callbacks(hcb)
+        self.sut.add_on_error_callback(ecb)
+        self.sut.add_on_connect_callback(ccb)
+        self.sut.add_on_disconnect_callback(dcb)
+        self.sut.add_on_peers_callback(pcb)
+        self.loop.run_until_complete(
+            asyncio.gather(
+                self.sut.on_header('header'),
+                self.sut.on_connect(),
+                self.sut.on_error('error'),
+                self.sut.on_peers()
+            )
+        )
+        self.sut.on_connectrum_disconnect()
+        for m in [hcb, ccb, dcb, pcb]:
+            Mock.assert_called_with(m, self.sut)
+        Mock.assert_called_with(ecb, self.sut, error_type='error')
+        self.assertEqual(self.sut.last_header, 'header')

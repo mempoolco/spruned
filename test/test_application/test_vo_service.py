@@ -172,3 +172,21 @@ class TestVOService(unittest.TestCase):
                 'pruned': False
              }
         )
+
+    def test_gettxout_ok(self):
+        TXID = 'aa'*32
+        INDEX = 0
+        self.source.gettxout.return_value = async_coro(
+            {
+                'in_block': 123,
+                'value_satoshi': 10000,
+                'script_asm': 'asm',
+                'script_hex': '61736d',
+                'script_type': 'script_type',
+                'addresses': ['1btc'],
+                'unspent': True
+            }
+        )
+        self.electrod.listunspents.return_value = async_coro([
+            {'tx_hash': TXID, 'tx_pos': INDEX}
+        ])

@@ -41,7 +41,7 @@ class JSONRPCServer:
         methods.add(self.getblock)
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
-        methods.add(self.gettxout)
+        #methods.add(self.gettxout)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -127,8 +127,10 @@ class JSONRPCServer:
             return {"error": {"code": -8, "message": "server error: try again"}}
         return response
 
+    '''
     async def gettxout(self, txid: str, index: int):
         response = await self.vo_service.gettxout(txid, index)
         if not response:
             return {"error": {"code": -8, "message": "server error: try again"}}
         return response
+    '''
