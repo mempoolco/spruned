@@ -1,175 +1,114 @@
 import abc
 import asyncio
-import random
-
 import time
-
-from spruned.application.logging_factory import Logger
-from spruned.application.tools import check_internet_connection, async_delayed_task
-from spruned.daemon import exceptions
-from spruned.daemon.abstracts import ConnectionPoolAbstract, ConnectionAbstract
+from typing import Dict, List
+from spruned.application.tools import async_delayed_task
+from spruned.daemon.abstracts import ConnectionAbstract
 
 
-class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
-    def __init__(self,
-                 peers=list(),
-                 network_checker=check_internet_connection,
-                 delayer=async_delayed_task,
-                 loop=asyncio.get_event_loop(),
-                 use_tor=False,
-                 connections=3,
-                 sleep_no_internet=30
-                 ):
-        self._connections = []
-        self._peers = peers
-        self._headers_observers = []
-        self._new_peers_observers = []
-        self._on_connect_observers = []
-        self._required_connections = connections
-        self._network_checker = network_checker
-        self._use_tor = use_tor
-        self.loop = loop
+class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
+    def __init__(
+            self, hostname: str, use_tor=False, loop=None,
+            start_score=10, timeout=10, expire_errors_after=180,
+            is_online_checker: callable=None, delayer=async_delayed_task
+    ):
+        self._is_online_checker = is_online_checker
+        self._hostname = hostname
+        self._hostname = hostname
+        self.use_tor = use_tor
+        self._version = None
+        self._on_headers_callbacks = []
+        self._on_connect_callbacks = []
+        self._on_disconnect_callbacks = []
+        self._on_errors_callbacks = []
+        self._on_peers_callbacks = []
+        self.loop = loop or asyncio.get_event_loop()
+        self._start_score = start_score
+        self._last_header = None
+        self._subscriptions = []
+        self._timeout = timeout
+        self._errors = []
+        self._peers = []
+        self._expire_errors_after = expire_errors_after
+        self._is_online_checker = is_online_checker
         self.delayer = delayer
-        self._connection_notified = False
-        self._is_online = False
-        self._sleep_on_no_internet_connectivity = sleep_no_internet
-        self._keepalive = True
+
+    @property
+    def hostname(self):
+        return self._hostname
+
+    def add_error(self, *a):
+        if len(a) and isinstance(a[0], int):
+            self._errors.append(a[0])
+        else:
+            self._errors.append(int(time.time()))
+
+    def is_online(self):
+        if self._is_online_checker is not None:
+            return self._is_online_checker()
+        return True
+
+    def add_on_header_callbacks(self, callback):
+        self._on_headers_callbacks.append(callback)
+
+    def add_on_connect_callback(self, callback):
+        self._on_connect_callbacks.append(callback)
+
+    def add_on_disconnect_callback(self, callback):
+        self._on_disconnect_callbacks.append(callback)
+
+    def add_on_peers_callback(self, callback):
+        self._on_peers_callbacks.append(callback)
+
+    def add_on_error_callback(self, callback):
+        self._on_errors_callbacks.append(callback)
+
+    async def on_header(self, header):
+        self._last_header = header
+        for callback in self._on_headers_callbacks:
+            self.loop.create_task(callback(self))
+
+    async def on_connect(self):
+        for callback in self._on_connect_callbacks:
+            self.loop.create_task(callback(self))
+
+    async def on_error(self, error):
+        if not self.is_online:
+            return
+        self._errors.append(int(time.time()))
+        for callback in self._on_errors_callbacks:
+            self.loop.create_task(callback(self, error_type=error))
+
+    async def on_peers(self):
+        for callback in self._on_peers_callbacks:
+            self.loop.create_task(callback(self))
+
+    @property
+    def start_score(self):
+        return self._start_score
+
+    @property
+    def version(self):
+        return self._version
+
+    @property
+    def last_header(self) -> Dict:
+        return self._last_header
+
+    @property
+    def subscriptions(self) -> List:
+        return self._subscriptions
+
+    @property
+    def score(self):
+        return self._start_score - len(self.errors)
+
+    @property
+    def errors(self):
+        now = int(time.time())
+        self._errors = [error for error in self._errors if now - error < self._expire_errors_after]
+        return self._errors
 
     @property
     def peers(self):
         return self._peers
-
-    @property
-    def connections(self):
-        self._connections = [
-            c for c in self._connections if (c.connected or (not c.connected and c.score < c.start_score))
-        ]
-        return self._connections
-
-    @property
-    def established_connections(self):
-        return [connection for connection in self.connections if connection.connected]
-
-    def _pick_peer(self):
-        i = 0
-        while 1:
-            if self.peers:
-                server = random.choice(self.peers)
-                if server not in [connection.hostname for connection in self.connections]:
-                    return server
-                i += 1
-                if i < 100:
-                    continue
-            raise exceptions.NoServersException
-
-    def _pick_multiple_peers(self, howmany: int):
-        assert howmany >= 1
-        i = 0
-        servers = []
-        while 1:
-            if self.peers:
-                server = self._pick_peer()
-                if server in servers:
-                    continue
-                servers.append(server)
-                if len(servers) == howmany:
-                    return servers
-                if i < 100:
-                    continue
-            raise exceptions.NoServersException
-
-    def _pick_connection(self, fail_silent=False):
-        i = 0
-        while 1:
-            if self.established_connections:
-                connection = random.choice(self.established_connections)
-                if connection.connected and connection.score > 0:
-                    return connection
-                i += 1
-                if i < 100:
-                    continue
-            if not fail_silent:
-                raise exceptions.NoPeersException
-            return
-
-    def _pick_multiple_connections(self, howmany: int):
-        assert howmany >= 1
-        i = 0
-        connections = []
-        while 1:
-            if self.established_connections:
-                connection = self._pick_connection()
-                if connection in connections:
-                    i += 1
-                    if i > 100:
-                        raise exceptions.NoPeersException
-                    continue
-                connections.append(connection)
-                if len(connections) == howmany:
-                    return connections
-            i += 1
-            if i < 100:
-                continue
-            raise exceptions.NoPeersException
-
-    def is_online(self):
-        return self._is_online
-
-    def add_on_connected_observer(self, observer):
-        self._on_connect_observers.append(observer)
-
-    def add_header_observer(self, observer):
-        self._headers_observers.append(observer)
-
-    async def on_peer_connected(self, peer: ConnectionAbstract):
-        future = peer.subscribe(
-            'blockchain.headers.subscribe',
-            self.on_peer_received_header,
-            self.on_peer_received_header
-        )
-        self.loop.create_task(self.delayer(future))
-
-    def on_peer_disconnected(self, peer: ConnectionAbstract):
-        peer.add_error(int(time.time()) + 180)
-
-    async def on_peer_received_header(self, peer: ConnectionAbstract):
-        for observer in self._headers_observers:
-            self.loop.create_task(self.delayer(observer(peer, peer.last_header)))
-
-    async def on_peer_received_peers(self, peer: ConnectionAbstract):
-        raise NotImplementedError
-
-    async def on_peer_error(self, peer: ConnectionAbstract, error_type=None):
-        if error_type == 'connect':
-            if await self._check_internet_connectivity():
-                peer.add_error(int(time.time()) + 180)
-            return
-        if self.is_online:
-            Logger.electrum.debug('Peer %s error', peer)
-            await self._handle_peer_error(peer)
-
-    def stop(self):
-        self._keepalive = False
-
-    async def _check_internet_connectivity(self):
-        if self._network_checker is None:  # pragma: no cover
-            self._is_online = True
-            return
-        self._is_online = self._network_checker()
-        return self._is_online
-
-    async def _handle_peer_error(self, peer: ConnectionAbstract):
-        Logger.electrum.debug('Handling connection error for %s', peer.hostname)
-        if not peer.connected:
-            peer.add_error()
-            return
-        if not peer.score:
-            Logger.electrum.error('Disconnecting from peer %s, score: %s', peer.hostname, peer.score)
-            self.loop.create_task(self.delayer(peer.disconnect()))
-            return
-        if not await peer.ping(timeout=2):
-            Logger.electrum.error('Ping timeout from peer %s, score: %s', peer.hostname, peer.score)
-            self.loop.create_task(self.delayer(peer.disconnect()))
-
-    def connect(self):
-        raise NotImplementedError
