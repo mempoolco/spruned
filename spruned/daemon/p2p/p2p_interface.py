@@ -3,7 +3,6 @@ from typing import Dict
 from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem, ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_TX
 from pycoin.serialize import h2b_rev, h2b
 from pycoin.tx import Tx
-
 from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
 
 
@@ -40,13 +39,12 @@ class P2PInterface:
 
 async def test(l):
     pool = P2PConnectionPool()
-    interface = P2PInterface(pool)
-
     l.create_task(pool.connect())
     await asyncio.sleep(10)
     while 1:
         if pool.available:
-            await interface.get_block('00000000a3bbe4fd1da16a29dbdaba01cc35d6fc74ee17f794cf3aab94f7aaa0')
+            await asyncio.sleep(10)
+
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()

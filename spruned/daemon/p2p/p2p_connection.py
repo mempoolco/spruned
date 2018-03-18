@@ -2,7 +2,7 @@ import asyncio
 import random
 
 import async_timeout
-from pycoin.message.InvItem import InvItem
+from pycoin.message.InvItem import InvItem, ITEM_TYPE_TX, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from pycoinnet.Peer import Peer
 from pycoinnet.PeerEvent import PeerEvent
 from pycoinnet.networks import MAINNET
@@ -13,7 +13,9 @@ from spruned.daemon.p2p.utils import dns_bootstrap_servers
 
 
 class P2PConnection:
-    def __init__(self, host, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop()):
+    def __init__(
+            self, host, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
+            peer_event_factory=PeerEvent):
         self.host = host
         self.port = port
         self._peer_factory = peer
@@ -23,6 +25,40 @@ class P2PConnection:
         self._reader = None
         self._writer = None
         self.loop = loop
+        self._peer_event_factory = peer_event_factory
+        self._event_handler = None
+        self._on_headers_callbacks = []
+        self._on_connect_callbacks = []
+        self._on_disconnect_callbacks = []
+        self._on_peers_callbacks = []
+        self._on_errors_callbacks = []
+        self._on_block_callbacks = []
+        self._on_transaction_callbacks = []
+
+    def add_on_header_callbacks(self, callback):
+        self._on_headers_callbacks.append(callback)
+
+    def add_on_connect_callback(self, callback):
+        self._on_connect_callbacks.append(callback)
+
+    def add_on_disconnect_callback(self, callback):
+        self._on_disconnect_callbacks.append(callback)
+
+    def add_on_peers_callback(self, callback):
+        self._on_peers_callbacks.append(callback)
+
+    def add_on_error_callback(self, callback):
+        self._on_errors_callbacks.append(callback)
+
+    def add_on_block_callbacks(self, callback):
+        self._on_block_callbacks.append(callback)
+
+    def add_on_transaction_callback(self, callback):
+        self._on_transaction_callbacks.append(callback)
+
+    @property
+    def peer_event_handler(self) -> PeerEvent:
+        return self._event_handler
 
     @property
     def connected(self):
@@ -41,6 +77,8 @@ class P2PConnection:
         peer.version = await peer.perform_handshake(**version_data)
         self._version = peer.version
         self.peer = peer
+        self._event_handler = self._peer_event_factory(self.peer)
+        self._setup_events_handler()
         return self
 
     async def disconnect(self):
@@ -50,11 +88,48 @@ class P2PConnection:
             Logger.p2p.error('Error closing with peer: %s', self.peer.peername())
         self.peer = None
 
+    def _setup_events_handler(self):
+        self.peer_event_handler.set_request_callback('inv', self._on_inv)
+        self.peer_event_handler.set_request_callback('addr', self._on_addr)
+        self.peer_event_handler.set_request_callback('alert', self._on_alert)
+        self.peer_event_handler.set_request_callback('ping', self._on_ping)
+
+    def _on_inv(self, event_handler, name, data):
+        self.loop.create_task(self._process_inv(event_handler, name, data))
+
+    def _on_alert(self, event_handler, name, data):
+        Logger.p2p.debug('Handle alert: %s, %s, %s', event_handler, name, data)
+
+    def _on_addr(self, event_handler, name, data):
+        Logger.p2p.debug('Handle addr: %s, %s, %s', event_handler, name, data)
+        for callback in self._on_peers_callbacks:
+            self.loop.create_task(callback(self, data))
+
+    def _on_ping(self, event_handler, name, data):
+        self.peer.send_msg("pong", nonce=data["nonce"])
+
+    async def _process_inv(self, event_handler, name, data):
+        for item in data.get('items'):
+            if item.item_type == ITEM_TYPE_TX:
+                for callback in self._on_transaction_callbacks:
+                    item: InvItem
+                    self.loop.create_task(callback(self, item))
+            elif item.item_type == ITEM_TYPE_BLOCK:
+                Logger.p2p.debug('Received new block: %s', item.data)
+                for callback in self._on_block_callbacks:
+                    self.loop.create_task(callback(self, item))
+            elif item.item_type == ITEM_TYPE_MERKLEBLOCK:
+                Logger.p2p.debug('Received new header: %s', item.data)
+                for callback in self._on_headers_callbacks:
+                    self.loop.create_task(callback(self, item))
+            else:
+                Logger.p2p.error('Error InvType: %s, %s, %s', event_handler, name, item)
+
 
 class P2PConnectionPool:
     def __init__(
             self, inv_batcher=InvBatcher, network=MAINNET, connections=1,
-            loop=asyncio.get_event_loop(), peer_event_factory=PeerEvent,
+            loop=asyncio.get_event_loop(),
             network_checker=None, peers_factory=dns_bootstrap_servers
     ):
         self._connections = []
@@ -63,7 +138,6 @@ class P2PConnectionPool:
         self._network = network
         self._required_connections = connections
         self.loop = loop
-        self._peer_event_handler_factory = peer_event_factory
         self._peers_factory = peers_factory
         self._network_checker = network_checker
 
@@ -81,7 +155,7 @@ class P2PConnectionPool:
     async def _get_batcher(self) -> InvBatcher:
         batcher = self._batcher_factory()
         for connection in self.connections:
-            peer_event_handler = self._peer_event_handler_factory(connection.peer)
+            peer_event_handler = connection.peer_event_handler
             await batcher.add_peer(peer_event_handler)
         return batcher
 
@@ -109,7 +183,10 @@ class P2PConnectionPool:
 
     async def _connect_peer(self, host: str, port: int):
         connection = P2PConnection(host, port, loop=self.loop, network=self._network)
-        await connection.connect()
+        try:
+            await connection.connect()
+        except (asyncio.CancelledError, OSError) as error:
+            Logger.p2p.error('Error connecting to %s - %s, error: %s', host, port, error)
         if connection.connected:
             self._connections.append(connection)
         else:
