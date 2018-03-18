@@ -10,9 +10,10 @@ from connectrum.svr_info import ServerInfo
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task, check_internet_connection
 from spruned.daemon import exceptions
+from spruned.daemon.abstracts import ConnectionPoolAbstract, ConnectionAbstract
 
 
-class ElectrodConnection:
+class ElectrodConnection(ConnectionAbstract):
     def __init__(
             self, hostname: str, protocol: str, keepalive=180,
             client=StratumClient, serverinfo=ServerInfo, nickname=None, use_tor=False, loop=None,
@@ -188,12 +189,12 @@ class ElectrodConnection:
             self.client.protocol = None
 
 
-class ElectrodConnectionPool:
+class ElectrodConnectionPool(ConnectionPoolAbstract):
     def __init__(self,
                  connections=3,
                  loop=asyncio.get_event_loop(),
                  use_tor=False,
-                 electrum_servers=[],
+                 electrum_servers=list(),
                  network_checker=check_internet_connection,
                  delayer=async_delayed_task,
                  connection_factory=ElectrodConnection,

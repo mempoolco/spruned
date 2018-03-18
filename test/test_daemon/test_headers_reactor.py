@@ -491,12 +491,11 @@ class TestHeadersReactor(unittest.TestCase):
             "block_height": 1,
             "block_hash": "ff"*32, "timestamp": header_timestamp - 700, 'header_bytes': b'', 'prev_block_hash': '00'*32
         }
-        peer = Mock()
+        peer = Mock(server_info='mock_peer')
         self.interface.get_header.side_effect = [async_coro((peer, net_header))]
         self.sut.synced = True
         self.sut.set_last_processed_header(loc_header)
         self.assertFalse(self.sut.lock.locked())
-        peer = Mock(server_info='mock_peer')
         self.loop.run_until_complete(self.sut.check_headers())
         Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(655, 660))
         Mock.assert_has_calls(

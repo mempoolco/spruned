@@ -1,5 +1,7 @@
 import asyncio
 import random
+from typing import List
+
 import async_timeout
 from pycoin.message.InvItem import InvItem, ITEM_TYPE_TX, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from pycoinnet.Peer import Peer
@@ -8,6 +10,7 @@ from pycoinnet.networks import MAINNET
 from pycoinnet.inv_batcher import InvBatcher
 from pycoinnet.version import version_data_for_peer
 from spruned.application.logging_factory import Logger
+from spruned.daemon.abstracts import ConnectionPoolAbstract
 from spruned.daemon.p2p.utils import dns_bootstrap_servers
 
 
@@ -126,7 +129,20 @@ class P2PConnection:
                 Logger.p2p.error('Error InvType: %s, %s, %s', event_handler, name, item)
 
 
-class P2PConnectionPool:
+class P2PConnectionPool(ConnectionPoolAbstract):
+    @property
+    def established_connections(self) -> List:
+        raise NotImplementedError
+
+    def add_on_connected_observer(self, observer):
+        raise NotImplementedError
+
+    def add_header_observer(self, observer):
+        raise NotImplementedError
+
+    def is_online(self) -> bool:
+        raise NotImplementedError
+
     def __init__(
             self, inv_batcher=InvBatcher, network=MAINNET, connections=1,
             loop=asyncio.get_event_loop(),
