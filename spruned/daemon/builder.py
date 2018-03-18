@@ -26,7 +26,7 @@ def build_electrod_interface(connections=3, loop=asyncio.get_event_loop()):  # p
         return servers[network]
 
     electrod_pool = ElectrodConnectionPool(
-        connections=connections, electrum_servers=load_electrum_servers("bc_mainnet")
+        connections=connections, peers=load_electrum_servers("bc_mainnet")
     )
     electrod_interface = ElectrodInterface(electrod_pool, loop)
     return electrod_interface

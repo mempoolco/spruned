@@ -1,7 +1,6 @@
 import asyncio
 import os
 import binascii
-import random
 import time
 from typing import Dict, List
 import async_timeout
@@ -10,7 +9,8 @@ from connectrum.svr_info import ServerInfo
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task, check_internet_connection
 from spruned.daemon import exceptions
-from spruned.daemon.abstracts import ConnectionPoolAbstract, ConnectionAbstract
+from spruned.daemon.abstracts import ConnectionAbstract
+from spruned.daemon.connection_base_impl import BaseConnectionPool
 
 
 class ElectrodConnection(ConnectionAbstract):
@@ -20,7 +20,7 @@ class ElectrodConnection(ConnectionAbstract):
             start_score=10, timeout=10, expire_errors_after=180,
             is_online_checker: callable=None, delayer=async_delayed_task
     ):
-        self.hostname = hostname
+        self._hostname = hostname
         self.protocol = protocol
         self.keepalive = keepalive
         self.client: StratumClient = client()
@@ -44,6 +44,16 @@ class ElectrodConnection(ConnectionAbstract):
         self._expire_errors_after = expire_errors_after
         self._is_online_checker = is_online_checker
         self.delayer = delayer
+
+    @property
+    def hostname(self):
+        return self._hostname
+
+    def add_error(self, *a):
+        if len(a) and isinstance(a[0], int):
+            self._errors.append(a[0])
+        else:
+            self._errors.append(int(time.time()))
 
     def is_online(self):
         if self._is_online_checker is not None:
@@ -189,152 +199,24 @@ class ElectrodConnection(ConnectionAbstract):
             self.client.protocol = None
 
 
-class ElectrodConnectionPool(ConnectionPoolAbstract):
-    def __init__(self,
-                 connections=3,
-                 loop=asyncio.get_event_loop(),
-                 use_tor=False,
-                 electrum_servers=list(),
-                 network_checker=check_internet_connection,
-                 delayer=async_delayed_task,
-                 connection_factory=ElectrodConnection,
-                 sleep_no_internet=30
-                 ):
-        self._use_tor = use_tor
-        self._servers = electrum_servers
-        self._connections = []
-        self._required_connections = connections
-        self._keepalive = True
-        self.loop = loop
-        self._connections_keepalive_time = 120
-        self._headers_observers = []
-        self._new_peers_observers = []
-        self._on_connect_observers = []
-        self._connection_notified = False
-        self._is_online = False
-        self.delayer = delayer
-        self._network_checker = network_checker
-        self._connection_factory = connection_factory
-        self._sleep_on_no_internet_connectivity = sleep_no_internet
-
-    def is_online(self):
-        return self._is_online
-
-    def add_on_connected_observer(self, observer):
-        self._on_connect_observers.append(observer)
-
-    def add_header_observer(self, observer):
-        self._headers_observers.append(observer)
-
-    async def on_peer_connected(self, peer: ElectrodConnection):
-        future = peer.subscribe(
-            'blockchain.headers.subscribe',
-            self.on_peer_received_header,
-            self.on_peer_received_header
+class ElectrodConnectionPool(BaseConnectionPool):
+    def __init__(
+            self,
+            connection_factory=ElectrodConnection,
+            peers=list(),
+            network_checker=check_internet_connection,
+            delayer=async_delayed_task,
+            loop=asyncio.get_event_loop(),
+            use_tor=False,
+            connections=3,
+            sleep_no_internet=30
+    ):
+        super().__init__(
+            peers=peers, network_checker=network_checker, delayer=delayer,
+            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
         )
-        self.loop.create_task(self.delayer(future))
-
-    def on_peer_disconnected(self, peer: ElectrodConnection):
-        peer._errors.append(int(time.time()) + 180)  # put the peer at sleep for a while
-
-    async def on_peer_received_header(self, peer: ElectrodConnection):
-        for observer in self._headers_observers:
-            self.loop.create_task(self.delayer(observer(peer, peer.last_header)))
-
-    async def on_peer_received_peers(self, peer: ElectrodConnection): # pragma: no cover
-        raise NotImplementedError
-
-    async def on_peer_error(self, peer: ElectrodConnection, error_type=None):
-        if error_type == 'connect':
-            if await self._check_internet_connectivity():
-                peer._errors.append(int(time.time()) + 180)
-            return
-        if self.is_online:
-            Logger.electrum.debug('Peer %s error', peer)
-            await self._handle_peer_error(peer)
-
-    @property
-    def connections(self):
-        self._connections = [
-            c for c in self._connections if (c.connected or (not c.connected and c.score < c.start_score))
-        ]
-        return self._connections
-
-    @property
-    def established_connections(self):
-        return [connection for connection in self.connections if connection.connected]
-
-    def _pick_server(self):
-        i = 0
-        while 1:
-            if self.servers:
-                server = random.choice(self.servers)
-                if server not in [connection.hostname for connection in self.connections]:
-                    return server
-                i += 1
-                if i < 100:
-                    continue
-            raise exceptions.NoServersException
-
-    def _pick_multiple_servers(self, howmany: int):
-        assert howmany >= 1
-        i = 0
-        servers = []
-        while 1:
-            if self.servers:
-                server = self._pick_server()
-                if server in servers:
-                    continue
-                servers.append(server)
-                if len(servers) == howmany:
-                    return servers
-                if i < 100:
-                    continue
-            raise exceptions.NoServersException
-
-    def _pick_connection(self, fail_silent=False):
-        i = 0
-        while 1:
-            if self.established_connections:
-                connection = random.choice(self.established_connections)
-                if connection.connected and connection.score > 0:
-                    return connection
-                i += 1
-                if i < 100:
-                    continue
-            if not fail_silent:
-                raise exceptions.NoPeersException
-            return
-
-    def _pick_multiple_connections(self, howmany: int):
-        assert howmany >= 1
-        i = 0
-        connections = []
-        while 1:
-            if self.established_connections:
-                connection = self._pick_connection()
-                if connection in connections:
-                    i += 1
-                    if i > 100:
-                        raise exceptions.NoPeersException
-                    continue
-                connections.append(connection)
-                if len(connections) == howmany:
-                    return connections
-            i += 1
-            if i < 100:
-                continue
-            raise exceptions.NoPeersException
-
-    def stop(self):
-        self._keepalive = False
-
-    async def _check_internet_connectivity(self):
-        if self._network_checker is None:  # pragma: no cover
-            self._is_online = True
-            return
-        self._is_online = self._network_checker()
-        return self._is_online
+        self._connections_keepalive_time = 120
+        self._connection_factory = connection_factory
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -364,12 +246,12 @@ class ElectrodConnectionPool(ConnectionPoolAbstract):
             await asyncio.sleep(missings and 2 or 10)
 
     async def _connect_servers(self, howmany: int):
-        servers = self._pick_multiple_servers(howmany)
-        servers and Logger.electrum.debug('Connecting to servers (%s)', howmany)
-        for server in servers:
+        peers = self._pick_multiple_peers(howmany)
+        peers and Logger.electrum.debug('Connecting to peers (%s)', howmany)
+        for peer in peers:
             instance = self._connection_factory(
-                hostname=server[0],
-                protocol=server[1],
+                hostname=peer[0],
+                protocol=peer[1],
                 keepalive=self._connections_keepalive_time,
                 use_tor=self._use_tor,
                 loop=self.loop,
@@ -380,12 +262,8 @@ class ElectrodConnectionPool(ConnectionPoolAbstract):
             instance.add_on_peers_callback(self.on_peer_received_peers)
             instance.add_on_error_callback(self.on_peer_error)
             self._connections.append(instance)
-            Logger.electrum.debug('Created client instance: %s', server[0])
+            Logger.electrum.debug('Created client instance: %s', peer[0])
             self.loop.create_task(instance.connect())
-
-    @property
-    def servers(self):
-        return self._servers
 
     async def call(self, method, *params, agreement=1, get_peer=False, fail_silent=False) -> (None, Dict):
         if get_peer and agreement > 1:
@@ -428,15 +306,5 @@ class ElectrodConnectionPool(ConnectionPoolAbstract):
                 return response
         raise exceptions.NoQuorumOnResponsesException(responses)
 
-    async def _handle_peer_error(self, peer: ElectrodConnection):
-        Logger.electrum.debug('Handling connection error for %s', peer.hostname)
-        if not peer.connected:
-            peer._errors.append(int(time.time()))
-            return
-        if not peer.score:
-            Logger.electrum.error('Disconnecting from peer %s, score: %s', peer.hostname, peer.score)
-            self.loop.create_task(self.delayer(peer.disconnect()))
-            return
-        if not await peer.ping(timeout=2):
-            Logger.electrum.error('Ping timeout from peer %s, score: %s', peer.hostname, peer.score)
-            self.loop.create_task(self.delayer(peer.disconnect()))
+    def on_peer_received_peers(self, peer: ConnectionAbstract):
+        raise NotImplementedError

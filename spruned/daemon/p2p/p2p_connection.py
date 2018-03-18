@@ -205,6 +205,10 @@ class P2PConnectionPool(ConnectionPoolAbstract):
             Logger.p2p.error('Error connecting to %s - %s, error: %s', host, port, error)
         if connection.connected:
             self._connections.append(connection)
+            connection.add_on_connect_callback(self.on_peer_connected)
+            connection.add_on_header_callbacks(self.on_peer_received_header)
+            connection.add_on_peers_callback(self.on_peer_received_peers)
+            connection.add_on_error_callback(self.on_peer_error)
         else:
             Logger.p2p.warning('Connection to %s - %s failed', host, port)
 

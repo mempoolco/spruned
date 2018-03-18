@@ -2,10 +2,20 @@ import abc
 from typing import List
 
 
-class ConnectionAbstract(meta=abc.ABCMeta):  # pragma: no cover
+class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
     @property
     @abc.abstractmethod
     def start_score(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def hostname(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def score(self):
         pass
 
     @property
@@ -48,7 +58,7 @@ class ConnectionAbstract(meta=abc.ABCMeta):  # pragma: no cover
         pass
 
     @abc.abstractmethod
-    def ping(self):
+    def ping(self, timeout=None):
         pass
 
     @property
@@ -64,8 +74,12 @@ class ConnectionAbstract(meta=abc.ABCMeta):  # pragma: no cover
     def disconnect(self):
         pass
 
+    @abc.abstractmethod
+    def add_error(self, *a):
+        pass
 
-class ConnectionPoolAbstract(meta=abc.ABCMeta):  # pragma: no cover
+
+class ConnectionPoolAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
     @property
     @abc.abstractmethod
     def established_connections(self) -> List:
