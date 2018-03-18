@@ -37,6 +37,10 @@ class LoggingFactory:
         return logging.getLogger('electrum')
 
     @property
+    def p2p(self):
+        return logging.getLogger('p2p')
+
+    @property
     def bitcoind(self):
         return logging.getLogger('bitcoind')
 

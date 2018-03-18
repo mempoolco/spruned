@@ -7,3 +7,4 @@ aiohttp
 jsonrpcserver
 sqlalchemy
 coverage
+-e git+https://github.com/richardkiss/pycoinnet.git@remix#egg=pycoinnet-remix
