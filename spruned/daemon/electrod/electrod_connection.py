@@ -2,14 +2,13 @@ import asyncio
 import os
 import binascii
 import time
-from typing import Dict, List
+from typing import Dict
 import async_timeout
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task, check_internet_connection
 from spruned.daemon import exceptions
-from spruned.daemon.abstracts import ConnectionAbstract
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
 
@@ -215,5 +214,13 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 return response
         raise exceptions.NoQuorumOnResponsesException(responses)
 
-    def on_peer_received_peers(self, peer: ConnectionAbstract):
+    def on_peer_received_peers(self, peer: ElectrodConnection):
         raise NotImplementedError
+
+    async def on_peer_connected(self, peer: ElectrodConnection):
+        future = peer.subscribe(
+            'blockchain.headers.subscribe',
+            self.on_peer_received_header,
+            self.on_peer_received_header
+        )
+        self.loop.create_task(self.delayer(future))

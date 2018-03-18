@@ -120,14 +120,6 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
     def add_header_observer(self, observer):
         self._headers_observers.append(observer)
 
-    async def on_peer_connected(self, peer: ConnectionAbstract):
-        future = peer.subscribe(
-            'blockchain.headers.subscribe',
-            self.on_peer_received_header,
-            self.on_peer_received_header
-        )
-        self.loop.create_task(self.delayer(future))
-
     def on_peer_disconnected(self, peer: ConnectionAbstract):
         peer.add_error(int(time.time()) + 180)
 

@@ -75,7 +75,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
     async def on_error(self, error):
         if not self.is_online:
             return
-        self._errors.append(int(time.time()))
+        self.add_error()
         for callback in self._on_errors_callbacks:
             self.loop.create_task(callback(self, error_type=error))
 

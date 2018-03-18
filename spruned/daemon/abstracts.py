@@ -67,10 +67,6 @@ class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
         pass
 
     @abc.abstractmethod
-    def subscribe(self, channel, on_subscription, on_traffic):
-        pass
-
-    @abc.abstractmethod
     def disconnect(self):
         pass
 
