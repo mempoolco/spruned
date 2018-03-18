@@ -6,17 +6,16 @@ def build():  # pragma: no cover
     from spruned.application import spruned_vo_service, settings, database
     from spruned.application.cache import CacheFileInterface
     from spruned.application.jsonrpc_server import JSONRPCServer
-    from spruned.daemon.electrod.electrod_reactor import build_electrod
+    from spruned.daemon.builder import build_reactor_and_daemon, build_electrod_interface
     from spruned.application.headers_repository import HeadersSQLiteRepository
 
     headers_repository = HeadersSQLiteRepository(database.session)
     cache = CacheFileInterface(settings.CACHE_ADDRESS)
-    electrod_daemon, electrod_service = build_electrod(
-        headers_repository, settings.NETWORK, settings.ELECTROD_CONNECTIONS
-    )
+    interface = build_electrod_interface(connections=settings.ELECTROD_CONNECTIONS)
+    headers_reactor, daemon_service = build_reactor_and_daemon(headers_repository, interface)
     third_pary_services = third_party_services_builder()
     service = spruned_vo_service.SprunedVOService(
-        electrod_service,
+        daemon_service,
         cache=cache,
         repository=headers_repository
     )
@@ -28,7 +27,7 @@ def build():  # pragma: no cover
         settings.JSONRPCSERVER_PASSWORD
     )
     jsonrpc_server.set_vo_service(service)
-    return electrod_daemon, jsonrpc_server
+    return headers_reactor, jsonrpc_server
 
 
-electrod_daemon, jsonrpc_server = build()  # pragma: no cover
+daemon, jsonrpc_server = build()  # pragma: no cover

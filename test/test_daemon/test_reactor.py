@@ -7,19 +7,19 @@ from spruned.application import settings
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.electrod.electrod_reactor import ElectrodReactor
+from spruned.daemon.headers_reactor import HeadersReactor
 from test.utils import async_coro, coro_call, in_range, make_headers
 import warnings
 
 
-class TestElectrodReactor(unittest.TestCase):
+class TestHeadersReactor(unittest.TestCase):
     def setUp(self):
         self.repo = create_autospec(HeadersRepository)
         self.interface = create_autospec(ElectrodInterface)
         self.electrod_loop = Mock()
         self.electrod_loop.create_task.side_effect = lambda x: x
         self.delay_task_runner = Mock()
-        self.sut = ElectrodReactor(
+        self.sut = HeadersReactor(
             self.repo, self.interface, loop=self.electrod_loop, delayed_task=self.delay_task_runner
         )
         self.loop = asyncio.get_event_loop()

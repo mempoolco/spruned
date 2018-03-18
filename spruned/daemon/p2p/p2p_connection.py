@@ -1,6 +1,5 @@
 import asyncio
 import random
-
 import async_timeout
 from pycoin.message.InvItem import InvItem, ITEM_TYPE_TX, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from pycoinnet.Peer import Peer
@@ -111,6 +110,7 @@ class P2PConnection:
     async def _process_inv(self, event_handler, name, data):
         for item in data.get('items'):
             if item.item_type == ITEM_TYPE_TX:
+                False and Logger.p2p.debug('Received new transaction: %s', item.data)
                 for callback in self._on_transaction_callbacks:
                     item: InvItem
                     self.loop.create_task(callback(self, item))

@@ -1,21 +1,16 @@
 import asyncio
 import unittest
-from unittest.mock import Mock, call, create_autospec
-import binascii
+from unittest.mock import Mock, create_autospec
 
-import time
-
-from spruned.application.tools import async_delayed_task
-from spruned.daemon.electrod.electrod_connection import ElectrodConnection
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.electrod.electrod_service import ElectrodService
-from test.utils import async_coro, coro_call
+from spruned.daemon.daemon_service import DaemonService
+from test.utils import async_coro
 
 
 class TestElectrodService(unittest.TestCase):
     def setUp(self):
         self.interface = create_autospec(ElectrodInterface)
-        self.sut = ElectrodService(self.interface)
+        self.sut = DaemonService(self.interface)
         self.loop = asyncio.get_event_loop()
         self.assertEqual(self.sut.available, True)  # mmmh... this may be implemented
 

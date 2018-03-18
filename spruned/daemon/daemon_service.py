@@ -2,7 +2,7 @@ from spruned.application.abstracts import RPCAPIService
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 
 
-class ElectrodService(RPCAPIService):
+class DaemonService(RPCAPIService):
     def __init__(self, interface: ElectrodInterface):
         self.interface = interface
 
