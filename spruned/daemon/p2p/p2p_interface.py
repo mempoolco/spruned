@@ -2,6 +2,8 @@ import asyncio
 from typing import Dict
 
 import sys
+
+import time
 from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem, ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_TX
 from pycoin.serialize import h2b_rev, h2b
 from pycoin.tx import Tx
@@ -37,7 +39,7 @@ class P2PInterface:
 async def test():
     from pycoinnet.networks import MAINNET
     peers = await utils.dns_bootstrap_servers(MAINNET)
-    pool = P2PConnectionPool(peers=peers, connections=5)
+    pool = P2PConnectionPool(peers=peers, connections=8)
     interface = P2PInterface(pool)
     print(peers)
     loop.create_task(pool.connect())
@@ -49,16 +51,16 @@ async def test():
         c = len(pool.established_connections)
         await asyncio.sleep(5)
     print('ready!')
-    blockhash = '000000000000000009f1e4c80dc536b8267cbdaa6f9ae39e61039e1b39f5ff01'
+    blockhash = '0000000000000000001f0324001c8acc2a32608275ab3730d41d90d5507391b7'
     while 1:
+        now = time.time()
+        await asyncio.sleep(1)
         res = await interface.get_block(blockhash)
         if not res:
             continue
+        print('Block downloaded in %s' % (time.time() - now))
         print('Block: %s' % res)
         blockhash = str(res['prev_block_hash'])
-        await asyncio.sleep(2)
-
-
 
 
 if __name__ == '__main__':

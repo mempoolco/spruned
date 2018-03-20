@@ -120,14 +120,14 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
     def add_header_observer(self, observer):
         self._headers_observers.append(observer)
 
-    def on_peer_disconnected(self, peer: ConnectionAbstract):
+    def on_peer_disconnected(self, peer: ConnectionAbstract, *_):
         peer.add_error(int(time.time()) + 180)
 
-    async def on_peer_received_header(self, peer: ConnectionAbstract):
+    async def on_peer_received_header(self, peer: ConnectionAbstract, *_):
         for observer in self._headers_observers:
             self.loop.create_task(self.delayer(observer(peer, peer.last_header)))
 
-    async def on_peer_received_peers(self, peer: ConnectionAbstract):
+    async def on_peer_received_peers(self, peer: ConnectionAbstract, *_):
         raise NotImplementedError
 
     async def on_peer_error(self, peer: ConnectionAbstract, error_type=None):

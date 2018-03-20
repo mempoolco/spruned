@@ -214,7 +214,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 return response
         raise exceptions.NoQuorumOnResponsesException(responses)
 
-    def on_peer_received_peers(self, peer: ElectrodConnection):
+    def on_peer_received_peers(self, peer: ElectrodConnection, *_):
         raise NotImplementedError
 
     async def on_peer_connected(self, peer: ElectrodConnection):
