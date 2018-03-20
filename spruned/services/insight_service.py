@@ -17,18 +17,6 @@ class InsightService(RPCAPIService):
             "source": self.__class__.__name__.replace("Service", "").lower(),
         }
 
-    async def getblock(self, blockhash):   # pragma: no cover
-        pass
-        """
-        Logger.third_party.debug('getblock from %s' % self.__class__)
-        data = await self.get('block/' + blockhash)
-        return data and {
-            "source": self.__class__.__name__.replace("Service", "").lower(),
-            'hash': data['hash'],
-            'tx': None
-        }
-        """
-
     def _track_spents(self, data):
         for i, _v in enumerate(data.get('vout', [])):
             _v.get('spentTxId') and self.utxo_tracker.track_utxo_spent(

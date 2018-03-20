@@ -1,15 +1,7 @@
 import asyncio
-import logging
 from typing import Dict, List
-
-import sys
-
-import time
-
-from pycoin.block import Block
-from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem, ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_TX
-from pycoin.serialize import h2b_rev, h2b
-from pycoin.tx import Tx
+from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem
+from pycoin.serialize import h2b_rev
 from pycoinnet.networks import MAINNET
 
 from spruned.daemon.p2p import utils
@@ -35,7 +27,8 @@ class P2PInterface:
             "prev_block_hash": response.previous_block_hash,
             "timestamp": response.timestamp,
             "header_bytes": response.as_blockheader().as_bin(),
-            "block_object": response
+            "block_object": response,
+            "block_bytes": response.as_bin()
         }
 
     async def get_blocks(self, start: str, stop: str, max: int) -> List[Dict]:

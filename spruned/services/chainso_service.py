@@ -28,15 +28,6 @@ class ChainSoService(RPCAPIService):
             'source': 'chainso'
         }
 
-    async def getblock(self, blockhash):
-        Logger.third_party.debug('getblock from %s' % self.__class__)
-        data = await self.get('get_block/' + self._coin_url + blockhash)
-        return data and data.get('success') and {
-            'source': 'chainso',
-            'hash': data['data']['blockhash'],
-            'tx': data['data']['txs']
-        }
-
     async def gettxout(self, txid: str, index: int):   # pragma: no cover
         """
         https://chain.so/api#get-is-tx-output-spent

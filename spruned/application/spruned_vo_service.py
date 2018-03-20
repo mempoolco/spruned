@@ -1,8 +1,12 @@
 import typing
 import random
 import binascii
+
+from pycoin.block import Block
+from pycoin.tx import Tx
+
 from spruned.application.tools import deserialize_header
-from spruned.application import settings, exceptions
+from spruned.application import settings, exceptions, utils
 from spruned.application.abstracts import RPCAPIService, StorageInterface
 from spruned.application.cache import cache_block, cache_transaction
 from spruned.application.logging_factory import Logger
@@ -37,31 +41,28 @@ class SprunedVOService(RPCAPIService):
         assert isinstance(service, RPCAPIService)
         self.sources.append(service)
 
-    @cache_block
-    async def getblock(self, blockhash: str):
-        source = random.choice(self.sources)
-        block = await source.getblock(blockhash)
-        await self._verify_block_with_local_header(block)
-        return block
+    async def getblock(self, blockhash: str, mode: int=1):
+        block_header = self.repository.get_block_header(blockhash)
+        if not block_header:
+            return
+        block = await self._get_block(block_header)
+        if mode == 1:
+            best_header = self.repository.get_best_header()
+            block['confirmations'] = best_header['block_height'] - block_header['block_height']
+            serialized = self._serialize_header(block_header)
+            serialized['tx'] = [tx.id() for tx in block['block_object'].txs]
+            return serialized
+        elif mode == 2:
+            raise NotImplementedError
+        return binascii.hexlify(block['block_bytes']).decode()
 
-    async def _verify_block_with_local_header(self, block):
-        repo_header = self.repository.get_block_header(block['hash'])
-        _header = binascii.hexlify(repo_header['header_bytes']).decode()
-        header = deserialize_header(_header)
-        block['version'] = header['version']
-        block['time'] = header['timestamp']
-        block['versionHex'] = None
-        block['mediantime'] = None
-        block['nonce'] = header['nonce']
-        block['bits'] = header['bits']
-        block['difficulty'] = None
-        block['chainwork'] = None
-        block['previousblockhash'] = header['prev_block_hash']
-        block['height'] = repo_header['block_height']
-        # TODO Verify transactions tree
-        if header.get('nextblockhash'):
-            block['nextblockhash'] = repo_header.get('next_block_hash')
-        block.pop('confirmations', None)
+    async def _get_block(self, blockheader, _r=0):
+        blockhash = blockheader['block_hash']
+        block = self.repository.get_block(blockhash) or await self.p2p.get_block(blockhash)
+        if not block:
+            if _r > 3:
+                raise exceptions.ServiceException
+            return await self._get_block(blockheader, _r+1)
         return block
 
     @cache_transaction
@@ -152,26 +153,30 @@ class SprunedVOService(RPCAPIService):
         header = self.repository.get_block_header(blockhash)
         if verbose:
             _best_header = self.repository.get_best_header()
-            _deserialized_header = deserialize_header(binascii.hexlify(header['header_bytes']).decode())
-            res = {
-                  "hash": _deserialized_header['hash'],
-                  "confirmations": _best_header['block_height'] - header['block_height'] + 1,
-                  "height": header['block_height'],
-                  "version": _deserialized_header['version'],
-                  "versionHex": "Not Implemented Yet",
-                  "merkleroot": _deserialized_header['merkle_root'],
-                  "time": _deserialized_header['timestamp'],
-                  "mediantime": _deserialized_header['timestamp'],
-                  "nonce": _deserialized_header['nonce'],
-                  "bits": _deserialized_header['bits'],
-                  "difficulty": "Not Implemented Yet",
-                  "chainwork": "Not Implemented Yet",
-                  "previousblockhash": _deserialized_header['prev_block_hash'],
-                  "nextblockhash": header.get('next_block_hash')
-                }
+            res = self._serialize_header(header)
+            res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
         else:
             res = binascii.hexlify(header['header_bytes']).decode()
         return res
+
+    @staticmethod
+    def _serialize_header(header):
+        _deserialized_header = deserialize_header(binascii.hexlify(header['header_bytes']).decode())
+        return {
+            "hash": _deserialized_header['hash'],
+            "height": header['block_height'],
+            "version": _deserialized_header['version'],
+            "versionHex": "Not Implemented Yet",
+            "merkleroot": _deserialized_header['merkle_root'],
+            "time": _deserialized_header['timestamp'],
+            "mediantime": _deserialized_header['timestamp'],
+            "nonce": _deserialized_header['nonce'],
+            "bits": _deserialized_header['bits'],
+            "difficulty": "Not Implemented Yet",
+            "chainwork": "Not Implemented Yet",
+            "previousblockhash": _deserialized_header['prev_block_hash'],
+            "nextblockhash": header.get('next_block_hash')
+        }
 
     async def getblockcount(self):
         return self.repository.get_best_header().get('block_height')

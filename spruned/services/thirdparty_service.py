@@ -15,7 +15,6 @@ class ThirdPartyServiceDelegate(RPCAPIService):
     def __init__(self):
         self._getrawtransaction_services = []
         self._gettxout_services = []
-        self._getblock_services = []
         self.retries = 2
 
     def add_getrawtransaction_service(self, service: RPCAPIService):
@@ -23,9 +22,6 @@ class ThirdPartyServiceDelegate(RPCAPIService):
 
     def add_gettxout_service(self, service: RPCAPIService):
         self._gettxout_services.append(service)
-
-    def add_getblock_service(self, service: RPCAPIService):
-        self._getblock_services.append(service)
 
     @property
     def getrawtransaction_services(self):
@@ -35,13 +31,8 @@ class ThirdPartyServiceDelegate(RPCAPIService):
     def gettxout_services(self):
         return [ser for ser in self._gettxout_services if ser.available]
 
-    @property
-    def getblock_services(self):
-        return [ser for ser in self._getblock_services if ser.available]
-
     async def _get(self, call, *a):
         s = {
-            'getblock': self.getblock_services,
             'gettxout': self.gettxout_services,
             'getrawtransaction': self.getrawtransaction_services
         }
@@ -61,9 +52,6 @@ class ThirdPartyServiceDelegate(RPCAPIService):
             result = await getattr(source, call)(*a)
         return result
 
-    async def getblock(self, blockhash: str):
-        return await self._get('getblock', blockhash)
-
     async def getrawtransaction(self, txid: str, verbose=False):
         return await self._get('getrawtransaction', txid)
 
@@ -78,7 +66,6 @@ def builder():  # pragma: no cover
     from spruned.services.bitpay_service import BitpayService
     from spruned.services.blockexplorer_service import BlockexplorerService
     from spruned.services.blocktrail_service import BlocktrailService
-    from spruned.services.chainflyer_service import ChainFlyerService
     from spruned.services.chainso_service import ChainSoService
     from spruned.services.blockcypher_service import BlockCypherService
     from spruned.services.localbitcoins_service import LocalbitcoinsService
@@ -88,17 +75,11 @@ def builder():  # pragma: no cover
                                                                    api_key=settings.BLOCKTRAIL_API_KEY)
     blockcypher = BlockCypherService(settings.NETWORK, api_token=settings.BLOCKCYPHER_API_TOKEN)
     bitgo = BitGoService(settings.NETWORK)
-    chainflyer = ChainFlyerService(settings.NETWORK)
     blockexplorer = BlockexplorerService(settings.NETWORK)
     bitpay = BitpayService(settings.NETWORK)
     localbitcoins = LocalbitcoinsService(settings.NETWORK)
 
     third_party_service = ThirdPartyServiceDelegate()
-
-    third_party_service.add_getblock_service(bitgo)
-    third_party_service.add_getblock_service(blockcypher)
-    third_party_service.add_getblock_service(chainflyer)
-    third_party_service.add_getblock_service(chainso)
 
     third_party_service.add_gettxout_service(blockcypher)
     third_party_service.add_gettxout_service(bitpay)

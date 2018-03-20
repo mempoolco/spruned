@@ -19,12 +19,13 @@ $ bitcoin-cli getblockchaininfo
 - estimatefee
 - estimatesmartfee [ it's an alias to estimatefee ]
 - getbestblockhash
-- getblock [ mode 1 is supported: a json object with transaction ids ]
+- getblock [mode 0 and mode 1]
 - getblockchaininfo
 - getblockcount
 - getblockhash
 - getblockheader [ verbose \ non verbose ]
 - <s>getmempoolinfo</s>
+- <s>getrawmempool</s> [ verbose \ non verbose]
 - getrawtransaction [ non verbose only ]
 - <s>gettxout</s>
 - <s>sendrawtransaction</s>
@@ -37,9 +38,13 @@ $ bitcoin-cli getblockchaininfo
 
 
 #### How sPRUNED works:
-It uses an hybrid of public services (blockchaininfo, chainso, blocktrail, blockcypher, etc.) and 
-the electrum network to gather and verify the informations you need.<br />
+It uses an hybrid the P2P bitcoin network, and the electrum network, to gather and verify the informations you need.<br />
+Project is **w.i.p.** and at this moment some functionalities (gettxout and in some way getrawtransaction) are emulated 
+using public services.
+<br />
+<br />
 Fetched data is cached on a the local file system.<br />
+
  
 #### Crypto-verified
 Headers are locally stored, fetched from the electrum network and verified since the Genesis block.  

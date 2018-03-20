@@ -55,35 +55,19 @@ class TestVOService(unittest.TestCase):
         self.utxo_tracker.reset_mock()
         self.repository.reset_mock()
 
-    def test_getblock(self):
+    def test_getblock_non_verbose(self):
         self.cache.get.return_value = None
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.repository.get_block_header.return_value = self.header
-        self.source.getblock.return_value = async_coro(
-            {
-                'hash': '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e',
+        self.repository.get_block.return_value = {
+                'block_hash': '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e',
+                'block_bytes': binascii.unhexlify('cafebabe'.encode())
+            }
 
-            }
-        )
         block = self.loop.run_until_complete(
-            self.sut.getblock('000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e')
+            self.sut.getblock('000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e', 0)
         )
-        self.assertEqual(
-            block,
-            {
-                'hash': '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e',
-                'version': 536870912,
-                'time': 1521312803,
-                'versionHex': None,
-                'mediantime': None,
-                'nonce': 2500253276,
-                'bits': 391481763,
-                'difficulty': None,
-                'chainwork': None,
-                'previousblockhash': '0000000000000000004c3270bc11b00779e2a9ce2cdbc67a26a339abec01d06a', 'height': 513979,
-                'confirmations': 1
-            }
-        )
+        self.assertEqual(block, 'cafebabe')
 
     def test_getrawtransaction(self):
         self.cache.get.return_value = None

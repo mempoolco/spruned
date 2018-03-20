@@ -22,8 +22,8 @@ cache = CacheFileInterface(settings.CACHE_ADDRESS)
 
 third_pary_services = third_party_services_builder()
 service = spruned_vo_service.SprunedVOService(
-    electrod_connectionpool,
-    p2p_connectionpool,
+    electrod_interface,
+    p2p_interface,
     cache=cache,
     repository=headers_repository
 )

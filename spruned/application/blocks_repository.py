@@ -16,6 +16,4 @@ class BlocksRepository(StorageFileInterface):
         return blocks
 
     def get_block(self, blockhash: str):
-        return {
-            'hash': blockhash
-        }
+        return

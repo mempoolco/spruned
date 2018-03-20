@@ -45,13 +45,13 @@ class JSONRPCServer:
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
-    async def getblock(self, blockhash: str):
+    async def getblock(self, blockhash: str, mode: int = 1):
         try:
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
             return {"error": {"code": -5, "message": "Block not found"}}
-        response = await self.vo_service.getblock(blockhash)
+        response = await self.vo_service.getblock(blockhash, mode)
         if not response:
             return {"error": {"code": -5, "message": "Block not found"}}
         return response

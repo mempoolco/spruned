@@ -139,6 +139,11 @@ class HeadersSQLiteRepository(HeadersRepository):
     def get_block_header(self, blockhash: str):
         session = self.session()
         header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
+        if not header:
+            return
         nextblockhash = self.get_block_hash(header.blockheight + 1)
         prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1)
-        return header and self._header_model_to_dict(header, nextblockhash, prevblockhash)
+        return self._header_model_to_dict(header, nextblockhash, prevblockhash)
+
+    def get_block(self, blockhash: str):
+        pass

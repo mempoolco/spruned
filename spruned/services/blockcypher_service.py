@@ -32,34 +32,6 @@ class BlockCypherService(RPCAPIService):
             'source': 'blockcypher'
         }
 
-    async def getblock(self, blockhash):
-        Logger.third_party.debug('getblock from %s' % self.__class__)
-        _s = 0
-        _l = 500
-        d = None
-        while 1:
-            # FIXME - Make it async concurr etc..
-            query = '?txstart=%s&limit=%s' % (_s, _l)
-            query = self.api_token and query + '&token=%s' % self.api_token or query
-            res = await self.get('blocks/' + blockhash + query)
-            if not res:
-                return
-            if not self.api_token:
-                time.sleep(0.5)
-            if d is None:
-                d = res
-            else:
-                d['txids'].extend(res['txids'])
-            if len(res['txids']) < 500:
-                break
-            _s += 500
-            _l += 500
-        return {
-            'source': 'blockcypher',
-            'hash': d['hash'],
-            'tx': d['txids']
-        }
-
     def _track_spents(self, data):
         for i, _v in enumerate(data.get('vout', [])):
             _v.get('spent_by') and self.utxo_tracker.track_utxo_spent(

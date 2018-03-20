@@ -26,9 +26,6 @@ class BlocktrailService(RPCAPIService):
             'txid': txid
         }
 
-    async def getblock(self, blockhash):   # pragma: no cover
-        pass
-
     def _track_spents(self, data):
         for i, _v in enumerate(data.get('vout', [])):
             _v.get('spent_hash') and self.utxo_tracker.track_utxo_spent(

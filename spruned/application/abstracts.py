@@ -13,10 +13,6 @@ class RPCAPIService(metaclass=abc.ABCMeta):
     throttling_error_codes = []
 
     @abc.abstractmethod
-    def getblock(self, blockhash):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
     def getrawtransaction(self, txid, **kwargs):
         pass  # pragma: no cover
 
