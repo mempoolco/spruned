@@ -12,11 +12,14 @@ class TestVOService(unittest.TestCase):
     def setUp(self):
         self.loop = asyncio.get_event_loop()
         self.electrod = Mock()
+        self.p2p = Mock()
         self.cache = create_autospec(CacheFileInterface)
         self.utxo_tracker = Mock()
         self.repository = Mock()
         self.source = create_autospec(ThirdPartyServiceDelegate)
-        self.sut = SprunedVOService(self.electrod, utxo_tracker=self.utxo_tracker, repository=self.repository)
+        self.sut = SprunedVOService(
+            self.electrod, self.p2p, utxo_tracker=self.utxo_tracker, repository=self.repository
+        )
         self.sut.add_cache(self.cache)
         self.sut.add_source(self.source)
         hb = '000000206ad001ecab39a3267ac6db2ccea9e27907b011bc70324c00000000000000000048043a6a' \

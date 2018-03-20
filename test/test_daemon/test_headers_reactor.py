@@ -7,7 +7,7 @@ from spruned.application import settings
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.headers_reactor import HeadersReactor
+from spruned.daemon.tasks.headers_reactor import HeadersReactor
 from test.utils import async_coro, coro_call, in_range, make_headers
 import warnings
 
