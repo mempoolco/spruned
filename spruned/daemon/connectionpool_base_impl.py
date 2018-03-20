@@ -2,6 +2,7 @@ import abc
 import asyncio
 import random
 import time
+from typing import List
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
@@ -91,7 +92,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 raise exceptions.NoPeersException
             return
 
-    def _pick_multiple_connections(self, howmany: int):
+    def _pick_multiple_connections(self, howmany: int) -> List[ConnectionAbstract]:
         assert howmany >= 1
         i = 0
         connections = []

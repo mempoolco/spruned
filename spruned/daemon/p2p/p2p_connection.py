@@ -1,17 +1,13 @@
 import asyncio
-
 import async_timeout
 from pycoin.message.InvItem import InvItem, ITEM_TYPE_TX
 from pycoinnet.Peer import Peer
 from pycoinnet.PeerEvent import PeerEvent
 from pycoinnet.networks import MAINNET
 from pycoinnet.inv_batcher import InvBatcher
-from pycoinnet.version import version_data_for_peer
-
-from spruned.application import exceptions
+from pycoinnet.version import version_data_for_peer, NODE_BLOOM
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
-
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
 
@@ -68,7 +64,7 @@ class P2PConnection(BaseConnection):
                     self._peer_network.parse_from_data,
                     self._peer_network.pack_from_data
                 )
-                version_data = version_data_for_peer(peer)
+                version_data = version_data_for_peer(peer, version=70011, local_services=NODE_BLOOM)
                 peer.version = await peer.perform_handshake(**version_data)
                 self._event_handler = PeerEvent(peer)
                 self._version = peer.version
@@ -156,7 +152,7 @@ class P2PConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             batcher=InvBatcher,
             network=MAINNET,
-            batcher_timeout=20
+            batcher_timeout=20,
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,
@@ -165,6 +161,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._batcher_factory = batcher
         self._network = network
         self._batcher_timeout = batcher_timeout
+        self._batcher = self._batcher_factory(target_batch_time=self._batcher_timeout-1)
 
     @property
     def available(self):
@@ -176,18 +173,6 @@ class P2PConnectionPool(BaseConnectionPool):
     @property
     def connections(self):
         return self._connections
-
-    async def _get_batcher(self, connections=None, get_peers=True):
-        connections = not connections and len(self.established_connections) // 1.5 or 1
-        if connections > len(self.established_connections):
-            raise exceptions.SprunedException
-        connections = self._pick_multiple_connections(connections)
-        batcher: InvBatcher = self._batcher_factory(target_batch_time=self._batcher_timeout-1)
-        for connection in connections:
-            await batcher.add_peer(connection.peer_event_handler)
-        if get_peers:
-            return connections, batcher
-        return batcher
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -231,13 +216,13 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_header_callbacks(self.on_peer_received_header)
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
+        await self._batcher.add_peer(connection.peer_event_handler)
 
     async def get(self, inv_item: InvItem):
         peers = []
         try:
             async with async_timeout.timeout(self._batcher_timeout):
-                peers, batcher = await self._get_batcher(get_peers=True, connections=1)
-                future = await batcher.inv_item_to_future(inv_item)
+                future = await self._batcher.inv_item_to_future(inv_item)
                 response = await future
                 return response and response
         except Exception as error:

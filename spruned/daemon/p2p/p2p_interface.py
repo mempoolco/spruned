@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from typing import Dict
 
 import sys
 
 import time
+
+from pycoin.block import Block
 from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem, ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_TX
 from pycoin.serialize import h2b_rev, h2b
 from pycoin.tx import Tx
@@ -37,6 +40,8 @@ class P2PInterface:
 
 
 async def test():
+    logging.getLogger('pycoin').setLevel(logging.WARNING)
+    logging.getLogger('p2p').setLevel(logging.INFO)
     from pycoinnet.networks import MAINNET
     peers = await utils.dns_bootstrap_servers(MAINNET)
     pool = P2PConnectionPool(peers=peers, connections=8)
@@ -52,14 +57,22 @@ async def test():
         await asyncio.sleep(5)
     print('ready!')
     blockhash = '0000000000000000001f0324001c8acc2a32608275ab3730d41d90d5507391b7'
+    total = 0
+    start = int(time.time())
     while 1:
+        total += 1
         now = time.time()
-        await asyncio.sleep(1)
         res = await interface.get_block(blockhash)
         if not res:
             continue
-        print('Block downloaded in %s' % (time.time() - now))
-        print('Block: %s' % res)
+        size = len(res['block_object'].as_bin())/1000
+        download_time = time.time() - now
+        print(
+            'Block downloaded in %s. size: %skb, speed: %s kb\s' % (
+                download_time, '{:.2f}'.format(size), size / download_time,
+            ),
+            " Downloaded %s blocks in %s minutes" % (total, (time.time()-start)/60)
+        )
         blockhash = str(res['prev_block_hash'])
 
 
