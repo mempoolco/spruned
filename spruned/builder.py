@@ -1,33 +1,39 @@
-def build():  # pragma: no cover
+from spruned.application import tools
+tools.load_config()
 
-    from spruned.application import tools
-    tools.load_config()
-    from spruned.services.thirdparty_service import builder as third_party_services_builder
-    from spruned.application import spruned_vo_service, settings, database
-    from spruned.application.cache import CacheFileInterface
-    from spruned.application.jsonrpc_server import JSONRPCServer
-    from spruned.daemon.builder import build_reactor_and_daemon, build_electrod_interface
-    from spruned.application.headers_repository import HeadersSQLiteRepository
+from spruned.application.blocks_repository import BlocksRepository
+from spruned.daemon.tasks.blocks_reactor import BlocksReactor
+from spruned.daemon.tasks.headers_reactor import HeadersReactor
+from spruned.services.thirdparty_service import builder as third_party_services_builder
+from spruned.application import spruned_vo_service, settings, database
+from spruned.application.cache import CacheFileInterface
+from spruned.application.jsonrpc_server import JSONRPCServer
+from spruned.application.headers_repository import HeadersSQLiteRepository
+from spruned.daemon.electrod import build as electrod_builder
+from spruned.daemon.p2p import build as p2p_builder
 
-    headers_repository = HeadersSQLiteRepository(database.session)
-    cache = CacheFileInterface(settings.CACHE_ADDRESS)
-    interface = build_electrod_interface(connections=settings.ELECTROD_CONNECTIONS)
-    headers_reactor, daemon_service = build_reactor_and_daemon(headers_repository, interface)
-    third_pary_services = third_party_services_builder()
-    service = spruned_vo_service.SprunedVOService(
-        daemon_service,
-        cache=cache,
-        repository=headers_repository
-    )
-    service.add_source(third_pary_services)
-    jsonrpc_server = JSONRPCServer(
-        settings.JSONRPCSERVER_HOST,
-        settings.JSONRPCSERVER_PORT,
-        settings.JSONRPCSERVER_USER,
-        settings.JSONRPCSERVER_PASSWORD
-    )
-    jsonrpc_server.set_vo_service(service)
-    return headers_reactor, jsonrpc_server
+electrod_connectionpool, electrod_interface = electrod_builder(settings.NETWORK)
+p2p_connectionpool, p2p_interface = p2p_builder(settings.NETWORK)
 
+headers_repository = HeadersSQLiteRepository(database.session)
+blocks_repository = BlocksRepository(settings.STORAGE_ADDRESS)
 
-daemon, jsonrpc_server = build()  # pragma: no cover
+cache = CacheFileInterface(settings.CACHE_ADDRESS)
+
+third_pary_services = third_party_services_builder()
+service = spruned_vo_service.SprunedVOService(
+    electrod_connectionpool,
+    p2p_connectionpool,
+    cache=cache,
+    repository=headers_repository
+)
+service.add_source(third_pary_services)
+jsonrpc_server = JSONRPCServer(
+    settings.JSONRPCSERVER_HOST,
+    settings.JSONRPCSERVER_PORT,
+    settings.JSONRPCSERVER_USER,
+    settings.JSONRPCSERVER_PASSWORD
+)
+jsonrpc_server.set_vo_service(service)
+headers_reactor = HeadersReactor(headers_repository, electrod_interface)
+blocks_reactor = BlocksReactor(blocks_repository, headers_repository, p2p_interface)

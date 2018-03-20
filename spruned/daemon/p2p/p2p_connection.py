@@ -152,7 +152,7 @@ class P2PConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             batcher=InvBatcher,
             network=MAINNET,
-            batcher_timeout=20,
+            batcher_timeout=20
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,

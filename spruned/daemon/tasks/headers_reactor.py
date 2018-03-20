@@ -11,6 +11,10 @@ from spruned.application.tools import get_nearest_parent, async_delayed_task
 
 
 class HeadersReactor:
+    """
+    This reactor keeps headers aligned to the best height.
+    Designed to work with the Electrum Network, it may be ported easily to P2P
+    """
     def __init__(
             self,
             repo: HeadersRepository,

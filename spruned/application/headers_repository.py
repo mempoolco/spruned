@@ -48,6 +48,21 @@ class HeadersSQLiteRepository(HeadersRepository):
             ) for h in headers
         ] or []
 
+    def get_headers(self, *blockhashes: str):
+        session = self.session()
+        headers = session.query(database.Header).filter(database.Header.blockhash.in_(blockhashes))\
+            .order_by(database.Header.blockheight.asc()).all()
+        if set([h.blockhash for h in headers]) - set(blockhashes):
+            # not sure if all raises, investigate # FIXME
+            raise exceptions.HeadersInconsistencyException
+        return headers and [
+            self._header_model_to_dict(
+                h,
+                nextblockhash=self.get_block_hash(h.blockheight+1),
+                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1)
+            ) for h in headers
+        ] or []
+
     @database.atomic
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
         session = self.session()

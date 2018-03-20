@@ -9,10 +9,11 @@ from spruned.application.logging_factory import Logger
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, cache=None, utxo_tracker=None, repository=None):
+    def __init__(self, electrod, p2p, cache=None, utxo_tracker=None, repository=None):
         self.sources = []
         self.primary = []
         self.cache = cache
+        self.p2p = p2p
         self.electrod = electrod
         self.min_sources = 1
         self.current_best_height = None
