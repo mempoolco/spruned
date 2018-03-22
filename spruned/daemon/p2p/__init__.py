@@ -5,6 +5,6 @@ from spruned.daemon.p2p.p2p_interface import P2PInterface
 
 def build(network):
     assert network
-    pool = P2PConnectionPool(connections=8)
+    pool = P2PConnectionPool(connections=3)
     interface = P2PInterface(pool)
     return pool, interface

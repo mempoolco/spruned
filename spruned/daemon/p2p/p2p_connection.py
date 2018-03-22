@@ -124,7 +124,6 @@ class P2PConnection(BaseConnection):
             Logger.p2p.exception('Exception on ping')
 
     async def _process_inv(self, event_handler, name, data):
-        Logger.p2p.debug('Processing inv: %s, %s, %s', event_handler, name, data)
         txs = 0
         for item in data.get('items'):
             if item.item_type == ITEM_TYPE_TX:

@@ -8,7 +8,7 @@ from pycoin.tx import Tx
 from spruned.application.tools import deserialize_header
 from spruned.application import settings, exceptions, utils
 from spruned.application.abstracts import RPCAPIService, StorageInterface
-from spruned.application.cache import cache_block, cache_transaction
+from spruned.application.cache import cache_transaction
 from spruned.application.logging_factory import Logger
 
 

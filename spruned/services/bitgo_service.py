@@ -31,15 +31,6 @@ class BitGoService(RPCAPIService):
             'source': 'bitgo'
         }
 
-    async def getblock(self, blockhash):
-        Logger.third_party.debug('getblock from %s' % self.__class__)
-        data = await self.get('block/' + blockhash)
-        return data and {
-            'source': 'bitgo',
-            'hash': data['id'],
-            'tx': data['transactions'],
-        }
-
     async def gettxout(self, txid: str, index: int):  # pragma: no cover
         """
         looks like bitgo is a dead end for getxout

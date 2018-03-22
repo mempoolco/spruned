@@ -63,6 +63,8 @@ else:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
     logging.getLogger('connectrum').setLevel(logging.WARNING)
+    logging.getLogger('pycoin').setLevel(logging.WARNING)
+    logging.getLogger('p2p').setLevel(logging.WARNING)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.INFO,
