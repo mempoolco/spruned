@@ -1,11 +1,11 @@
 import random
 import binascii
-
+from spruned import settings
 from spruned.application.cache import CacheAgent
 from spruned.application.database import ldb_batch
 from spruned.application.tools import deserialize_header
-from spruned.application import settings, exceptions
-from spruned.application.abstracts import RPCAPIService, StorageInterface
+from spruned.application import exceptions
+from spruned.application.abstracts import RPCAPIService
 
 
 class SprunedVOService(RPCAPIService):

@@ -10,14 +10,14 @@ from test.utils import async_coro
 
 
 async def connect(m):
-    m._connect.return_value = async_coro(True)
+    m._connect.return_value = True
     m.connected = True
     m.protocol = 'protocol'
     return m._connect()
 
 
 async def disconnect(m):
-    m._disconnect.return_value = async_coro(True)
+    m._disconnect.return_value = True
     m.connected = False
     m.protocol = None
     return m._disconnect()

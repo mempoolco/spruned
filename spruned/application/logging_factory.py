@@ -1,6 +1,6 @@
 import logging
 import sys
-from spruned.application import settings
+from spruned import settings
 
 
 class LoggingFactory:

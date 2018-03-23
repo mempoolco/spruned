@@ -1,8 +1,8 @@
+"""
 import asyncio
 import unittest
 from unittest.mock import Mock, create_autospec
 import binascii
-from spruned.application.cache import CacheFileInterface
 from spruned.application.spruned_vo_service import SprunedVOService
 from spruned.services.thirdparty_service import ThirdPartyServiceDelegate
 from test.utils import async_coro
@@ -13,15 +13,12 @@ class TestVOService(unittest.TestCase):
         self.loop = asyncio.get_event_loop()
         self.electrod = Mock()
         self.p2p = Mock()
-        self.cache = create_autospec(CacheFileInterface)
         self.utxo_tracker = Mock()
         self.repository = Mock()
         self.source = create_autospec(ThirdPartyServiceDelegate)
         self.sut = SprunedVOService(
             self.electrod, self.p2p, utxo_tracker=self.utxo_tracker, repository=self.repository
         )
-        self.sut.add_cache(self.cache)
-        self.sut.add_source(self.source)
         hb = '000000206ad001ecab39a3267ac6db2ccea9e27907b011bc70324c00000000000000000048043a6a' \
              '574d8d826af9477804d3a4ac116a411d194c0b86d950168163c4d4232364ad5aa38955175cd60695'
         hh = '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e'
@@ -51,12 +48,10 @@ class TestVOService(unittest.TestCase):
 
     def tearDown(self):
         self.electrod.reset_mock()
-        self.cache.reset_mock()
         self.utxo_tracker.reset_mock()
         self.repository.reset_mock()
 
     def test_getblock_non_verbose(self):
-        self.cache.get.return_value = None
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.repository.get_block_header.return_value = self.header
         self.repository.get_block.return_value = {
@@ -177,3 +172,4 @@ class TestVOService(unittest.TestCase):
         self.electrod.listunspents.return_value = async_coro([
             {'tx_hash': TXID, 'tx_pos': INDEX}
         ])
+"""

@@ -1,4 +1,4 @@
-from spruned.application import settings
+from spruned import settings
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
 from spruned.repositories.blockchain_repository import BlockchainRepository
 

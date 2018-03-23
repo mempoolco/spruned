@@ -60,6 +60,7 @@ BLOCKCYPHER_API_TOKEN = os.getenv('BLOCKCYPHER_API_TOKEN')
 
 # files
 SQLITE_DBNAME = ''
+LEVELDB_BLOCKCHAIN_ADDRESS = ''
 
 if not TESTING:
     FILE_DIRECTORY = '%s/.spruned' % Path.home()

@@ -89,7 +89,7 @@ def load_config():
     """
     todo: parse config or create with default values
     """
-    from spruned.application import settings
+    from spruned import settings
     import os
     if not os.path.exists(settings.FILE_DIRECTORY):
         os.makedirs(settings.FILE_DIRECTORY)
@@ -99,7 +99,7 @@ def load_config():
 
 def check_internet_connection():
     from spruned.application.logging_factory import Logger
-    from spruned.application.settings import CHECK_NETWORK_HOST
+    from spruned.settings import CHECK_NETWORK_HOST
     import subprocess
     import os
     Logger.electrum.debug('Checking internet connectivity')

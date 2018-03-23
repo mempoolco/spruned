@@ -1,12 +1,13 @@
 import os
 
 import leveldb
+
 from sqlalchemy import Column, String, Integer, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 import threading
 from functools import wraps
-from spruned.application import settings
+from spruned import settings
 
 Base = declarative_base()
 
@@ -25,7 +26,11 @@ if not settings.SQLITE_DBNAME or os.path.exists(settings.SQLITE_DBNAME):
 
 sqlite = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
-storage_ldb = leveldb.LevelDB(settings.LEVELDB_BLOCKCHAIN_ADDRESS)
+if not settings.TESTING:
+    storage_ldb = leveldb.LevelDB(settings.LEVELDB_BLOCKCHAIN_ADDRESS)
+else:
+    from unittest.mock import Mock
+    storage_ldb = Mock()
 
 _local = threading.local()
 _local.session = sqlite

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, create_autospec, call
 import time
 
-from spruned.application import settings
+from spruned import settings
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface

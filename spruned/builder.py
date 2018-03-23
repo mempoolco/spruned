@@ -3,11 +3,10 @@ from spruned.application.cache import CacheAgent
 from spruned.repositories.repository import Repository
 
 tools.load_config()
-
+from spruned import settings
 from spruned.daemon.tasks.blocks_reactor import BlocksReactor
 from spruned.daemon.tasks.headers_reactor import HeadersReactor
-from spruned.services.thirdparty_service import builder as third_party_services_builder
-from spruned.application import spruned_vo_service, settings
+from spruned.application import spruned_vo_service
 from spruned.application.jsonrpc_server import JSONRPCServer
 from spruned.daemon.electrod import build as electrod_builder
 from spruned.daemon.p2p import build as p2p_builder
@@ -19,7 +18,6 @@ repository = Repository.instance()
 
 cache = CacheAgent(repository, settings.CACHE_SIZE)
 
-third_party_services = third_party_services_builder()
 service = spruned_vo_service.SprunedVOService(
     electrod_interface,
     p2p_interface,

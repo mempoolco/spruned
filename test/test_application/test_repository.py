@@ -1,8 +1,8 @@
 import unittest
 
-from spruned.application import settings
-from spruned.application.headers_repository import HeadersSQLiteRepository
-from spruned.application.database import session
+from spruned import settings
+from spruned.repositories.headers_repository import HeadersSQLiteRepository
+from spruned.application.database import sqlite
 from spruned.daemon import exceptions
 from test.utils import make_headers
 
@@ -10,7 +10,7 @@ from test.utils import make_headers
 class TestRepository(unittest.TestCase):
     def setUp(self):
         assert not settings.SQLITE_DBNAME
-        self.sut = HeadersSQLiteRepository(session)
+        self.sut = HeadersSQLiteRepository(sqlite)
 
     def tests_headers_repository_ok(self):
         """
