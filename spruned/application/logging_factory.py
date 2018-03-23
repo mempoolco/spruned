@@ -57,6 +57,7 @@ if settings.TESTING:
     )  # type: LoggingFactory
 
 elif settings.DEBUG:
+    logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,
