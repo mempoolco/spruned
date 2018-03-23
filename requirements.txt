@@ -9,4 +9,3 @@ sqlalchemy
 coverage
 -e git+https://github.com/gdassori/pycoinnet.git@pycoinnet-logger#egg=pycoinnet
 leveldb
-pyrocksdb
