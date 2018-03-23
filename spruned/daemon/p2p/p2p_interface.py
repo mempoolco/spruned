@@ -4,6 +4,7 @@ from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem
 from pycoin.serialize import h2b_rev
 from pycoinnet.networks import MAINNET
 
+from spruned.application import exceptions
 from spruned.daemon.p2p import utils
 from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
 
@@ -39,6 +40,12 @@ class P2PInterface:
 
     async def start(self):
         self.pool.add_on_connected_observer(self.on_connect)
-        peers = await utils.dns_bootstrap_servers(self.network)
+        peers = None
+        i = 0
+        while not peers:
+            if i > 10:
+                raise exceptions.SprunedException
+            peers = await utils.dns_bootstrap_servers(self.network)
+            i += 1
         _ = [self.pool.add_peer(peer) for peer in peers]
         self.loop.create_task(self.pool.connect())

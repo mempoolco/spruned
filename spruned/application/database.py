@@ -63,11 +63,15 @@ def ldb_batch(fun):
         except AttributeError:
             _local.leveldb_counter = 1
         if _local.leveldb_counter == 1:
-            _local.current_batch = leveldb.WriteBatch()
+            try:
+                if not _local.current_batch:
+                    _local.current_batch = leveldb.WriteBatch()
+            except AttributeError:
+                _local.current_batch = leveldb.WriteBatch()
         r = fun(*args, **kwargs)
         if _local.leveldb_counter == 1:
             _local.storage_ldb.Write(_local.current_batch)
             _local.current_batch = None
-            _local.leveldb_counter -= 1
+        _local.leveldb_counter -= 1
         return r
     return decorator

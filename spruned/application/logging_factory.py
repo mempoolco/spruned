@@ -50,7 +50,7 @@ class LoggingFactory:
 
     @property
     def cache(self):
-        return logging.getLogger('bitcoind')
+        return logging.getLogger('cache')
 
 
 if settings.TESTING:
@@ -62,6 +62,9 @@ if settings.TESTING:
 
 elif settings.DEBUG:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
+    logging.getLogger('pycoin').setLevel(logging.INFO)
+    logging.getLogger('p2p').setLevel(logging.INFO)
+    logging.getLogger('connectrum').setLevel(logging.INFO)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,

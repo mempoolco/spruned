@@ -1,12 +1,15 @@
 import random
 import binascii
+
+from spruned.application.cache import CacheAgent
+from spruned.application.database import ldb_batch
 from spruned.application.tools import deserialize_header
 from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService, StorageInterface
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, p2p, cache=None, utxo_tracker=None, repository=None):
+    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None):
         self.sources = []
         self.primary = []
         self.cache = cache
@@ -19,20 +22,6 @@ class SprunedVOService(RPCAPIService):
 
     def available(self):
         raise NotImplementedError
-
-    def _get_from_cache(self, *a):
-        if self.cache:
-            data = self.cache.get(a[0], a[1])
-            if data:
-                return data
-
-    def add_cache(self, cache: StorageInterface):
-        assert isinstance(cache, StorageInterface)
-        self.cache = cache
-
-    def add_source(self, service: RPCAPIService):
-        assert isinstance(service, RPCAPIService)
-        self.sources.append(service)
 
     async def getblock(self, blockhash: str, mode: int=1):
         block_header = self.repository.headers.get_block_header(blockhash)
@@ -49,16 +38,18 @@ class SprunedVOService(RPCAPIService):
             raise NotImplementedError
         return binascii.hexlify(block['block_bytes']).decode()
 
+    @ldb_batch
     async def _get_block(self, blockheader, _r=0):
         blockhash = blockheader['block_hash']
-        cachedblock = self.cache and self.cache.get_block(blockhash)
-        block = cachedblock or await self.p2p.get_block(blockhash)
+        storedblock = self.repository.blockchain.get_block(blockhash)
+        block = storedblock or await self.p2p.get_block(blockhash)
         if not block:
             if _r > 10:
                 raise exceptions.ServiceException
             else:
                 return await self._get_block(blockheader, _r + 1)
-        self.cache and not cachedblock and self.cache.save_block(block)
+        if not storedblock:
+            self.repository.blockchain.save_block(block, tracker=self.cache)
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):

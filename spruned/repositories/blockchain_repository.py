@@ -1,7 +1,5 @@
 import io
-import os
 import binascii
-import struct
 import time
 from typing import Dict, List
 from leveldb import LevelDB
@@ -19,71 +17,26 @@ class BlockchainRepository:
     """
     this special repository track what's in it, to ensure the size limit
     """
-    def __init__(self, session, storage_name, dbpath, limit=None):
+    def __init__(self, session, storage_name, dbpath):
         self.storage_name = storage_name
         self.session: LevelDB = session
-        self.limit = limit
         self.dbpath = dbpath
-        self.limit and self._ensure_timestamps()
         self._cache = None
 
     def set_cache(self, cache):
         self._cache = cache
-
-    def _deserialize_timestamp(self, blob: bytes):
-        timestamp, key = struct.unpack('L', blob[:8]), blob[8:]
-        return {'saved_at': timestamp, 'key': key}
-
-    def _serialize_timestamp(self, data: Dict):
-        d = struct.pack('L', data['saved_at'])
-        d += data['key']
-        return d
 
     def _get_key(self, name: str, prefix=b''):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         if isinstance(name, str):
             name = binascii.unhexlify(name.encode())
-        return self.storage_name + b'.' + (prefix and (prefix + b'.') or b'') + name
-
-    def _ensure_timestamps(self):
-        try:
-            self.session.Get(self.storage_name + b'.timestamps')
-        except KeyError:
-            self.session.Put(self.storage_name + b'.timestamps', b'')
+        return (prefix and (prefix + b'.') or b'') + name
 
     @ldb_batch
-    def track_put(self, key):
-        data = self.session.Get(self.storage_name + b'.timestamps')
-        track = {'key': key, 'saved_at': int(time.time())}
-        data += self._serialize_timestamp(track)
-        self.session.Put(self.storage_name + b'timestamps', data)
-        return track
-
-    @ldb_batch
-    def get_timestamps(self):
-        data = self.session.Get(self.storage_name + b'.timestamps')
-        timestamps = [self._serialize_timestamp(chunk) for chunk in utils.split(data, 41)]
-        return timestamps
-
-    def _get_db_size(self):
-        size = 0
-        for file in os.listdir(self.dbpath):
-            if 'ldb' in file:
-                size += os.stat('database.ldb/' + file).st_size
-        return size
-
-    def purge(self):
-        if not self.limit:
-            raise ValueError('No limit set, cannot purge database')
-        timestamps = self.get_timestamps()
-        sorted_timestamps = sorted(timestamps, key=lambda x: x['saved_at'])
-        while self._get_db_size() > self.limit:
-            self.session.Delete(sorted_timestamps.pop()['key'])
-
-    @ldb_batch
-    def save_block(self, block: Dict) -> Dict:
+    def save_block(self, block: Dict, tracker=None) -> Dict:
         saved = self._save_block(block)
+        tracker and tracker.track(saved['key'], saved['size'])
         return saved
 
     @ldb_batch
@@ -107,8 +60,9 @@ class BlockchainRepository:
             }
             self.save_transaction(transaction)
         assert len(data) % 32 == 16
-        self.session.Put(key, data)
-        self.limit and self.track_put(key)
+        self.session.Put(self.storage_name + b'.' + key, data)
+        block['key'] = key
+        block['size'] = len(block['block_bytes'])
         return block
 
     @ldb_batch
@@ -116,8 +70,7 @@ class BlockchainRepository:
         blockhash = binascii.unhexlify(transaction['block_hash'].encode())
         data = transaction['transaction_bytes'] + blockhash
         key = self._get_key(transaction['txid'], prefix=TRANSACTION_PREFIX)
-        self.session.Put(key, data)
-        self.limit and self.track_put(key)
+        self.session.Put(self.storage_name + b'.' + key, data)
         return transaction
 
     @ldb_batch
@@ -129,8 +82,9 @@ class BlockchainRepository:
 
     def get_block(self, blockhash: str) -> (None, Dict):
         key = self._get_key(blockhash, prefix=BLOCK_PREFIX)
+        now = time.time()
         try:
-            data = self.session.Get(key)
+            data = self.session.Get(self.storage_name + b'.' + key)
         except KeyError:
             Logger.leveldb.debug('%s not found under key %s', blockhash, key)
             return
@@ -141,6 +95,7 @@ class BlockchainRepository:
         transactions = [self.get_transaction(txid) for txid in txids]
         Logger.leveldb.debug('Found %s transactions for block %s', len(transactions), blockhash)
         block.set_txs([transaction['transaction_object'] for transaction in transactions])
+        Logger.leveldb.debug('Blockchain storage, transaction mounted in {:.4f}'.format(time.time() - now))
         return {
             'block_hash': block.id(),
             'block_bytes': block.as_bin(),
@@ -157,7 +112,7 @@ class BlockchainRepository:
 
     def _get_transaction(self, txid: (str, bytes)):
         key = self._get_key(txid, prefix=TRANSACTION_PREFIX)
-        data = self.session.Get(key)
+        data = self.session.Get(self.storage_name + b'.' + key)
         blockhash = data[-32:]
         if not int.from_bytes(blockhash[:8], 'little'):
             data = data[:-32]
@@ -170,8 +125,17 @@ class BlockchainRepository:
 
     @ldb_batch
     def remove_block(self, blockhash: str):
-        self.session.Delete(self._get_key(blockhash, prefix=BLOCK_PREFIX))
+        block = self.get_block(blockhash)
+        if block:
+            for tx in block['block_object'].txs:
+                self.remove_transaction(str(tx.id()))
+        else:
+            Logger.leveldb.warning('remove block on block not found: %s', blockhash)
+        key = self._get_key(blockhash, prefix=BLOCK_PREFIX)
+        self.session.Delete(self.storage_name + b'.' + key)
 
     @ldb_batch
     def remove_transaction(self, txid: str):
-        self.session.Delete(self._get_key(txid, prefix=TRANSACTION_PREFIX))
+        key = self._get_key(txid, prefix=TRANSACTION_PREFIX)
+        self.session.Get(self.storage_name + b'.' + key)
+        self.session.Delete(self.storage_name + b'.' + key)

@@ -31,8 +31,9 @@ class Repository:
         )
 
     def ensure_integrity(self):
-        self.headers.ensure_integrity()
-        self.blockchain.ensure_integrity()
+        #self.headers.ensure_integrity()
+        #self.blockchain.ensure_integrity()
+        pass
 
     def set_cache(self, cache):
         self.headers.set_cache(cache)

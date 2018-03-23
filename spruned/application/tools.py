@@ -95,8 +95,6 @@ def load_config():
         os.makedirs(settings.FILE_DIRECTORY)
     if not os.path.exists(settings.STORAGE_ADDRESS):
         os.makedirs(settings.STORAGE_ADDRESS)
-    if not os.path.exists(settings.CACHE_ADDRESS):
-        os.makedirs(settings.CACHE_ADDRESS)
 
 
 def check_internet_connection():

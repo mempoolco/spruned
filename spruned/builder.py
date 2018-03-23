@@ -1,6 +1,5 @@
 from spruned.application import tools
 from spruned.application.cache import CacheAgent
-from spruned.repositories.blockchain_repository import BlockchainRepository
 from spruned.repositories.repository import Repository
 
 tools.load_config()
@@ -27,7 +26,7 @@ service = spruned_vo_service.SprunedVOService(
     repository=repository,
     cache=cache
 )
-service.add_source(third_party_services)
+
 jsonrpc_server = JSONRPCServer(
     settings.JSONRPCSERVER_HOST,
     settings.JSONRPCSERVER_PORT,

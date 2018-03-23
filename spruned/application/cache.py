@@ -2,7 +2,8 @@ import asyncio
 import pickle
 from leveldb import LevelDB
 import time
-from spruned.application.database import storage_ldb
+
+from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.repositories.blockchain_repository import TRANSACTION_PREFIX, BLOCK_PREFIX
@@ -10,11 +11,11 @@ from spruned.repositories.blockchain_repository import TRANSACTION_PREFIX, BLOCK
 
 class CacheAgent:
     def __init__(self, repository, limit, loop=asyncio.get_event_loop(), delayer=async_delayed_task):
-        self.session: LevelDB = repository.session
-        self.repository = repository
+        self.session: LevelDB = repository.blockchain.session
+        self.repository = repository.blockchain
         self.repository.set_cache(self)
         self.cache_name = b'cache_index'
-        self.index = {}
+        self.index = None
         self.limit = limit
         self._last_dump_size = None
         self.loop = loop
@@ -28,48 +29,56 @@ class CacheAgent:
         self._save_index()
 
     def _deserialize_index(self, rawdata):
-        index = {}
+        index = {'keys': {}}
         data = pickle.loads(rawdata)
         s = 0
         for d in data:
-            s += d[5]
-            index[d[0]] = {
+            s += d[2]
+            index['keys'][d[0]] = {
                 'saved_at': d[1],
-                'ref': d[2],
-                'size': d[3],
+                'size': d[2],
                 'key': d[0]
             }
-        index['total_size'] = s
+        index['total'] = s
         self._index = index
         return index
 
     def _serialize_index(self):
         data = []
-        for k, d in self.index.items():
-            data.append([k, d['saved_at'], d['ref'], d['size']])
+        for k, d in self.index['keys'].items():
+            if k != 'total':
+                data.append([k, d['saved_at'], d['size']])
         return pickle.dumps(data)
 
-    @storage_ldb
+    @ldb_batch
     def _save_index(self):
         data = self._serialize_index()
-        self.session.Put(data)
+        self.session.Put(self.cache_name, data)
         self._last_dump_size = self.index['total']
 
     def _load_index(self):
-        index = self.session.Get(self.cache_name)
+        try:
+            index = self.session.Get(self.cache_name)
+        except KeyError:
+            Logger.cache.warning('Cache not found. Ok if is the first time')
+            return
         self._deserialize_index(index)
-        self._last_dump_size = self.index['total']
+        self._last_dump_size = self.index and self.index['total']
 
-    def track(self, key, ref, size):
-        self.index[key] = {
+    def track(self, key, size):
+        if not self.index:
+            self.index = {'keys': {}, 'total': 0}
+        self.index['keys'][key] = {
             'saved_at': int(time.time()),
-            'ref': ref,
-            'size': size
+            'size': size,
+            'key': key
         }
         self.index['total'] += size
 
-    @storage_ldb
-    def check(self):
+    async def check(self):
+        if self.index and not self._last_dump_size or (self.index and self.index['total'] != self._last_dump_size):
+            Logger.cache.debug('Pending data, dumping')
+            self._save_index()
         if not self.index:
             Logger.cache.debug('No prev index found, trying to load')
             self._load_index()
@@ -78,29 +87,36 @@ class CacheAgent:
             return
         if self.index['total'] > self.limit:
             Logger.cache.debug('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
-            blockfirst = {BLOCK_PREFIX: 2, TRANSACTION_PREFIX: 1}
-            index_sorted = sorted(self.index.values(), key=lambda x: x[blockfirst[x['ref'][0]]]**33 - x['saved_at'])
+            blockfirst = {0: 2, 1: 1}
+            index_sorted = sorted(
+                self.index['keys'].values(), key=lambda x: (blockfirst[x['key'][0]] ** 33) - x['saved_at']
+            )
             i = 0
             while self.index['total'] * 1.1 > self.limit:
-                self.delete(index_sorted[i])
+                item = index_sorted[i]
+                Logger.cache.debug('Deleting %s' % item)
+                self.delete(item)
                 i += 1
         else:
             Logger.cache.debug('Cache is ok, size: %s, limit: %s', self.index['total'], self.limit)
         if self.index['total'] != self._last_dump_size:
             self._save_index()
 
-    @storage_ldb
-    def delete(self, key, entry):
-        if entry['ref'][0] == BLOCK_PREFIX:
-            self.repository.delete_block(entry['ref'])
-        elif entry['ref'][0] == TRANSACTION_PREFIX:
-            self.repository.delete_transaction(entry['ref'])
-        self.index['total'] -= self.index.pop(key)['size']
+    def delete(self, item):
+        if item['key'][0] == int.from_bytes(BLOCK_PREFIX, 'little'):
+            Logger.leveldb.debug('Deleting block %s', item)
+            self.repository.remove_block(item['key'][2:])
+        elif item['key'][0] == int.from_bytes(TRANSACTION_PREFIX, 'little'):
+            Logger.leveldb.debug('Deleting transaction %s', item)
+            self.repository.remove_transaction(item['key'][2:])
+        else:
+            raise ValueError('Problem: %s' % item)
+        self.index['total'] -= self.index['keys'].pop(item['key'])['size']
 
     async def lurk(self):
         try:
             await self.lock.acquire()
-            await self.loop.run_in_executor(None, self.check)
+            await self.check()
         finally:
             self.lock.release()
-            self.loop.create_task(self.delayer(self.lurk, 30))
+            self.loop.create_task(self.delayer(self.lurk(), 30))
