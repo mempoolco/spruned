@@ -29,3 +29,11 @@ class Repository:
             headers=headers_repository,
             blocks=blocks_repository
         )
+
+    def ensure_integrity(self):
+        self.headers.ensure_integrity()
+        self.blockchain.ensure_integrity()
+
+    def set_cache(self, cache):
+        self.headers.set_cache(cache)
+        self.blockchain.set_cache(cache)

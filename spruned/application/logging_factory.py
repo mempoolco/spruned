@@ -48,6 +48,10 @@ class LoggingFactory:
     def bitcoind(self):
         return logging.getLogger('bitcoind')
 
+    @property
+    def cache(self):
+        return logging.getLogger('bitcoind')
+
 
 if settings.TESTING:
     Logger = LoggingFactory(

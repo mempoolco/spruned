@@ -1,4 +1,5 @@
 from spruned.application import tools
+from spruned.application.cache import CacheAgent
 from spruned.repositories.blockchain_repository import BlockchainRepository
 from spruned.repositories.repository import Repository
 
@@ -11,16 +12,13 @@ from spruned.application import spruned_vo_service, settings
 from spruned.application.jsonrpc_server import JSONRPCServer
 from spruned.daemon.electrod import build as electrod_builder
 from spruned.daemon.p2p import build as p2p_builder
-from spruned.application.database import cache_ldb
 
 electrod_connectionpool, electrod_interface = electrod_builder(settings.NETWORK)
 p2p_connectionpool, p2p_interface = p2p_builder(settings.NETWORK)
 
 repository = Repository.instance()
 
-cache = BlockchainRepository(
-    cache_ldb, settings.LEVELDB_CACHE_SLUG, settings.LEVELDB_CACHE_ADDRESS, limit=50*1024*1024
-)
+cache = CacheAgent(repository, settings.CACHE_SIZE)
 
 third_party_services = third_party_services_builder()
 service = spruned_vo_service.SprunedVOService(

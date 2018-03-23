@@ -9,6 +9,10 @@ from spruned.application import database
 class HeadersSQLiteRepository(HeadersRepository):
     def __init__(self, session):
         self.session = session
+        self._cache = None
+
+    def set_cache(self, cache):
+        self._cache = cache
 
     @staticmethod
     def _header_model_to_dict(header: database.Header, nextblockhash: (None, str), prevblockhash: (None, str)) -> Dict:

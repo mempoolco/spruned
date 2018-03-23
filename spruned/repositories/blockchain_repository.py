@@ -25,6 +25,10 @@ class BlockchainRepository:
         self.limit = limit
         self.dbpath = dbpath
         self.limit and self._ensure_timestamps()
+        self._cache = None
+
+    def set_cache(self, cache):
+        self._cache = cache
 
     def _deserialize_timestamp(self, blob: bytes):
         timestamp, key = struct.unpack('L', blob[:8]), blob[8:]

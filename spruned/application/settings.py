@@ -33,7 +33,7 @@ CHECKPOINTS = {
 # application
 DEBUG = True
 TESTNET = 0
-CACHE = 1024
+CACHE_SIZE = 1024 * 1024 * 50
 NETWORK = Network.BITCOIN
 SPRUNED_SERVICE_URL = 'https://spruned.mempool.co/data/'
 MIN_DATA_SOURCES = 1
@@ -51,8 +51,7 @@ CHECK_NETWORK_HOST = [
     'k.root-servers.net',
     'l.root-servers.net',
     'm.root-servers.net',
-    'www.bitcoin.org',
-    'www.google.com'
+    'www.bitcoin.org'
 ]
 
 # third-party secrets
@@ -64,12 +63,10 @@ SQLITE_DBNAME = ''
 
 if not TESTING:
     FILE_DIRECTORY = '%s/.spruned' % Path.home()
-    CACHE_ADDRESS = '%s/cache/' % FILE_DIRECTORY
     STORAGE_ADDRESS = '%s/storage/' % FILE_DIRECTORY
     LOGFILE = '%s/spruned.log' % FILE_DIRECTORY
     SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
     LEVELDB_BLOCKCHAIN_ADDRESS = '%sdatabase.ldb' % STORAGE_ADDRESS
-    LEVELDB_CACHE_ADDRESS = '%scache.ldb' % STORAGE_ADDRESS
 
 
 LEVELDB_BLOCKCHAIN_SLUG = b'blockchain'

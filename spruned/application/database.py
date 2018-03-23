@@ -26,12 +26,10 @@ if not settings.SQLITE_DBNAME or os.path.exists(settings.SQLITE_DBNAME):
 sqlite = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
 storage_ldb = leveldb.LevelDB(settings.LEVELDB_BLOCKCHAIN_ADDRESS)
-cache_ldb = leveldb.LevelDB(settings.LEVELDB_CACHE_ADDRESS)
 
 _local = threading.local()
 _local.session = sqlite
 _local.storage_ldb = storage_ldb
-_local.cache_ldb = cache_ldb
 
 
 def atomic(fun):
