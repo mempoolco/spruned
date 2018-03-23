@@ -144,6 +144,3 @@ class HeadersSQLiteRepository(HeadersRepository):
         nextblockhash = self.get_block_hash(header.blockheight + 1)
         prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1)
         return self._header_model_to_dict(header, nextblockhash, prevblockhash)
-
-    def get_block(self, blockhash: str):
-        pass

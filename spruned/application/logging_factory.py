@@ -41,6 +41,10 @@ class LoggingFactory:
         return logging.getLogger('p2p')
 
     @property
+    def leveldb(self):
+        return logging.getLogger('leveldb')
+
+    @property
     def bitcoind(self):
         return logging.getLogger('bitcoind')
 

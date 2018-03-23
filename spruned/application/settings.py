@@ -68,6 +68,12 @@ if not TESTING:
     STORAGE_ADDRESS = '%s/storage/' % FILE_DIRECTORY
     LOGFILE = '%s/spruned.log' % FILE_DIRECTORY
     SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
+    LEVELDB_BLOCKCHAIN_ADDRESS = '%sdatabase.ldb' % STORAGE_ADDRESS
+    LEVELDB_CACHE_ADDRESS = '%scache.ldb' % STORAGE_ADDRESS
+
+
+LEVELDB_BLOCKCHAIN_SLUG = b'blockchain'
+LEVELDB_CACHE_SLUG = b'cache'
 
 # electrod
 ELECTROD_CONNECTIONS = 3

@@ -1,15 +1,8 @@
-import typing
 import random
 import binascii
-
-from pycoin.block import Block
-from pycoin.tx import Tx
-
 from spruned.application.tools import deserialize_header
-from spruned.application import settings, exceptions, utils
+from spruned.application import settings, exceptions
 from spruned.application.abstracts import RPCAPIService, StorageInterface
-from spruned.application.cache import cache_transaction
-from spruned.application.logging_factory import Logger
 
 
 class SprunedVOService(RPCAPIService):
@@ -42,12 +35,12 @@ class SprunedVOService(RPCAPIService):
         self.sources.append(service)
 
     async def getblock(self, blockhash: str, mode: int=1):
-        block_header = self.repository.get_block_header(blockhash)
+        block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
         block = await self._get_block(block_header)
         if mode == 1:
-            best_header = self.repository.get_best_header()
+            best_header = self.repository.headers.get_best_header()
             block['confirmations'] = best_header['block_height'] - block_header['block_height']
             serialized = self._serialize_header(block_header)
             serialized['tx'] = [tx.id() for tx in block['block_object'].txs]
@@ -58,14 +51,16 @@ class SprunedVOService(RPCAPIService):
 
     async def _get_block(self, blockheader, _r=0):
         blockhash = blockheader['block_hash']
-        block = self.repository.get_block(blockhash) or await self.p2p.get_block(blockhash)
+        cachedblock = self.cache and self.cache.get_block(blockhash)
+        block = cachedblock or await self.p2p.get_block(blockhash)
         if not block:
-            if _r > 3:
+            if _r > 10:
                 raise exceptions.ServiceException
-            return await self._get_block(blockheader, _r+1)
+            else:
+                return await self._get_block(blockheader, _r + 1)
+        self.cache and not cachedblock and self.cache.save_block(block)
         return block
 
-    @cache_transaction
     async def getrawtransaction(self, txid: str, verbose=False):
         source = random.choice(self.sources)
         transaction = await source.getrawtransaction(txid, verbose)
@@ -76,7 +71,7 @@ class SprunedVOService(RPCAPIService):
         transaction['rawtx'] = electrod_rawtx
         transaction['source'] += ', electrum'
         if transaction.get('blockhash'):
-            blockheader = self.repository.get_block_header(transaction['blockhash'])
+            blockheader = self.repository.headers.get_block_header(transaction['blockhash'])
             merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
             assert merkleproof  # todo verify
         return transaction
@@ -143,16 +138,16 @@ class SprunedVOService(RPCAPIService):
     '''
 
     async def getbestblockhash(self):
-        res = self.repository.get_best_header().get('block_hash')
+        res = self.repository.headers.get_best_header().get('block_hash')
         return res and res
 
     async def getblockhash(self, blockheight: int):
-        return self.repository.get_block_hash(blockheight)
+        return self.repository.headers.get_block_hash(blockheight)
 
     async def getblockheader(self, blockhash: str, verbose=True):
-        header = self.repository.get_block_header(blockhash)
+        header = self.repository.headers.get_block_header(blockhash)
         if verbose:
-            _best_header = self.repository.get_best_header()
+            _best_header = self.repository.headers.get_best_header()
             res = self._serialize_header(header)
             res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
         else:
@@ -185,11 +180,11 @@ class SprunedVOService(RPCAPIService):
         return await self.electrod.estimatefee(blocks)
 
     async def getbestblockheader(self, verbose=True):
-        best_header = self.repository.get_best_header()
+        best_header = self.repository.headers.get_best_header()
         return await self.getblockheader(best_header['block_hash'], verbose=verbose)
 
     async def getblockchaininfo(self):
-        best_header = self.repository.get_best_header()
+        best_header = self.repository.headers.get_best_header()
         _deserialized_header = deserialize_header(best_header['header_bytes'])
         return {
             "chain": "main",

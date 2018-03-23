@@ -1,10 +1,9 @@
 import asyncio
-from spruned.application.abstracts import HeadersRepository
-from spruned.application.blocks_repository import BlocksRepository
 from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.daemon.p2p import P2PInterface
+from spruned.repositories.repository import Repository
 
 
 class BlocksReactor:
@@ -13,21 +12,19 @@ class BlocksReactor:
     """
     def __init__(
             self,
-            blocks_repo: BlocksRepository,
-            headers_repo: HeadersRepository,
+            repository: Repository,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
             prune=200,
             delayed_task=async_delayed_task
     ):
-        self.blocks_repo = blocks_repo
+        self.repo = repository
         self.interface = interface
         self.loop = loop or asyncio.get_event_loop()
         self.lock = asyncio.Lock()
         self.delayer = delayed_task
         self._last_processed_block = None
         self._prune = prune
-        self.headers_repo = headers_repo
         self._max_per_batch = 10
         self._available = False
         self._fallback_check_interval = 30
@@ -47,7 +44,7 @@ class BlocksReactor:
 
     async def check(self):
         try:
-            best_header = self.headers_repo.get_best_header()
+            best_header = self.repo.headers.get_best_header()
             await self._check_blockchain(best_header)
             self.loop.create_task(self._fallback_check_interval)
         except Exception as e:
@@ -79,16 +76,16 @@ class BlocksReactor:
         else:
             _bestheight = best_header['block_height'] - self._prune
             _startheight = _bestheight >= 0 and _bestheight or 0
-            start = self.headers_repo.get_header_at_height(_startheight)
+            start = self.repo.headers.get_header_at_height(_startheight)
 
         blocks = await self.interface.get_blocks(start, best_header['block_hash'], self._max_per_batch)
         try:
-            self.headers_repo.get_headers(*[block['block_hash'] for block in blocks])
+            self.repo.headers.get_headers(*[block['block_hash'] for block in blocks])
         except:
             Logger.p2p.exception('Error fetching headers for downloaded blocks')
             raise exceptions.BlocksInconsistencyException
         try:
-            saved_block = self.blocks_repo.save_blocks(*blocks)
+            saved_block = self.repo.blockchain.save_blocks(*blocks)
             Logger.p2p.debug('Saved block %s', saved_block)
         except:
             Logger.p2p.exception('Error saving blocks %s', blocks)
@@ -96,7 +93,7 @@ class BlocksReactor:
 
     async def _on_headers_behind_blocks(self, best_header):
         try:
-            self.blocks_repo.get_block(best_header['blockhash'])
+            self.repo.blockchain.get_block(best_header['blockhash'])
         except:
             Logger.p2p.exception('Error fetching block in headers_behind_blocks behaviour: %s', best_header)
             raise exceptions.BlocksInconsistencyException
