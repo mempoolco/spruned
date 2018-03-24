@@ -1,34 +1,36 @@
-def build():  # pragma: no cover
+from spruned.application import tools
+from spruned.application.cache import CacheAgent
+from spruned.repositories.repository import Repository
 
-    from spruned.application import tools
-    tools.load_config()
-    from spruned.services.thirdparty_service import builder as third_party_services_builder
-    from spruned.application import spruned_vo_service, settings, database
-    from spruned.application.cache import CacheFileInterface
-    from spruned.application.jsonrpc_server import JSONRPCServer
-    from spruned.daemon.electrod.electrod_reactor import build_electrod
-    from spruned.application.headers_repository import HeadersSQLiteRepository
+tools.load_config()
+from spruned import settings
+from spruned.daemon.tasks.blocks_reactor import BlocksReactor
+from spruned.daemon.tasks.headers_reactor import HeadersReactor
+from spruned.application import spruned_vo_service
+from spruned.application.jsonrpc_server import JSONRPCServer
+from spruned.daemon.electrod import build as electrod_builder
+from spruned.daemon.p2p import build as p2p_builder
 
-    headers_repository = HeadersSQLiteRepository(database.session)
-    cache = CacheFileInterface(settings.CACHE_ADDRESS)
-    electrod_daemon, electrod_service = build_electrod(
-        headers_repository, settings.NETWORK, settings.ELECTROD_CONNECTIONS
-    )
-    third_pary_services = third_party_services_builder()
-    service = spruned_vo_service.SprunedVOService(
-        electrod_service,
-        cache=cache,
-        repository=headers_repository
-    )
-    service.add_source(third_pary_services)
-    jsonrpc_server = JSONRPCServer(
-        settings.JSONRPCSERVER_HOST,
-        settings.JSONRPCSERVER_PORT,
-        settings.JSONRPCSERVER_USER,
-        settings.JSONRPCSERVER_PASSWORD
-    )
-    jsonrpc_server.set_vo_service(service)
-    return electrod_daemon, jsonrpc_server
+electrod_connectionpool, electrod_interface = electrod_builder(settings.NETWORK)
+p2p_connectionpool, p2p_interface = p2p_builder(settings.NETWORK)
 
+repository = Repository.instance()
+cache = CacheAgent(repository, settings.CACHE_SIZE)
+repository.set_cache(cache)
 
-electrod_daemon, jsonrpc_server = build()  # pragma: no cover
+service = spruned_vo_service.SprunedVOService(
+    electrod_interface,
+    p2p_interface,
+    repository=repository,
+    cache=cache
+)
+
+jsonrpc_server = JSONRPCServer(
+    settings.JSONRPCSERVER_HOST,
+    settings.JSONRPCSERVER_PORT,
+    settings.JSONRPCSERVER_USER,
+    settings.JSONRPCSERVER_PASSWORD
+)
+jsonrpc_server.set_vo_service(service)
+headers_reactor = HeadersReactor(repository.headers, electrod_interface)
+blocks_reactor = BlocksReactor(repository, p2p_interface)

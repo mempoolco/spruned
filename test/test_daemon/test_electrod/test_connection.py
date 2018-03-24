@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 import binascii
 
 import time

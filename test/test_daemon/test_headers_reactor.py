@@ -3,23 +3,23 @@ import unittest
 from unittest.mock import Mock, create_autospec, call
 import time
 
-from spruned.application import settings
+from spruned import settings
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.electrod.electrod_reactor import ElectrodReactor
+from spruned.daemon.tasks.headers_reactor import HeadersReactor
 from test.utils import async_coro, coro_call, in_range, make_headers
 import warnings
 
 
-class TestElectrodReactor(unittest.TestCase):
+class TestHeadersReactor(unittest.TestCase):
     def setUp(self):
         self.repo = create_autospec(HeadersRepository)
         self.interface = create_autospec(ElectrodInterface)
         self.electrod_loop = Mock()
         self.electrod_loop.create_task.side_effect = lambda x: x
         self.delay_task_runner = Mock()
-        self.sut = ElectrodReactor(
+        self.sut = HeadersReactor(
             self.repo, self.interface, loop=self.electrod_loop, delayed_task=self.delay_task_runner
         )
         self.loop = asyncio.get_event_loop()
@@ -491,12 +491,11 @@ class TestElectrodReactor(unittest.TestCase):
             "block_height": 1,
             "block_hash": "ff"*32, "timestamp": header_timestamp - 700, 'header_bytes': b'', 'prev_block_hash': '00'*32
         }
-        peer = Mock()
+        peer = Mock(server_info='mock_peer')
         self.interface.get_header.side_effect = [async_coro((peer, net_header))]
         self.sut.synced = True
         self.sut.set_last_processed_header(loc_header)
         self.assertFalse(self.sut.lock.locked())
-        peer = Mock(server_info='mock_peer')
         self.loop.run_until_complete(self.sut.check_headers())
         Mock.assert_called_once_with(self.delay_task_runner, coro_call('check_headers'), in_range(655, 660))
         Mock.assert_has_calls(

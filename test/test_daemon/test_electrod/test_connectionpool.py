@@ -1,25 +1,23 @@
 import asyncio
 import unittest
-from unittest.mock import Mock, call, create_autospec
-import binascii
+from unittest.mock import Mock
 
 import time
 
-from spruned.application.tools import async_delayed_task
 from spruned.daemon import exceptions
-from spruned.daemon.electrod.electrod_connection import ElectrodConnection, ElectrodConnectionPool
-from test.utils import async_coro, coro_call
+from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
+from test.utils import async_coro
 
 
 async def connect(m):
-    m._connect.return_value = async_coro(True)
+    m._connect.return_value = True
     m.connected = True
     m.protocol = 'protocol'
     return m._connect()
 
 
 async def disconnect(m):
-    m._disconnect.return_value = async_coro(True)
+    m._disconnect.return_value = True
     m.connected = False
     m.protocol = None
     return m._disconnect()
@@ -37,7 +35,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
             connections=3,
             loop=self.electrod_loop,
             delayer=self.delayer,
-            electrum_servers=self.servers,
+            peers=self.servers,
             network_checker=self.network_checker,
             connection_factory=self.connection_factory
         )
@@ -219,13 +217,13 @@ class TestElectrodConnectionPool(unittest.TestCase):
             )
 
     def test_corners(self):
-        s = [s for s in self.sut._servers]
-        self.sut._servers = []
+        s = [s for s in self.sut._peers]
+        self.sut._peers = []
         with self.assertRaises(exceptions.NoServersException):
-            self.sut._pick_server()
+            self.sut._pick_peer()
         with self.assertRaises(exceptions.NoServersException):
-            self.sut._pick_multiple_servers(2)
-        self.sut._servers = s
+            self.sut._pick_multiple_peers(2)
+        self.sut._peers = s
         with self.assertRaises(exceptions.NoPeersException):
             self.sut._pick_connection()
         with self.assertRaises(exceptions.NoPeersException):
@@ -233,12 +231,12 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.assertIsNone(
             self.sut._pick_connection(fail_silent=True)
         )
-        self.sut._servers = ['cafebabe']
+        self.sut._peers = ['cafebabe']
         self.sut._connections.append(Mock(hostname='cafebabe', connected=True))
         with self.assertRaises(exceptions.NoServersException):
-            self.sut._pick_server()
+            self.sut._pick_peer()
         with self.assertRaises(exceptions.NoServersException):
-            self.sut._pick_multiple_servers(1)
+            self.sut._pick_multiple_peers(1)
 
     def test__handle_peer_error_disconnected(self):
         conn = Mock(connected=False)
@@ -296,11 +294,13 @@ class TestElectrodConnectionPool(unittest.TestCase):
 
     def test_on_peer_error(self):
         peer = Mock(is_online=True, connected=False, _errors=[])
+        peer.add_error = lambda *x: peer._errors.append(x[0]) if x else peer._errors.append(int(time.time()))
         self.loop.run_until_complete(self.sut.on_peer_error(peer))
         self.assertEqual(len(peer._errors), 1)
 
     def test_on_peer_error_during_connection(self):
         peer = Mock(is_online=True, connected=False, _errors=[])
+        peer.add_error = lambda *x: peer._errors.append(x[0]) if x else peer._errors.append(int(time.time()))
         self.network_checker.return_value = False
         self.loop.run_until_complete(self.sut.on_peer_error(peer, error_type='connect'))
         self.assertEqual(len(peer._errors), 0)

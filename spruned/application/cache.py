@@ -1,69 +1,130 @@
-import functools
-from spruned.application.storage import StorageFileInterface
+import asyncio
+import pickle
+from leveldb import LevelDB
+import time
+
+from spruned.application.database import ldb_batch
+from spruned.application.logging_factory import Logger
+from spruned.application.tools import async_delayed_task
+from spruned.repositories.blockchain_repository import TRANSACTION_PREFIX, BLOCK_PREFIX
 
 
-class CacheFileInterface(StorageFileInterface):
-    def __init__(self, directory, cache_limit=None, compress=True):
-        super().__init__(directory, cache_limit=cache_limit, compress=compress)
+class CacheAgent:
+    def __init__(self, repository, limit, loop=asyncio.get_event_loop(), delayer=async_delayed_task):
+        self.session: LevelDB = repository.ldb
+        self.repository = repository
+        self.repository.blockchain.set_cache(self)
+        self.cache_name = b'cache_index'
+        self.index = None
+        self.limit = limit
+        self._last_dump_size = None
+        self.loop = loop
+        self.lock = asyncio.Lock()
+        self.delayer = delayer
 
+    def init(self):
+        self._load_index()
 
-def cache_block(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        cacheargs = ''.join(args[1:])
-        cached = False
-        res = None
-        if args[0].cache:
-            cache_res = args[0].cache.get('getblock', cacheargs)
-            if cache_res:
-                res = cache_res
-                cached = True
+    def dump(self):
+        self._save_index()
 
-        if res is None:
-            res = await func(*args, **kwargs)
-            cached = False
+    def _deserialize_index(self, rawdata):
+        index = {'keys': {}}
+        data = pickle.loads(rawdata)
+        s = 0
+        for d in data:
+            s += d[2]
+            index['keys'][d[0]] = {
+                'saved_at': d[1],
+                'size': d[2],
+                'key': d[0]
+            }
+        index['total'] = s
+        self.index = index
+        return index
 
-        if res and args[0].cache and not cached:
-            best_height = await args[0].getblockcount()
-            args[0].current_best_height = best_height
-            height = res['height']
-            res['confirmations'] = best_height - height
-            if res['confirmations'] > 3:
-                args[0].cache.set('getblock', res['hash'], res)
-        return res
-    return wrapper
+    def _serialize_index(self):
+        data = []
+        for k, d in self.index['keys'].items():
+            if k != 'total':
+                data.append([k, d['saved_at'], d['size']])
+        return pickle.dumps(data)
 
+    @ldb_batch
+    def _save_index(self):
+        data = self._serialize_index()
+        self.session.put(self.cache_name, data)
+        Logger.cache.debug('Saved index')
+        self._last_dump_size = self.index['total']
 
-def cache_transaction(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        cacheargs = ''.join(args[1:])
-        cached = False
-        res = None
-        if args[0].cache:
-            cache_res = args[0].cache.get('getrawtransaction', cacheargs)
-            if cache_res:
-                res = cache_res
-                cached = True
-        if res is None:
-            res = await func(*args, **kwargs)
-            cached = False
+    def _load_index(self):
+        index = self.session.get(self.cache_name)
+        if not index:
+            Logger.cache.warning('Cache not found. Ok if is the first time')
+            return
+        Logger.cache.debug('Loaded index')
+        index and self._deserialize_index(index)
+        self._last_dump_size = self.index and self.index['total']
 
-        if res and args[0].cache and not cached:
-            best_height = args[0].repository.get_best_header().get('block_height')
-            args[0].current_best_height = best_height
-            confirmed = False
-            if res.get('blockhash'):
-                header = args[0].repository.get_block_header(res['blockhash'])
-                if header:
-                    res['confirmations'] = best_height - header['block_height']
-                    if res['confirmations'] > 3:
-                        args[0].cache.set('getrawtransaction', res['txid'], res)
-                        confirmed = True
+    def track(self, key, size):
+        if not self.index:
+            self.index = {'keys': {}, 'total': 0}
+        self.index['keys'][key] = {
+            'saved_at': int(time.time()),
+            'size': size,
+            'key': key
+        }
+        self.index['total'] += size
 
-        if kwargs.get('verbose'):
-            raise NotImplementedError
-            # Note: I have to do a PR to ElectrumX Server and today is saturday :-)
+    async def check(self):
+        if self.index and not self._last_dump_size or (self.index and self.index['total'] != self._last_dump_size):
+            Logger.cache.debug('Pending data, dumping')
+            self._save_index()
+        if not self.index:
+            Logger.cache.debug('No prev index found, trying to load')
+            self._load_index()
+        if not self.index:
+            self.index = {'keys': {}, 'total': 0}
+            Logger.cache.debug('No prev index found nor loaded')
+            self._save_index()
+            return
+        if self.index['total'] > self.limit:
+            Logger.cache.debug('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
+            blockfirst = {0: 2, 1: 1}
+            index_sorted = sorted(
+                self.index['keys'].values(), key=lambda x: ((blockfirst[x['key'][0]] ** 33) + x['saved_at'])
+            )
+            i = 0
+            while self.index['total'] * 1.1 > self.limit:
+                item = index_sorted[i]
+                Logger.cache.debug('Deleting %s' % item)
+                self.delete(item)
+                i += 1
         else:
-            return res and res['rawtx']
-    return wrapper
+            Logger.cache.debug('Cache is ok, size: %s, limit: %s', self.index['total'], self.limit)
+        if self.index['total'] != self._last_dump_size:
+            self._save_index()
+
+    def delete(self, item):
+        if item['key'][0] == int.from_bytes(BLOCK_PREFIX, 'little'):
+            Logger.leveldb.debug('Deleting block %s', item)
+            self.repository.blockchain.remove_block(item['key'][2:])
+        elif item['key'][0] == int.from_bytes(TRANSACTION_PREFIX, 'little'):
+            Logger.leveldb.debug('Deleting transaction %s', item)
+            self.repository.blockchain.remove_transaction(item['key'][2:])
+        else:
+            raise ValueError('Problem: %s' % item)
+        self.index['total'] -= self.index['keys'].pop(item['key'])['size']
+
+    async def lurk(self):
+        try:
+            await self.lock.acquire()
+            await self.check()
+        finally:
+            self.lock.release()
+            self.loop.create_task(self.delayer(self.lurk(), 30))
+
+    def get_index(self):
+        if not self.index:
+            self._load_index()
+        return self.index

@@ -1,6 +1,6 @@
 import logging
 import sys
-from spruned.application import settings
+from spruned import settings
 
 
 class LoggingFactory:
@@ -37,8 +37,26 @@ class LoggingFactory:
         return logging.getLogger('electrum')
 
     @property
+    def p2p(self):
+        return logging.getLogger('p2p')
+
+    @property
+    def leveldb(self):
+        return logging.getLogger('leveldb')
+
+    @property
     def bitcoind(self):
         return logging.getLogger('bitcoind')
+
+    @property
+    def cache(self):
+        return logging.getLogger('cache')
+
+    @property
+    def jsonrpc(self):
+        return logging.getLogger('jsonrpc')
+
+
 
 
 if settings.TESTING:
@@ -49,6 +67,11 @@ if settings.TESTING:
     )  # type: LoggingFactory
 
 elif settings.DEBUG:
+    logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
+    logging.getLogger('pycoin').setLevel(logging.INFO)
+    logging.getLogger('p2p').setLevel(logging.INFO)
+    logging.getLogger('connectrum').setLevel(logging.INFO)
+    logging.getLogger('electrum').setLevel(logging.INFO)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,
@@ -59,6 +82,8 @@ else:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
     logging.getLogger('connectrum').setLevel(logging.WARNING)
+    logging.getLogger('pycoin').setLevel(logging.WARNING)
+    logging.getLogger('p2p').setLevel(logging.WARNING)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.INFO,

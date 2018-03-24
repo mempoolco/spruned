@@ -31,3 +31,7 @@ class ElectrodMissingResponseException(SprunedException):
 
 class NoServersException(SprunedException):
     pass
+
+
+class BlocksInconsistencyException(SprunedException):
+    pass

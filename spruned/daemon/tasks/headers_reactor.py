@@ -1,21 +1,20 @@
 import asyncio
-import json
-from typing import Dict, Tuple
-
+from typing import Dict
 import time
-
-import os
 from spruned.application.abstracts import HeadersRepository
-from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
+from spruned.daemon.electrod.electrod_connection import ElectrodConnection
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon import exceptions
 from spruned.application import database
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import get_nearest_parent, async_delayed_task
-from spruned.daemon.electrod.electrod_service import ElectrodService
 
 
-class ElectrodReactor:
+class HeadersReactor:
+    """
+    This reactor keeps headers aligned to the best height.
+    Designed to work with the Electrum Network, it may be ported easily to P2P
+    """
     def __init__(
             self,
             repo: HeadersRepository,
@@ -309,6 +308,8 @@ class ElectrodReactor:
             _from = rewind_from
             _to = rewind_from + chunks_at_time
             if _from > (network_best_header['block_height'] // 2016):
+                # fixme, move the chunk stuff inside the electrod interface and
+                # here just "fetch headers". stop.
                 self.synced = True
                 return
             headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
@@ -356,21 +357,3 @@ class ElectrodReactor:
             'Headers inconsistency found, removed headers since %s. Current local: %s',
             remove_headers_since, local_best_header['block_height']
         )
-
-
-def build_electrod(headers_repository, network, connections) \
-        -> Tuple[ElectrodReactor, ElectrodService]:  # pragma: no cover
-
-    def load_electrum_servers(network):
-        _current_path = os.path.dirname(os.path.abspath(__file__))
-        with open(_current_path + '/electrum_servers.json', 'r') as f:
-            servers = json.load(f)
-        return servers[network]
-
-    electrod_pool = ElectrodConnectionPool(
-        connections=connections, electrum_servers=load_electrum_servers("bc_mainnet")
-    )
-    electrod_interface = ElectrodInterface(electrod_pool)
-    electrod_reactor = ElectrodReactor(headers_repository, electrod_interface)
-    electrod_service = ElectrodService(electrod_interface)
-    return electrod_reactor, electrod_service

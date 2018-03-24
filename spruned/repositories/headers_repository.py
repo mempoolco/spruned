@@ -9,6 +9,10 @@ from spruned.application import database
 class HeadersSQLiteRepository(HeadersRepository):
     def __init__(self, session):
         self.session = session
+        self._cache = None
+
+    def set_cache(self, cache):
+        self._cache = cache
 
     @staticmethod
     def _header_model_to_dict(header: database.Header, nextblockhash: (None, str), prevblockhash: (None, str)) -> Dict:
@@ -40,6 +44,21 @@ class HeadersSQLiteRepository(HeadersRepository):
         session = self.session()
         headers = session.query(database.Header).filter(database.Header.blockheight >= height)\
             .order_by(database.Header.blockheight.asc()).all()
+        return headers and [
+            self._header_model_to_dict(
+                h,
+                nextblockhash=self.get_block_hash(h.blockheight+1),
+                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1)
+            ) for h in headers
+        ] or []
+
+    def get_headers(self, *blockhashes: str):
+        session = self.session()
+        headers = session.query(database.Header).filter(database.Header.blockhash.in_(blockhashes))\
+            .order_by(database.Header.blockheight.asc()).all()
+        if set([h.blockhash for h in headers]) - set(blockhashes):
+            # not sure if all raises, investigate # FIXME
+            raise exceptions.HeadersInconsistencyException
         return headers and [
             self._header_model_to_dict(
                 h,
@@ -124,6 +143,8 @@ class HeadersSQLiteRepository(HeadersRepository):
     def get_block_header(self, blockhash: str):
         session = self.session()
         header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
+        if not header:
+            return
         nextblockhash = self.get_block_hash(header.blockheight + 1)
         prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1)
-        return header and self._header_model_to_dict(header, nextblockhash, prevblockhash)
+        return self._header_model_to_dict(header, nextblockhash, prevblockhash)

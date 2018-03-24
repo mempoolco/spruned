@@ -1,7 +1,7 @@
 import asyncio
 import binascii
 from typing import Dict
-from spruned.application import settings
+from spruned import settings
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
