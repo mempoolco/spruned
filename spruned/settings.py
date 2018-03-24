@@ -33,7 +33,7 @@ CHECKPOINTS = {
 # application
 DEBUG = True
 TESTNET = 0
-CACHE_SIZE = 1024 * 1024 #* 50
+CACHE_SIZE = 1024 * 1024 * 50
 NETWORK = Network.BITCOIN
 SPRUNED_SERVICE_URL = 'https://spruned.mempool.co/data/'
 MIN_DATA_SOURCES = 1

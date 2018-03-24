@@ -11,9 +11,9 @@ from spruned.repositories.blockchain_repository import TRANSACTION_PREFIX, BLOCK
 
 class CacheAgent:
     def __init__(self, repository, limit, loop=asyncio.get_event_loop(), delayer=async_delayed_task):
-        self.session: LevelDB = repository.blockchain.session
-        self.repository = repository.blockchain
-        self.repository.set_cache(self)
+        self.session: LevelDB = repository.ldb
+        self.repository = repository
+        self.repository.blockchain.set_cache(self)
         self.cache_name = b'cache_index'
         self.index = None
         self.limit = limit
@@ -40,7 +40,7 @@ class CacheAgent:
                 'key': d[0]
             }
         index['total'] = s
-        self._index = index
+        self.index = index
         return index
 
     def _serialize_index(self):
@@ -53,16 +53,17 @@ class CacheAgent:
     @ldb_batch
     def _save_index(self):
         data = self._serialize_index()
-        self.session.Put(self.cache_name, data)
+        self.session.put(self.cache_name, data)
+        Logger.cache.debug('Saved index')
         self._last_dump_size = self.index['total']
 
     def _load_index(self):
-        try:
-            index = self.session.Get(self.cache_name)
-        except KeyError:
+        index = self.session.get(self.cache_name)
+        if not index:
             Logger.cache.warning('Cache not found. Ok if is the first time')
             return
-        self._deserialize_index(index)
+        Logger.cache.debug('Loaded index')
+        index and self._deserialize_index(index)
         self._last_dump_size = self.index and self.index['total']
 
     def track(self, key, size):
@@ -83,13 +84,15 @@ class CacheAgent:
             Logger.cache.debug('No prev index found, trying to load')
             self._load_index()
         if not self.index:
+            self.index = {'keys': {}, 'total': 0}
             Logger.cache.debug('No prev index found nor loaded')
+            self._save_index()
             return
         if self.index['total'] > self.limit:
             Logger.cache.debug('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
             blockfirst = {0: 2, 1: 1}
             index_sorted = sorted(
-                self.index['keys'].values(), key=lambda x: (blockfirst[x['key'][0]] ** 33) - x['saved_at']
+                self.index['keys'].values(), key=lambda x: ((blockfirst[x['key'][0]] ** 33) + x['saved_at'])
             )
             i = 0
             while self.index['total'] * 1.1 > self.limit:
@@ -105,10 +108,10 @@ class CacheAgent:
     def delete(self, item):
         if item['key'][0] == int.from_bytes(BLOCK_PREFIX, 'little'):
             Logger.leveldb.debug('Deleting block %s', item)
-            self.repository.remove_block(item['key'][2:])
+            self.repository.blockchain.remove_block(item['key'][2:])
         elif item['key'][0] == int.from_bytes(TRANSACTION_PREFIX, 'little'):
             Logger.leveldb.debug('Deleting transaction %s', item)
-            self.repository.remove_transaction(item['key'][2:])
+            self.repository.blockchain.remove_transaction(item['key'][2:])
         else:
             raise ValueError('Problem: %s' % item)
         self.index['total'] -= self.index['keys'].pop(item['key'])['size']
@@ -120,3 +123,8 @@ class CacheAgent:
         finally:
             self.lock.release()
             self.loop.create_task(self.delayer(self.lurk(), 30))
+
+    def get_index(self):
+        if not self.index:
+            self._load_index()
+        return self.index

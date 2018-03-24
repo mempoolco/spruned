@@ -52,6 +52,12 @@ class LoggingFactory:
     def cache(self):
         return logging.getLogger('cache')
 
+    @property
+    def jsonrpc(self):
+        return logging.getLogger('jsonrpc')
+
+
+
 
 if settings.TESTING:
     Logger = LoggingFactory(
@@ -65,6 +71,7 @@ elif settings.DEBUG:
     logging.getLogger('pycoin').setLevel(logging.INFO)
     logging.getLogger('p2p').setLevel(logging.INFO)
     logging.getLogger('connectrum').setLevel(logging.INFO)
+    logging.getLogger('electrum').setLevel(logging.INFO)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,

@@ -1,6 +1,6 @@
 import os
 
-import leveldb
+import plyvel
 
 from sqlalchemy import Column, String, Integer, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -27,7 +27,7 @@ if not settings.SQLITE_DBNAME or os.path.exists(settings.SQLITE_DBNAME):
 sqlite = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
 if not settings.TESTING:
-    storage_ldb = leveldb.LevelDB(settings.LEVELDB_BLOCKCHAIN_ADDRESS)
+    storage_ldb = plyvel.DB(settings.LEVELDB_BLOCKCHAIN_ADDRESS, create_if_missing=True)
 else:
     from unittest.mock import Mock
     storage_ldb = Mock()
@@ -69,14 +69,18 @@ def ldb_batch(fun):
             _local.leveldb_counter = 1
         if _local.leveldb_counter == 1:
             try:
-                if not _local.current_batch:
-                    _local.current_batch = leveldb.WriteBatch()
+                if not _local.in_ldb_batch:
+                    _local.storage_ldb = storage_ldb.write_batch()
+                    _local.in_ldb_batch = True
             except AttributeError:
-                _local.current_batch = leveldb.WriteBatch()
+                _local.in_ldb_batch = True
+                _local.storage_ldb = storage_ldb.write_batch()
         r = fun(*args, **kwargs)
         if _local.leveldb_counter == 1:
-            _local.storage_ldb.Write(_local.current_batch)
-            _local.current_batch = None
+            _local.storage_ldb.write()
+            if _local.in_ldb_batch:
+                _local.in_ldb_batch = False
+                _local.storage_ldb = storage_ldb
         _local.leveldb_counter -= 1
         return r
     return decorator

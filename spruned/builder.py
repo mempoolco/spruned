@@ -15,8 +15,8 @@ electrod_connectionpool, electrod_interface = electrod_builder(settings.NETWORK)
 p2p_connectionpool, p2p_interface = p2p_builder(settings.NETWORK)
 
 repository = Repository.instance()
-
 cache = CacheAgent(repository, settings.CACHE_SIZE)
+repository.set_cache(cache)
 
 service = spruned_vo_service.SprunedVOService(
     electrod_interface,

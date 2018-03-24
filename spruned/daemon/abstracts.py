@@ -3,6 +3,7 @@ from typing import List
 
 
 class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
+
     @property
     @abc.abstractmethod
     def start_score(self):

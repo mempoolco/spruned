@@ -202,6 +202,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         connection = self._pick_connection()
         response = await connection.rpc_call(method, params)
         if not response and not fail_silent:
+            await self.on_peer_error(connection)
             raise exceptions.ElectrodMissingResponseException
         return (connection, response) if get_peer else response
 

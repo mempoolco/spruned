@@ -308,6 +308,8 @@ class HeadersReactor:
             _from = rewind_from
             _to = rewind_from + chunks_at_time
             if _from > (network_best_header['block_height'] // 2016):
+                # fixme, move the chunk stuff inside the electrod interface and
+                # here just "fetch headers". stop.
                 self.synced = True
                 return
             headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)

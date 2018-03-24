@@ -6,6 +6,7 @@ from spruned.application.database import ldb_batch
 from spruned.application.tools import deserialize_header
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
+from spruned.daemon.exceptions import ElectrodMissingResponseException
 
 
 class SprunedVOService(RPCAPIService):
@@ -168,7 +169,17 @@ class SprunedVOService(RPCAPIService):
         return self.repository.headers.get_best_header().get('block_height')
 
     async def estimatefee(self, blocks: int):
-        return await self.electrod.estimatefee(blocks)
+        return await self._estimatefee(blocks)
+
+    async def _estimatefee(self, blocks, _r=1):
+        try:
+            res = await self.electrod.estimatefee(blocks)
+        except ElectrodMissingResponseException as e:
+            _r += 1
+            if _r > 5:
+                raise e
+            return await self._estimatefee(blocks, _r + 1)
+        return res
 
     async def getbestblockheader(self, verbose=True):
         best_header = self.repository.headers.get_best_header()

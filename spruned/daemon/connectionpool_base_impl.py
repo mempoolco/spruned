@@ -18,7 +18,8 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                  loop=asyncio.get_event_loop(),
                  use_tor=False,
                  connections=3,
-                 sleep_no_internet=30
+                 sleep_no_internet=30,
+                 ipv6=False
                  ):
         self._connections = []
         self._peers = peers
@@ -34,6 +35,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._is_online = False
         self._sleep_on_no_internet_connectivity = sleep_no_internet
         self._keepalive = True
+        self._ipv6 = ipv6
 
     @property
     def peers(self):
@@ -56,6 +58,9 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
             if self.peers:
                 server = random.choice(self.peers)
                 if server not in [connection.hostname for connection in self.connections]:
+                    if ':' in server[0] and not self._ipv6:
+                        i += 1
+                        continue
                     return server
                 i += 1
                 if i < 100:

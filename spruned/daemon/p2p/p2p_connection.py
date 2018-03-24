@@ -1,5 +1,6 @@
 import asyncio
 import async_timeout
+import time
 from pycoin.message.InvItem import InvItem, ITEM_TYPE_TX
 from pycoinnet.Peer import Peer
 from pycoinnet.PeerEvent import PeerEvent
@@ -14,7 +15,7 @@ from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
 
 class P2PConnection(BaseConnection):
     def ping(self, timeout=None):
-        return True  # TODO
+        self.peer.send_msg('ping', int(time.time()))
 
     def __init__(
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
@@ -68,9 +69,11 @@ class P2PConnection(BaseConnection):
                 peer.version = await peer.perform_handshake(**version_data)
                 self._event_handler = PeerEvent(peer)
                 self._version = peer.version
+                Logger.p2p.info('Connected to peer %s', self.version)
                 self.peer = peer
                 self._setup_events_handler()
         except Exception as e:
+            self.peer = None
             Logger.p2p.error('Exception connecting to %s (%s)', self.hostname, e)
             self.loop.create_task(self.on_error('connect'))
             return
@@ -151,16 +154,16 @@ class P2PConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             batcher=InvBatcher,
             network=MAINNET,
-            batcher_timeout=30
+            batcher_timeout=30,
+            ipv6=False
     ):
         super().__init__(
-            peers=peers, network_checker=network_checker, delayer=delayer,
+            peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
             loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
         )
         self._batcher_factory = batcher
         self._network = network
         self._batcher_timeout = batcher_timeout
-        self._batcher = self._batcher_factory(target_batch_time=self._batcher_timeout-1)
 
     @property
     def available(self):
@@ -182,7 +185,7 @@ class P2PConnectionPool(BaseConnectionPool):
 
         while self._keepalive:
             if not self.is_online():
-                Logger.electrum.error(
+                Logger.p2p.error(
                     'Looks like there is no internet connection available. '
                     'Sleeping the connection loop for %s',
                     self._sleep_on_no_internet_connectivity
@@ -191,43 +194,57 @@ class P2PConnectionPool(BaseConnectionPool):
                 await self._check_internet_connectivity()
                 continue
 
-            missings = len(self.established_connections) < self._required_connections
+            missings = self._required_connections - len(self.established_connections)
             if missings:
-                host, port = self._pick_peer()
-                self.loop.create_task(self._connect_peer(host, port))
-                await asyncio.sleep(1)
+                peers = self._pick_multiple_peers(missings)
+                for peer in peers:
+                    host, port = peer
+                    self.loop.create_task(self._connect_peer(host, port))
             elif len(self.established_connections) > self._required_connections:
                 Logger.p2p.warning('Too many connections')
                 connection = self._pick_connection()
                 self.loop.create_task(connection.disconnect())
-            s = missings and 0.1 or 10
-            Logger.p2p.debug('P2PConnectionPool: Sleeping %ss', s)
-            await asyncio.sleep(s)
+            Logger.p2p.info(
+                'P2PConnectionPool: Sleeping %ss, connected to %s peers', 10, len(self.established_connections)
+            )
+            await asyncio.sleep(10)
 
     async def _connect_peer(self, host: str, port: int):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
         connection = P2PConnection(host, port, loop=self.loop, network=self._network)
         if not await connection.connect():
-            Logger.p2p.warning('Connection to %s - %s failed', host, port)
+            Logger.p2p.warning(
+                'Connection to %s - %s failed. Connected to %s peers', host, port, len(self.established_connections)
+            )
             return
         self._connections.append(connection)
         connection.add_on_connect_callback(self.on_peer_connected)
         connection.add_on_header_callbacks(self.on_peer_received_header)
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
-        await self._batcher.add_peer(connection.peer_event_handler)
 
     async def get(self, inv_item: InvItem):
-        peers = []
+        batcher = self._batcher_factory()
+        s = time.time()
+        Logger.p2p.info('Fetching InvItem %s', inv_item)
         try:
             async with async_timeout.timeout(self._batcher_timeout):
-                future = await self._batcher.inv_item_to_future(inv_item)
+                connections = self._pick_multiple_connections(8)
+                for connection in connections:
+                    Logger.p2p.debug('Adding connection %s to batcher', connection)
+                    await batcher.add_peer(connection.peer_event_handler)
+                future = await batcher.inv_item_to_future(inv_item)
                 response = await future
+                Logger.p2p.warning('Stopping batcher')
+                Logger.p2p.warning('Batcher stopped')
+                Logger.p2p.info('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
                 return response and response
         except Exception as error:
-            Logger.p2p.error('Error in get %s, error: %s', inv_item, error)
-            for peer in peers:
-                self.loop.create_task(peer.disconnect())
+            Logger.p2p.error(
+                'Error in get InvItem %s, error: %s, failed in %ss', inv_item, str(error), round(time.time() - s, 4)
+            )
+        finally:
+            self.loop.run_in_executor(None, batcher.stop)
 
     async def on_peer_connected(self, peer):
         Logger.p2p.debug('on_peer_connected: %s', peer.hostname)
