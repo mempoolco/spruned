@@ -1,5 +1,6 @@
 ## sPRUNED
-#### A Bitcoin full node emulator with a limited set of APIs
+#### A Bitcoin lightweight node that can fetch any block or transaction.
+
 <p>sPRUNED emulate the bitcoind rpc server as a full node of BTC mainnet</p>
 
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
