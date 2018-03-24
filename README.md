@@ -40,8 +40,7 @@ $ bitcoin-cli getblockchaininfo
 
 #### How sPRUNED works:
 It uses an hybrid the P2P bitcoin network, and the electrum network, to gather and verify the informations you need.<br />
-Project is **w.i.p.** and at this moment some functionalities (gettxout and in some way getrawtransaction) are emulated 
-using public services.
+Project is **w.i.p.** and at this moment some functionalities (gettxout and in some way getrawtransaction) are not full functional.
 <br />
 <br />
 Fetched data is cached on a the local file system.<br />
