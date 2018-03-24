@@ -71,7 +71,7 @@ class JSONRPCServer:
             return {"error": {"code": -8, "message": "parameter 1 must be hexadecimal string (not '%s')" % txid}}
         if len(txid) != 64:
             return {"error": {"code": -8, "message": "parameter 1 must be of length 64 (not '%s')" % len(txid)}}
-        response = await self.vo_service.getrawtransaction(txid)
+        response = await self.vo_service.getrawtransaction(txid, verbose)
         if not response:
             return {"error": {"code": -5, "message": "No such mempool or blockchain transaction. [maybe try again]"}}
         return response

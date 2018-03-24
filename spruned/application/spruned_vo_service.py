@@ -54,80 +54,17 @@ class SprunedVOService(RPCAPIService):
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        source = random.choice(self.sources)
-        transaction = await source.getrawtransaction(txid, verbose)
-        if not transaction:
-            # design fixme
-            return
         electrod_rawtx = await self.electrod.getrawtransaction(txid)
-        transaction['rawtx'] = electrod_rawtx
-        transaction['source'] += ', electrum'
-        if transaction.get('blockhash'):
-            blockheader = self.repository.headers.get_block_header(transaction['blockhash'])
-            merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
-            assert merkleproof  # todo verify
-        return transaction
 
-    '''
-    async def gettxout(self, txid: str, index: int):  # pragma: no cover
-        """
-        This entire part need a rethinking
-        At the moment consider as we don't have a gettxout api available yet.
-        """
-        source = random.choice(self.sources)
-        txout = await source.gettxout(txid, index)
-        if not txout:
-            return
-        if not await self.ensure_unspent_consistency_with_electrum_network(txid, index, txout):
-            return
+        #blockheader = self.repository.headers.get_block_header(transaction['blockhash'])
+        #merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
 
-        best_block_header = self.repository.get_best_header()
-        tx_blockheader = self.repository.get_block_header(txout['in_block'])
-        in_block_height = tx_blockheader['block_height']
-        confirmations = best_block_header['block_height'] - in_block_height
-        return {
-            "bestblock": best_block_header['block_hash'],
-            "confirmations": confirmations,
-            "value": '{:.8f}'.format(txout['value_satoshi'] / 10**8),
-            "scriptPubKey": {
-                "asm": txout['script_asm'],
-                "hex": txout['script_hex'],
-                "reqSigs": "Not Implemented Yet",
-                "type": txout["script_type"],
-                "addresses": txout["addresses"]
-            },
-            "coinbase": "Not Implemented Yet"
-        }
-
-    async def ensure_unspent_consistency_with_electrum_network(
-            self, txid: str, index: int, data: typing.Dict):   # pragma: no cover
-        if not data['addresses']:
-            if settings.ALLOW_UNSAFE_UTXO:
-                return True
-            return
-        if data['script_type'] == 'nulldata':  # I'm not sure if nulldata can reach this point, investigate.
-            return True
-        found = False
-        unspents = await self.electrod.listunspents(data['addresses'][0])
-        if not unspents:
-            return
-        for unspent in unspents:
-            if unspent['tx_hash'] == txid and unspent['tx_pos'] == index:
-                found = unspent
-                break
-        if not data['unspent'] and found:
-            Logger.third_party.debug(
-                'unspent found in the electrum listunspent for the given address, '
-                'but marked as spent by the other sources'
-            )
-            self.utxo_tracker and not data['unspent'] and self.utxo_tracker.invalidate_spent(txid, index)
-            raise exceptions.SpentTxOutException
-
-        if data['unspent'] and not found:
-            if bool(data['value_satoshi'] != found['value']):
-                raise exceptions.SpentTxOutException
-        return True
-    '''
+        if verbose:
+            return {
+                'source': 'electrum',
+                'rawtx': electrod_rawtx
+            }
+        return electrod_rawtx
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')
