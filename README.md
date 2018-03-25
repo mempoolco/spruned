@@ -1,5 +1,5 @@
 ## sPRUNED
-#### A Bitcoin lightweight node that can fetch any block or transaction.
+#### A Bitcoin lightweight client that can fetch any block or transaction
 
 <p>sPRUNED emulate the bitcoind rpc server as a full node of BTC mainnet</p>
 
