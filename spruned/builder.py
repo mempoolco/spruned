@@ -33,4 +33,4 @@ jsonrpc_server = JSONRPCServer(
 )
 jsonrpc_server.set_vo_service(service)
 headers_reactor = HeadersReactor(repository.headers, electrod_interface)
-blocks_reactor = BlocksReactor(repository, p2p_interface)
+blocks_reactor = BlocksReactor(repository, p2p_interface, prune=settings.BOOTSTRAP_BLOCKS)

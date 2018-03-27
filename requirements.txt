@@ -7,5 +7,5 @@ aiohttp
 jsonrpcserver
 sqlalchemy
 coverage
--e git+https://github.com/gdassori/pycoinnet.git@pycoinnet-logger#egg=pycoinnet
+-e git+https://github.com/gdassori/pycoinnet.git@spruned-support#egg=pycoinnet
 plyvel
