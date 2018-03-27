@@ -5,6 +5,7 @@ from pathlib import Path
 
 TESTING = os.getenv('TESTING')
 
+
 class Network(Enum):
     BITCOIN = 1
     BITCOIN_TESTNET = 2

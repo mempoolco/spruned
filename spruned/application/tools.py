@@ -95,6 +95,8 @@ def load_config():
         os.makedirs(settings.FILE_DIRECTORY)
     if not os.path.exists(settings.STORAGE_ADDRESS):
         os.makedirs(settings.STORAGE_ADDRESS)
+    if not os.path.exists(settings.SQLITE_DBNAME):
+        os.makedirs(settings.SQLITE_DBNAME)
 
 
 def check_internet_connection():

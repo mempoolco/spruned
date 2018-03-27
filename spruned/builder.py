@@ -1,8 +1,5 @@
-from spruned.application import tools
 from spruned.application.cache import CacheAgent
 from spruned.repositories.repository import Repository
-
-tools.load_config()
 from spruned import settings
 from spruned.daemon.tasks.blocks_reactor import BlocksReactor
 from spruned.daemon.tasks.headers_reactor import HeadersReactor

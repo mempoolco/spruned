@@ -1,6 +1,5 @@
 import asyncio
 import pickle
-from leveldb import LevelDB
 import time
 
 from spruned.application.database import ldb_batch
@@ -11,7 +10,7 @@ from spruned.repositories.blockchain_repository import TRANSACTION_PREFIX, BLOCK
 
 class CacheAgent:
     def __init__(self, repository, limit, loop=asyncio.get_event_loop(), delayer=async_delayed_task):
-        self.session: LevelDB = repository.ldb
+        self.session = repository.ldb
         self.repository = repository
         self.repository.blockchain.set_cache(self)
         self.cache_name = b'cache_index'

@@ -71,6 +71,8 @@ class ElectrodConnection(BaseConnection):
         try:
             async with async_timeout.timeout(self._timeout):
                 return await self.client.RPC(method, *args)
+        except asyncio.base_futures.InvalidStateError:
+            raise
         except Exception as e:
             Logger.electrum.error('exception on rpc call: %s', e)
             self.loop.create_task(self.delayer(self.on_error(e)))
@@ -117,7 +119,8 @@ class ElectrodConnectionPool(BaseConnectionPool):
             loop=asyncio.get_event_loop(),
             use_tor=False,
             connections=3,
-            sleep_no_internet=30
+            sleep_no_internet=30,
+            rpc_call_timeout=30
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,
@@ -125,6 +128,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         )
         self._connections_keepalive_time = 120
         self._connection_factory = connection_factory
+        self.rpc_call_timeout = rpc_call_timeout
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -163,7 +167,8 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 keepalive=self._connections_keepalive_time,
                 use_tor=self._use_tor,
                 loop=self.loop,
-                is_online_checker=self.is_online
+                is_online_checker=self.is_online,
+                timeout=self.rpc_call_timeout
             )
             instance.add_on_connect_callback(self.on_peer_connected)
             instance.add_on_header_callbacks(self.on_peer_received_header)

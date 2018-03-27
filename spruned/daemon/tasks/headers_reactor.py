@@ -38,6 +38,10 @@ class HeadersReactor:
         self.synced = False
         self.sleep_time_on_inconsistency = sleep_time_on_inconsistency
         self.orphans_headers = []
+        self.on_best_height_hit_callbacks = []
+
+    def add_on_best_height_hit_callbacks(self, callback):
+        self.on_best_height_hit_callbacks.append(callback)
 
     def set_last_processed_header(self, last):
         if last != self._last_processed_header:
@@ -140,6 +144,14 @@ class HeadersReactor:
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
                 self.synced = True
+                print('ALIGNED ON BEST HEADER: %s' % network_best_header)
+                while 1:
+                    print('RUNNING CALLBACK ON CONNECT')
+                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
+                    if not callback:
+                        break
+                    self.loop.create_task(callback())
+
                 return
             local_best_header = self.repo.get_best_header()
 
@@ -162,14 +174,13 @@ class HeadersReactor:
                     return
             self.set_last_processed_header(network_best_header)
             self.synced = True
-
         except (
                 exceptions.NoQuorumOnResponsesException,
                 exceptions.NoPeersException,
-                exceptions.NoHeadersException
+                exceptions.NoHeadersException,
         ) as e:
             self._sync_errors += 1
-            if _r < 3:
+            if _r < 5:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
         finally:
@@ -231,7 +242,7 @@ class HeadersReactor:
                 """
                 behind of 1 header
                 """
-                await self._fetch_header(network_best_header)
+                await self._save_header(network_best_header)
             else:
                 """
                 behind of less than MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS, download single headers and don't use chunks
@@ -258,30 +269,9 @@ class HeadersReactor:
         self.set_last_processed_header(saved_headers[-1])
         self.synced = True
 
-    async def _fetch_header(self, network_best_header: Dict):
+    async def _save_header(self, network_best_header: Dict):
         # A new header is found, download again from multiple peers to verify it.
         Logger.electrum.debug('Fetching headers')
-        i = 0
-        while 1:
-            await asyncio.sleep(5)  # reduce race conditions and peers annoying
-            # fixme - verify pow, disable multi headers fetch.
-            header = await self.interface.get_header(
-                network_best_header['block_height'],
-                fail_silent_out_of_range=True
-            )
-            if header:
-                break
-            # Other peers doesn't have it yet, sleep 10 seconds, we'll try again later.
-            await asyncio.sleep(10)
-            Logger.electrum.warning('Header fetch failed')
-            if i > 3:
-                return
-            i += 1
-        if header['block_hash'] != network_best_header['block_hash']:
-            raise exceptions.NoQuorumOnResponsesException(
-                'New header differs from the network at the same height'
-            )
-
         self.repo.save_header(
             network_best_header['block_hash'],
             network_best_header['block_height'],
@@ -322,8 +312,11 @@ class HeadersReactor:
                 'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
                 len(headers), _from, _to, len(saved_headers), len(saving_headers)
             )
-            self.set_last_processed_header(saved_headers and saved_headers[-1] or None)
-            current_height = self._last_processed_header['block_height']
+            if saved_headers:
+                self.set_last_processed_header(saved_headers[-1])
+                current_height = self._last_processed_header['block_height']
+            else:
+                self.set_last_processed_header(None)
             i += 1
 
     @database.atomic

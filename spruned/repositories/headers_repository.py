@@ -32,8 +32,10 @@ class HeadersSQLiteRepository(HeadersRepository):
     def get_best_header(self):
         session = self.session()
         res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
+        if not res:
+            return
         prevblockhash = res.blockheight != 0 and self.get_block_hash(res.blockheight - 1)
-        res = res and self._header_model_to_dict(res, None, prevblockhash)
+        res = self._header_model_to_dict(res, None, prevblockhash)
         return res
 
     def get_header_at_height(self, height: int):
