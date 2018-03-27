@@ -125,10 +125,12 @@ class BlockchainRepository:
 
     @ldb_batch
     def remove_block(self, blockhash: str):
-        block = self.get_block(blockhash)
-        if block:
-            for tx in block['block_object'].txs:
-                self.remove_transaction(str(tx.id()))
+        key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
+        data = self.session.get(self.storage_name + b'.' + key)
+        if data:
+            txids = utils.split(data[80:], offset=32)
+            for txid in txids:
+                self.remove_transaction(txid)
         else:
             Logger.leveldb.warning('remove block on block not found: %s', blockhash)
         key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
@@ -137,5 +139,4 @@ class BlockchainRepository:
     @ldb_batch
     def remove_transaction(self, txid: str):
         key = self.get_key(txid, prefix=TRANSACTION_PREFIX)
-        self.session.get(self.storage_name + b'.' + key)
         self.session.delete(self.storage_name + b'.' + key)

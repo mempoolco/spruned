@@ -15,6 +15,7 @@ class P2PInterface:
         self._on_connect_callbacks = []
         self.loop = loop
         self.network = network
+        self._bootstrap_status = 0
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:
@@ -49,3 +50,10 @@ class P2PInterface:
             i += 1
         _ = [self.pool.add_peer(peer) for peer in peers]
         self.loop.create_task(self.pool.connect())
+
+    def set_bootstrap_status(self, value: float):
+        self._bootstrap_status = value
+
+    @property
+    def bootstrap_status(self):
+        return self._bootstrap_status

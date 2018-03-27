@@ -124,8 +124,15 @@ class BlocksReactor:
                 if not self.repo.blockchain.get_block(blockheader['block_hash'], with_transactions=False):
                     missing_blocks.append(blockheader['block_hash'])
             while 1:
+                status = float(100) / self._prune * (len(headers) - len(missing_blocks))
+                status = status <= 100 or 100
+                self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
-                _blocks = [missing_blocks.pop() for _ in range(0, 10) if missing_blocks]
+                _blocks = [
+                    missing_blocks.pop() for _ in
+                    range(0, int(len(self.interface.pool.established_connections)*0.75))
+                    if missing_blocks
+                ]
                 if not _blocks:
                     Logger.p2p.debug('Bootstrap: No blocks to fetch.')
                     break

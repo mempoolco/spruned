@@ -43,10 +43,11 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     @property
     def connections(self):
-        self._connections = [
-            c for c in self._connections if (c.connected or (not c.connected and c.score < c.start_score))
-        ]
-        return self._connections
+        connections = []
+        for c in self._connections:
+            if c.connected and c.start_score >= 0:
+                connections.append(c)
+        return connections
 
     @property
     def established_connections(self):

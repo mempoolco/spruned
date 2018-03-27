@@ -1,8 +1,10 @@
+import asyncio
+
 from spruned import settings
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
-from spruned.repositories.blockchain_repository import BlockchainRepository
+from spruned.repositories.blockchain_repository import BlockchainRepository, BLOCK_PREFIX, TRANSACTION_PREFIX
 
 
 class Repository:
@@ -13,6 +15,7 @@ class Repository:
         self.sqlite = None
         self.cache = None
         self.keep_blocks = keep_blocks
+        self.integrity_lock = asyncio.Lock()
 
     @property
     def headers(self) -> HeadersSQLiteRepository:
@@ -39,31 +42,59 @@ class Repository:
         i.ldb = database.storage_ldb
         return i
 
-    def ensure_integrity(self):
-        self._ensure_no_stales_in_blockchain_repository()
+    async def ensure_integrity(self):
+        try:
+            await self.integrity_lock.acquire()
+            self._ensure_no_stales_in_blockchain_repository()
+        finally:
+            self.integrity_lock.release()
 
     @ldb_batch
     def _ensure_no_stales_in_blockchain_repository(self):
+        Logger.leveldb.debug('Ensuring no stales in blockchain repository')
+        keypref = self.blockchain.storage_name + b'.' + BLOCK_PREFIX
         extemp = self.get_extemped_blockhash()
-        keep_keys = [self.blockchain.get_key(e, b'block') for e in extemp]
+        keep_keys = [self.blockchain.get_key(e, keypref) for e in extemp]
         index = self.cache.get_index()
         if not index:
             Logger.cache.debug('Cache index not found')
             return
-        index = index.get('keys', {}).keys()
+        index = [self.blockchain.storage_name + b'.' + k for k in index.get('keys', {}).keys()]
         if not index:
             Logger.cache.debug('Empty index found')
-            return
         iterator = self.ldb.iterator()
         purged = 0
+        txs = 0
+        cached = 0
+        tot = -1  # skip cache index
+        kept = 0
         for x in iterator:
-            if x[0] not in index and x[0] != self.cache.cache_name and x[0] not in keep_keys:
-                self.ldb.delete(x[0])
+            tot += 1
+            if keypref not in x[0]:
+                if x[0] == self.cache.cache_name:
+                    continue
+                elif self.blockchain.storage_name + b'.' + TRANSACTION_PREFIX in x[0]:
+                    txs += 1
+                    continue
+            if x[0] in keep_keys:
+                kept += 1
+                continue
+            elif x[0] in index:
+                cached += 1
+                continue
+            elif x[0] not in index:
+                self.blockchain.remove_block(x[0].replace(keypref + b'.', b''))
                 purged += 1
-        self.ldb.compact_range()
+            else:
+                raise ValueError(x)
         Logger.cache.debug(
-            'Purged from storage %s elements not tracked by cache, total tracked: %s',
-            purged, len(index)
+            '\nPurged from storage %s elements not tracked by cache.\n'
+            'Total tracked: %s\n'
+            'Total protected: %s,\n'
+            'Total cached: %s,\n'
+            'Total entries: %s,\n'
+            'Total transactions: %s\n',
+            purged, len(index), kept, cached, tot, txs
         )
         return
 

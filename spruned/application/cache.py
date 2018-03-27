@@ -87,6 +87,8 @@ class CacheAgent:
             Logger.cache.debug('No prev index found nor loaded')
             self._save_index()
             return
+        else:
+            self._purge_stales()
         if self.index['total'] > self.limit:
             Logger.cache.debug('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
             blockfirst = {0: 2, 1: 1}
@@ -127,3 +129,12 @@ class CacheAgent:
         if not self.index:
             self._load_index()
         return self.index
+
+    def _purge_stales(self):
+        stales = []
+        for key in self.index['keys']:
+            if not self.session.get(self.repository.blockchain.storage_name + b'.' + key):
+                stales.append(key)
+        for stale in stales:
+            self.index['total'] -= self.index['keys'].pop(stale)['size']
+        Logger.cache.debug('Stales purge done, removed %s items from index', len(stales))

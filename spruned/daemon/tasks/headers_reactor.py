@@ -144,13 +144,11 @@ class HeadersReactor:
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
                 self.synced = True
-                print('ALIGNED ON BEST HEADER: %s' % network_best_header)
                 while 1:
-                    print('RUNNING CALLBACK ON CONNECT')
                     callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
                     if not callback:
                         break
-                    self.loop.create_task(callback())
+                    self.loop.create_task(callback)
 
                 return
             local_best_header = self.repo.get_best_header()

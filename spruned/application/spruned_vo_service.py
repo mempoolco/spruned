@@ -54,17 +54,18 @@ class SprunedVOService(RPCAPIService):
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        electrod_rawtx = await self.electrod.getrawtransaction(txid)
+        repo_tx = self.repository.blockchain.get_transaction(txid)
+        transaction = repo_tx or await self.electrod.getrawtransaction(txid)
 
         #blockheader = self.repository.headers.get_block_header(transaction['blockhash'])
         #merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
 
         if verbose:
             return {
-                'source': 'electrum',
-                'rawtx': electrod_rawtx
+                'source': 'p2p' if repo_tx else 'electrum',
+                'rawtx': transaction
             }
-        return electrod_rawtx
+        return transaction
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')
@@ -134,6 +135,6 @@ class SprunedVOService(RPCAPIService):
             "difficulty": None,
             "chainwork": None,
             "mediantime": _deserialized_header["timestamp"],
-            "verificationprogress": 0,
+            "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,
         }

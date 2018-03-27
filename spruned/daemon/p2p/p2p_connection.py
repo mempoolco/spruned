@@ -22,7 +22,7 @@ class P2PConnection(BaseConnection):
 
     def __init__(
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
-            use_tor=None, start_score=10,
+            use_tor=None, start_score=3,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=30):
@@ -203,7 +203,6 @@ class P2PConnectionPool(BaseConnectionPool):
                 await asyncio.sleep(self._sleep_on_no_internet_connectivity)
                 await self._check_internet_connectivity()
                 continue
-
             missings = self._required_connections - len(self.established_connections)
             if missings:
                 peers = self._pick_multiple_peers(missings)
@@ -217,7 +216,13 @@ class P2PConnectionPool(BaseConnectionPool):
             Logger.p2p.info(
                 'P2PConnectionPool: Sleeping %ss, connected to %s peers', 10, len(self.established_connections)
             )
-            await asyncio.sleep(10)
+            for connection in self._connections:
+                if connection.score <= 0:
+                    self.loop.create_task(self._disconnect_peer(connection))
+            await asyncio.sleep(5)
+
+    async def _disconnect_peer(self, peer):
+        await peer.disconnect()
 
     async def _connect_peer(self, host: str, port: int):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
@@ -253,6 +258,8 @@ class P2PConnectionPool(BaseConnectionPool):
             Logger.p2p.error(
                 'Error in get InvItem %s, error: %s, failed in %ss', inv_item, str(error), round(time.time() - s, 4)
             )
+            for connection in connections:
+                connection.add_error()
         finally:
             try:
                 _ = [self._busy_peers.remove(connection.hostname) for connection in connections]

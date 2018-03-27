@@ -1,16 +1,18 @@
 from spruned.application import tools
+from spruned.application.tools import async_delayed_task
+
 tools.load_config()
 
 import asyncio
 from spruned.application.logging_factory import Logger
 from spruned.builder import blocks_reactor, headers_reactor, jsonrpc_server, repository, cache
 
-if __name__ == '__main__':  # pragma: no cover
+
+async def main_task(loop):
     try:
-        loop = asyncio.get_event_loop()
         Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
         try:
-            asyncio.wait_for(repository.ensure_integrity(), timeout=30)
+            await loop_check_integrity(loop)
         except asyncio.TimeoutError:
             Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
         Logger.leveldb.debug('Checking cache limits')
@@ -23,6 +25,19 @@ if __name__ == '__main__':  # pragma: no cover
         loop.create_task(headers_reactor.start())
         loop.create_task(jsonrpc_server.start())
         loop.create_task(cache.lurk())
-        loop.run_forever()
     finally:
         pass
+
+
+async def loop_check_integrity(l):
+    """
+    this task also prune blocks
+    """
+    await repository.ensure_integrity()
+    l.create_task(async_delayed_task(loop_check_integrity(l), 3600))
+
+
+if __name__ == '__main__':  # pragma: no cover
+    main_loop = asyncio.get_event_loop()
+    main_loop.create_task(main_task(main_loop))
+    main_loop.run_forever()
