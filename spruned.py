@@ -20,6 +20,7 @@ if __name__ == '__main__':  # pragma: no cover
         loop.create_task(blocks_reactor.start())
         loop.create_task(jsonrpc_server.start())
         loop.create_task(cache.lurk())
+        loop.create_task(blocks_reactor.bootstrap_blocks())
         loop.run_forever()
     finally:
         pass
