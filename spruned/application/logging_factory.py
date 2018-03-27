@@ -68,10 +68,11 @@ if settings.TESTING:
 
 elif settings.DEBUG:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
-    logging.getLogger('pycoin').setLevel(logging.INFO)
-    logging.getLogger('p2p').setLevel(logging.INFO)
+    logging.getLogger('pycoin').setLevel(logging.DEBUG)
+    logging.getLogger('p2p').setLevel(logging.DEBUG)
     logging.getLogger('connectrum').setLevel(logging.INFO)
     logging.getLogger('electrum').setLevel(logging.INFO)
+    logging.getLogger('asyncio').setLevel(logging.DEBUG)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,

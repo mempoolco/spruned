@@ -44,18 +44,6 @@ class RPCAPIService(metaclass=abc.ABCMeta):
                 self._increase_errors()
 
 
-class StorageInterface(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def set(self, *a, ttl: int=0):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def get(self, *a):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def remove(self, *a):
-        pass  # pragma: no cover
 
 
 class HeadersRepository(metaclass=abc.ABCMeta):

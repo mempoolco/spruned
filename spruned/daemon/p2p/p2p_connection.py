@@ -1,12 +1,15 @@
 import asyncio
 import async_timeout
 import time
-from pycoin.message.InvItem import InvItem, ITEM_TYPE_TX
+
+from pycoin.message import InvItem
+from pycoin.message.InvItem import ITEM_TYPE_TX, ITEM_TYPE_BLOCK
+from pycoin.serialize import h2b_rev
 from pycoinnet.Peer import Peer
 from pycoinnet.PeerEvent import PeerEvent
 from pycoinnet.networks import MAINNET
 from pycoinnet.inv_batcher import InvBatcher
-from pycoinnet.version import version_data_for_peer, NODE_BLOOM
+from pycoinnet.version import version_data_for_peer, NODE_WITNESS
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
 from spruned.daemon.connection_base_impl import BaseConnection
@@ -65,7 +68,9 @@ class P2PConnection(BaseConnection):
                     self._peer_network.parse_from_data,
                     self._peer_network.pack_from_data
                 )
-                version_data = version_data_for_peer(peer, version=70011, local_services=NODE_BLOOM)
+                version_data = version_data_for_peer(
+                    peer, version=70011, local_services=NODE_WITNESS, remote_services=NODE_WITNESS
+                )
                 peer.version = await peer.perform_handshake(**version_data)
                 self._event_handler = PeerEvent(peer)
                 self._version = peer.version
@@ -164,6 +169,11 @@ class P2PConnectionPool(BaseConnectionPool):
         self._batcher_factory = batcher
         self._network = network
         self._batcher_timeout = batcher_timeout
+        self._busy_peers = set()
+
+    @property
+    def required_connections(self):
+        return self._required_connections
 
     @property
     def available(self):
@@ -223,27 +233,31 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
 
-    async def get(self, inv_item: InvItem):
+    async def get(self, inv_item: InvItem, peers=None, timeout=None):
         batcher = self._batcher_factory()
+        connections = []
         s = time.time()
         Logger.p2p.info('Fetching InvItem %s', inv_item)
         try:
-            async with async_timeout.timeout(self._batcher_timeout):
-                connections = self._pick_multiple_connections(8)
+            async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
+                connections = self._pick_multiple_connections(peers if peers is not None else 1)
+                _ = [self._busy_peers.add(connection.hostname) for connection in connections]
                 for connection in connections:
-                    Logger.p2p.debug('Adding connection %s to batcher', connection)
+                    Logger.p2p.debug('Adding connection %s to batcher', connection.hostname)
                     await batcher.add_peer(connection.peer_event_handler)
                 future = await batcher.inv_item_to_future(inv_item)
                 response = await future
-                Logger.p2p.warning('Stopping batcher')
-                Logger.p2p.warning('Batcher stopped')
-                Logger.p2p.info('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
+                Logger.p2p.debug('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
                 return response and response
         except Exception as error:
             Logger.p2p.error(
                 'Error in get InvItem %s, error: %s, failed in %ss', inv_item, str(error), round(time.time() - s, 4)
             )
         finally:
+            try:
+                _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
+            except KeyError as e:
+                Logger.p2p.debug('Peer %s already removed from busy peers', str(e))
             self.loop.run_in_executor(None, batcher.stop)
 
     async def on_peer_connected(self, peer):

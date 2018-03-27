@@ -79,24 +79,24 @@ class BlockchainRepository:
             saved.append(self.save_transaction(transaction))
         return saved
 
-    def get_block(self, blockhash: str) -> (None, Dict):
+    def get_block(self, blockhash: str, with_transactions=True) -> (None, Dict):
         key = self._get_key(blockhash, prefix=BLOCK_PREFIX)
         now = time.time()
         data = self.session.get(self.storage_name + b'.' + key)
         if not data:
             Logger.leveldb.debug('%s not found under key %s', blockhash, key)
             return
-
         header = data[:80]
-        txids = utils.split(data[80:], offset=32)
         block = Block.parse(io.BytesIO(header), include_transactions=False)
-        transactions = [self.get_transaction(txid) for txid in txids]
-        if len(txids) != len(transactions):
-            Logger.cache.error('Storage corrupted')
-            return
-        Logger.leveldb.debug('Found %s transactions for block %s', len(transactions), blockhash)
-        block.set_txs([transaction['transaction_object'] for transaction in transactions])
-        Logger.leveldb.debug('Blockchain storage, transaction mounted in {:.4f}'.format(time.time() - now))
+        if with_transactions:
+            txids = utils.split(data[80:], offset=32)
+            transactions = [self.get_transaction(txid) for txid in txids]
+            if len(txids) != len(transactions):
+                Logger.cache.error('Storage corrupted')
+                return
+            Logger.leveldb.debug('Found %s transactions for block %s', len(transactions), blockhash)
+            block.set_txs([transaction['transaction_object'] for transaction in transactions])
+            Logger.leveldb.debug('Blockchain storage, transaction mounted in {:.4f}'.format(time.time() - now))
         return {
             'block_hash': block.id(),
             'block_bytes': block.as_bin(),

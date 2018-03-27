@@ -20,9 +20,9 @@ class P2PInterface:
         for callback in self._on_connect_callbacks:
             self.loop.create_task(callback())
 
-    async def get_block(self, blockhash: str) -> Dict:
+    async def get_block(self, blockhash: str, peers=None, timeout=None) -> Dict:
         inv_item = InvItem(ITEM_TYPE_BLOCK, h2b_rev(blockhash))
-        response = await self.pool.get(inv_item)
+        response = await self.pool.get(inv_item, peers=peers, timeout=timeout)
         return response and {
             "block_hash": str(response.hash()),
             "prev_block_hash": str(response.previous_block_hash),

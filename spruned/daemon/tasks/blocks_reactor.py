@@ -1,4 +1,8 @@
 import asyncio
+
+from pycoin.block import Block
+
+from spruned.application.database import ldb_batch
 from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
@@ -100,8 +104,40 @@ class BlocksReactor:
 
     async def on_connected(self):
         self._available = True
-        #self.loop.create_task(self.check())
+        self.loop.create_task(self.check())
 
     async def start(self):
         self.interface.add_on_connect_callback(self.on_connected)
         self.loop.create_task(self.interface.start())
+
+    @ldb_batch
+    async def bootstrap_blocks(self):
+        while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
+            Logger.p2p.debug('Bootstrap: ConnectionPool not ready yet')
+            await asyncio.sleep(5)
+        try:
+            await self.lock.acquire()
+            best_header = self.repo.headers.get_best_header()
+            headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._prune)
+            missing_blocks = []
+            for blockheader in headers:
+                if not self.repo.blockchain.get_block(blockheader['block_hash'], with_transactions=False):
+                    missing_blocks.append(blockheader['block_hash'])
+            while 1:
+                missing_blocks = missing_blocks[::-1]
+                _blocks = [missing_blocks.pop() for _ in range(0, 10) if missing_blocks]
+                if not _blocks:
+                    Logger.p2p.debug('Bootstrap: No blocks to fetch.')
+                    break
+                Logger.p2p.debug('Bootstrap: Fetching %s blocks', len(_blocks))
+                futures = [self.interface.get_block(blockhash, peers=1, timeout=10) for blockhash in _blocks]
+                data = await asyncio.gather(*futures, return_exceptions=True)
+                for i, d in enumerate(data):
+                    if isinstance(d, dict):
+                        Logger.p2p.debug('Bootstrap: saved block %s', d['block_hash'])
+                        self.repo.blockchain.save_block(d)
+                    else:
+                        Logger.p2p.debug('Bootstrap: enqueuing block %s', _blocks[i])
+                        missing_blocks.insert(0, _blocks[i])
+        finally:
+            self.lock.release()

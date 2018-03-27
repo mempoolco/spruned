@@ -8,4 +8,5 @@ jsonrpcserver
 sqlalchemy
 coverage
 -e git+https://github.com/gdassori/pycoinnet.git@spruned-support#egg=pycoinnet
+-e git+https://github.com/gdassori/pycoin.git#egg=pycoin-0.90a
 plyvel
