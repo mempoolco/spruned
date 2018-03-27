@@ -25,7 +25,7 @@ class BlockchainRepository:
     def set_cache(self, cache):
         self._cache = cache
 
-    def _get_key(self, name: str, prefix=b''):
+    def get_key(self, name: str, prefix=b''):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         if isinstance(name, str):
@@ -48,7 +48,7 @@ class BlockchainRepository:
     @ldb_batch
     def _save_block(self, block: Dict) -> Dict:
         _block = block['block_object']
-        key = self._get_key(_block.id(), prefix=BLOCK_PREFIX)
+        key = self.get_key(_block.id(), prefix=BLOCK_PREFIX)
         data = bytes(_block.as_blockheader().as_bin())
         for tx in _block.txs:
             data += binascii.unhexlify(str(tx.id()))
@@ -68,7 +68,7 @@ class BlockchainRepository:
     def save_transaction(self, transaction: Dict) -> Dict:
         blockhash = binascii.unhexlify(transaction['block_hash'].encode())
         data = transaction['transaction_bytes'] + blockhash
-        key = self._get_key(transaction['txid'], prefix=TRANSACTION_PREFIX)
+        key = self.get_key(transaction['txid'], prefix=TRANSACTION_PREFIX)
         self.session.put(self.storage_name + b'.' + key, data)
         return transaction
 
@@ -80,7 +80,7 @@ class BlockchainRepository:
         return saved
 
     def get_block(self, blockhash: str, with_transactions=True) -> (None, Dict):
-        key = self._get_key(blockhash, prefix=BLOCK_PREFIX)
+        key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
         now = time.time()
         data = self.session.get(self.storage_name + b'.' + key)
         if not data:
@@ -109,7 +109,7 @@ class BlockchainRepository:
         return self._get_transaction(txid)
 
     def _get_transaction(self, txid: (str, bytes)):
-        key = self._get_key(txid, prefix=TRANSACTION_PREFIX)
+        key = self.get_key(txid, prefix=TRANSACTION_PREFIX)
         data = self.session.get(self.storage_name + b'.' + key)
         if not data:
             return
@@ -131,11 +131,11 @@ class BlockchainRepository:
                 self.remove_transaction(str(tx.id()))
         else:
             Logger.leveldb.warning('remove block on block not found: %s', blockhash)
-        key = self._get_key(blockhash, prefix=BLOCK_PREFIX)
+        key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
         self.session.delete(self.storage_name + b'.' + key)
 
     @ldb_batch
     def remove_transaction(self, txid: str):
-        key = self._get_key(txid, prefix=TRANSACTION_PREFIX)
+        key = self.get_key(txid, prefix=TRANSACTION_PREFIX)
         self.session.get(self.storage_name + b'.' + key)
         self.session.delete(self.storage_name + b'.' + key)

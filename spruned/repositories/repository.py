@@ -6,12 +6,13 @@ from spruned.repositories.blockchain_repository import BlockchainRepository
 
 
 class Repository:
-    def __init__(self, headers, blocks):
+    def __init__(self, headers, blocks, keep_blocks=settings.BOOTSTRAP_BLOCKS):
         self._headers_repository = headers
         self._blockchain_repository = blocks
         self.ldb = None
         self.sqlite = None
         self.cache = None
+        self.keep_blocks = keep_blocks
 
     @property
     def headers(self) -> HeadersSQLiteRepository:
@@ -43,6 +44,8 @@ class Repository:
 
     @ldb_batch
     def _ensure_no_stales_in_blockchain_repository(self):
+        extemp = self.get_extemped_blockhash()
+        keep_keys = [self.blockchain.get_key(e, b'block') for e in extemp]
         index = self.cache.get_index()
         if not index:
             Logger.cache.debug('Cache index not found')
@@ -54,7 +57,7 @@ class Repository:
         iterator = self.ldb.iterator()
         purged = 0
         for x in iterator:
-            if x[0] not in index and x[0] != self.cache.cache_name:
+            if x[0] not in index and x[0] != self.cache.cache_name and x[0] not in keep_keys:
                 self.ldb.delete(x[0])
                 purged += 1
         self.ldb.compact_range()
@@ -68,3 +71,11 @@ class Repository:
         self.cache = cache
         self.headers.set_cache(cache)
         self.blockchain.set_cache(cache)
+
+    def get_extemped_blockhash(self):
+        best_header = self.headers.get_best_header()
+        _keep_to = best_header and best_header.get('block_height')
+        keep_from = _keep_to - 200 if _keep_to - 200 > 0 else 0
+        keep_headers = keep_from and self.headers.get_headers_since_height(keep_from) or []
+        keep_hashes = [k.get('block_hash') for k in keep_headers]
+        return keep_hashes
