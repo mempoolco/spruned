@@ -59,13 +59,13 @@ class SprunedVOService(RPCAPIService):
 
         #blockheader = self.repository.headers.get_block_header(transaction['blockhash'])
         #merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
-
+        res = {
+            'source': 'p2p' if repo_tx else 'electrum',
+            'rawtx': binascii.hexlify(repo_tx['transaction_object'].as_bin()).decode() if repo_tx else transaction
+        }
         if verbose:
-            return {
-                'source': 'p2p' if repo_tx else 'electrum',
-                'rawtx': transaction
-            }
-        return transaction
+            return res
+        return res['rawtx']
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')
