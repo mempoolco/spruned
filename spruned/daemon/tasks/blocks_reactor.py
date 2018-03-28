@@ -125,7 +125,7 @@ class BlocksReactor:
                     missing_blocks.append(blockheader['block_hash'])
             while 1:
                 status = float(100) / self._prune * (len(headers) - len(missing_blocks))
-                status = status <= 100 or 100
+                status = status if status <= 100 else 100
                 self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
                 _blocks = [

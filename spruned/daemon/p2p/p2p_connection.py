@@ -204,7 +204,7 @@ class P2PConnectionPool(BaseConnectionPool):
                 await self._check_internet_connectivity()
                 continue
             missings = self._required_connections - len(self.established_connections)
-            if missings:
+            if missings > 0:
                 peers = self._pick_multiple_peers(missings)
                 for peer in peers:
                     host, port = peer
