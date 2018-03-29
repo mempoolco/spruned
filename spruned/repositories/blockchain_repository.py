@@ -13,9 +13,6 @@ BLOCK_PREFIX = b'\x01'
 
 
 class BlockchainRepository:
-    """
-    this special repository track what's in it, to ensure the size limit
-    """
     def __init__(self, session, storage_name, dbpath):
         self.storage_name = storage_name
         self.session = session
