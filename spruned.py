@@ -17,9 +17,9 @@ async def main_task(loop):
             Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
         Logger.leveldb.debug('Checking cache limits')
         try:
-            asyncio.wait_for(asyncio.gather(cache.check()), timeout=10)
+            asyncio.wait_for(asyncio.gather(cache.check()), timeout=30)
         except asyncio.TimeoutError:
-            Logger.cache.error('There must be an error in cache, 10 seconds to check are too many')
+            Logger.cache.error('There must be an error in cache, 30 seconds to check are too many')
         headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.start())
         headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.bootstrap_blocks())
         loop.create_task(headers_reactor.start())

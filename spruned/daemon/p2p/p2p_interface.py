@@ -1,6 +1,6 @@
 import asyncio
 from typing import Dict, List
-from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem
+from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem, ITEM_TYPE_SEGWIT_BLOCK
 from pycoin.serialize import h2b_rev
 from pycoinnet.networks import MAINNET
 
@@ -22,7 +22,7 @@ class P2PInterface:
             self.loop.create_task(callback())
 
     async def get_block(self, blockhash: str, peers=None, timeout=None) -> Dict:
-        inv_item = InvItem(ITEM_TYPE_BLOCK, h2b_rev(blockhash))
+        inv_item = InvItem(ITEM_TYPE_SEGWIT_BLOCK, h2b_rev(blockhash))
         response = await self.pool.get(inv_item, peers=peers, timeout=timeout)
         return response and {
             "block_hash": str(response.hash()),

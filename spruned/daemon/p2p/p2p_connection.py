@@ -9,7 +9,7 @@ from pycoinnet.Peer import Peer
 from pycoinnet.PeerEvent import PeerEvent
 from pycoinnet.networks import MAINNET
 from pycoinnet.inv_batcher import InvBatcher
-from pycoinnet.version import version_data_for_peer, NODE_WITNESS
+from pycoinnet.version import version_data_for_peer, NODE_WITNESS, NODE_NONE
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
 from spruned.daemon.connection_base_impl import BaseConnection
@@ -69,7 +69,7 @@ class P2PConnection(BaseConnection):
                     self._peer_network.pack_from_data
                 )
                 version_data = version_data_for_peer(
-                    peer, version=70011, local_services=NODE_WITNESS, remote_services=NODE_WITNESS
+                    peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS
                 )
                 peer.version = await peer.perform_handshake(**version_data)
                 self._event_handler = PeerEvent(peer)
