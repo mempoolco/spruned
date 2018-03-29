@@ -62,11 +62,11 @@ class TestElectrodConnectionPool(unittest.TestCase):
     def test_connect_success(self):
         self.sut.loop = self.loop
         self.network_checker.return_value = True
-        conn1 = Mock(connected=False)
+        conn1 = Mock(connected=False, score=0)
         conn1.connect = lambda: connect(conn1)
-        conn2 = Mock(connected=False)
+        conn2 = Mock(connected=False, score=0)
         conn2.connect = lambda: connect(conn2)
-        conn3 = Mock(connected=False)
+        conn3 = Mock(connected=False, score=0)
         conn3.connect = lambda: connect(conn3)
         self.connection_factory.side_effect = [conn1, conn2, conn3]
         on_connected_observer = Mock()
@@ -232,7 +232,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
             self.sut._pick_connection(fail_silent=True)
         )
         self.sut._peers = ['cafebabe']
-        self.sut._connections.append(Mock(hostname='cafebabe', connected=True))
+        self.sut._connections.append(Mock(hostname='cafebabe', connected=True, score=1))
         with self.assertRaises(exceptions.NoServersException):
             self.sut._pick_peer()
         with self.assertRaises(exceptions.NoServersException):

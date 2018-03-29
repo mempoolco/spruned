@@ -180,7 +180,7 @@ class TestHeadersReactor(unittest.TestCase):
             net_header['block_hash'], net_header['block_height'],
             net_header['header_bytes'], net_header['prev_block_hash']
         )
-        self.assertEqual(1, len(self.interface.method_calls))
+        self.assertEqual(0, len(self.interface.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
         self.assertEqual(2, len(self.repo.method_calls))
 
@@ -318,11 +318,10 @@ class TestHeadersReactor(unittest.TestCase):
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
         Mock.assert_called_once_with(self.repo.remove_headers_after_height, 2016)
         Mock.assert_called(self.repo.get_best_header)
-        Mock.assert_called_once_with(self.interface.get_header, 2021, fail_silent_out_of_range=True)
         Mock.assert_called_once_with(self.repo.remove_headers_after_height, 2016)
 
         self.assertIsNone(self.sut._last_processed_header)
-        self.assertEqual(1, len(self.interface.method_calls), msg=str(self.interface.method_calls))
+        self.assertEqual(0, len(self.interface.method_calls), msg=str(self.interface.method_calls))
         self.assertEqual(4, len(self.repo.method_calls), msg=str(self.repo.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls), msg=str(self.electrod_loop.method_calls))
         self.assertFalse(self.sut.synced)
@@ -468,12 +467,6 @@ class TestHeadersReactor(unittest.TestCase):
         self.repo.save_header.side_effect = lambda a, b, c, d: True
 
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
-        Mock.assert_has_calls(
-            self.interface.get_header,
-            calls=[
-                call(2, fail_silent_out_of_range=True)
-            ], any_order=True
-        )
         Mock.assert_called_once(self.repo.get_best_header)
         Mock.assert_called_once_with(
             self.repo.save_header,
@@ -559,9 +552,9 @@ class TestHeadersReactor(unittest.TestCase):
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
         Mock.assert_called(self.repo.get_best_header)
 
-        self.assertEqual(2, len(self.interface.method_calls))
+        self.assertEqual(0, len(self.interface.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
-        self.assertEqual(3, len(self.repo.method_calls))
+        self.assertEqual(2, len(self.repo.method_calls))
 
     def test_connectionpool_offline(self):
         self.interface.is_pool_online = False

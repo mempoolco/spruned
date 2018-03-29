@@ -45,7 +45,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
     def connections(self):
         connections = []
         for c in self._connections:
-            if c.connected and c.start_score >= 0:
+            if c.connected and c.score >= 0:
                 connections.append(c)
         return connections
 

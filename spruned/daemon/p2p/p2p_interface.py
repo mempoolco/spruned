@@ -1,6 +1,6 @@
 import asyncio
 from typing import Dict, List
-from pycoin.message.InvItem import ITEM_TYPE_BLOCK, InvItem, ITEM_TYPE_SEGWIT_BLOCK
+from pycoin.message.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK
 from pycoin.serialize import h2b_rev
 from pycoinnet.networks import MAINNET
 
