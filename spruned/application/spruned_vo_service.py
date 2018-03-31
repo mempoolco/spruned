@@ -151,7 +151,7 @@ class SprunedVOService(RPCAPIService):
         if not transaction:
             return
         deserialized = deserialize(transaction)
-        if index +1 > len(deserialized['outs']):
+        if index + 1 > len(deserialized['outs']):
             return
         vout = deserialized['outs'][index]
         scripthash = script_to_scripthash(vout['script'])
