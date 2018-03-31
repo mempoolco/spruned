@@ -149,6 +149,8 @@ class SprunedVOService(RPCAPIService):
         transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']) \
                         or await self.electrod.getrawtransaction(txid)
         deserialized = deserialize(transaction)
+        if index +1 > len(deserialized['outs']):
+            return
         vout = deserialized['outs'][index]
         scripthash = script_to_scripthash(vout['script'])
         unspents = await self._listunspent_by_scripthash(scripthash) or []
