@@ -44,8 +44,6 @@ class RPCAPIService(metaclass=abc.ABCMeta):
                 self._increase_errors()
 
 
-
-
 class HeadersRepository(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_best_header(self):

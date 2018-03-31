@@ -40,10 +40,8 @@ class ElectrodConnection(BaseConnection):
     async def connect(self):
         try:
             with async_timeout.timeout(self._timeout):
-                self._version = await self.client.connect(
-                    self.serverinfo_factory(
-                        self.nickname, hostname=self.hostname, ports=self.protocol, version='1.2'
-                    ),
+                await self.client.connect(
+                    self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.2"),
                     disconnect_callback=self.on_connectrum_disconnect,
                     disable_cert_verify=True,
                     use_tor=self.use_tor
@@ -62,7 +60,7 @@ class ElectrodConnection(BaseConnection):
         try:
             async with async_timeout.timeout(timeout):
                 now = time.time()
-                await self.client.RPC('server.version')
+                await self.client.RPC('server.version', 'spruned 1.2', '1.2')
                 return time.time() - now
         except asyncio.TimeoutError:
             return
@@ -74,7 +72,7 @@ class ElectrodConnection(BaseConnection):
         except asyncio.base_futures.InvalidStateError:
             raise
         except Exception as e:
-            Logger.electrum.error('exception on rpc call: %s', e)
+            Logger.electrum.error('exception on rpc call: %s, %s, %s', self.client.server_info, self.client.protocol, e)
             self.loop.create_task(self.delayer(self.on_error(e)))
 
     async def subscribe(self, channel: str, on_subscription: callable, on_traffic: callable):
@@ -208,7 +206,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         response = await connection.rpc_call(method, params)
         if not response and not fail_silent:
             await self.on_peer_error(connection)
-            raise exceptions.ElectrodMissingResponseException
+            raise exceptions.ElectrodMissingResponseException(connection)
         return (connection, response) if get_peer else response
 
     @staticmethod

@@ -28,7 +28,7 @@ $ bitcoin-cli getblockchaininfo
 - <s>getmempoolinfo</s>
 - <s>getrawmempool</s> [ verbose \ non verbose]
 - getrawtransaction [ non verbose only ]
-- <s>gettxout</s>
+- gettxout
 - <s>sendrawtransaction</s>
 
 
@@ -40,15 +40,18 @@ $ bitcoin-cli getblockchaininfo
 
 #### How sPRUNED works:
 It uses an hybrid the P2P bitcoin network, and the electrum network, to gather and verify the informations you need.<br />
-Project is **w.i.p.** and at this moment some functionalities (gettxout and in some way getrawtransaction) are not full functional.
+Project is **w.i.p.** and at this moment some functionalities may be not full functional.
 <br />
 <br />
 Fetched data is cached on a the local file system.<br />
+Pruning is enabled
 
  
 #### Crypto-verified
 Headers are locally stored, fetched from the electrum network and verified since the Genesis block.  
 
-#### How to lose money: 
+#### Limits: 
 - Everything is **as-is** and **pre-alpha**.
-- Supports mainnet only (I don't often test my stuff, but when I do it... no, kidding, tests will come)
+- Supports mainnet only
+- Privacy is less than having a full node
+

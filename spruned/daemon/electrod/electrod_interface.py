@@ -73,10 +73,15 @@ class ElectrodInterface:
         await self.pool.on_peer_error(peer)
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        return await self.pool.call('blockchain.transaction.get', txid, verbose)
+        return await self.pool.call('blockchain.transaction.get', txid)
 
-    async def listunspents(self, address: str):
+    async def listunspents_by_address(self, address: str):
         return await self.pool.call('blockchain.address.listunspent', address)
+
+    async def listunspents_by_scripthash(self, scripthash: str, get_peer=False, fail_silent=False):
+        return await self.pool.call(
+            'blockchain.scripthash.listunspent', scripthash, get_peer=get_peer, fail_silent=fail_silent
+        )
 
     async def getaddresshistory(self, scripthash: str):
         return await self.pool.call('blockchain.address.get_history', scripthash)

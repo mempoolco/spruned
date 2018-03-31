@@ -137,7 +137,7 @@ class TestElectrodInterface(unittest.TestCase):
         self.loop.run_until_complete(self.sut.getrawtransaction('cafebabe'))
         self.loop.run_until_complete(self.sut.getrawtransaction('cafebabe', verbose=True))
         self.loop.run_until_complete(self.sut.get_chunk(1))
-        self.loop.run_until_complete(self.sut.listunspents('address'))
+        self.loop.run_until_complete(self.sut.listunspents_by_address('address'))
         self.loop.run_until_complete(self.sut.getaddresshistory('scripthash'))
         self.loop.run_until_complete(self.sut.estimatefee(6))
         self.loop.run_until_complete(self.sut.handle_peer_error(peer))

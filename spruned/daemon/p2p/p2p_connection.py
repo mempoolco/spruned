@@ -3,8 +3,7 @@ import async_timeout
 import time
 
 from pycoin.message import InvItem
-from pycoin.message.InvItem import ITEM_TYPE_TX, ITEM_TYPE_BLOCK
-from pycoin.serialize import h2b_rev
+from pycoin.message.InvItem import ITEM_TYPE_TX
 from pycoinnet.Peer import Peer
 from pycoinnet.PeerEvent import PeerEvent
 from pycoinnet.networks import MAINNET

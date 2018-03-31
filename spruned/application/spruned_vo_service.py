@@ -1,9 +1,16 @@
+import hashlib
 import random
 import binascii
+
+from bitcoin import deserialize
+from pycoin.tx import TxOut
+from pycoin.tx.Tx import Tx
+
 from spruned import settings
 from spruned.application.cache import CacheAgent
 from spruned.application.database import ldb_batch
-from spruned.application.tools import deserialize_header
+from spruned.application.logging_factory import Logger
+from spruned.application.tools import deserialize_header, script_to_scripthash
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.daemon.exceptions import ElectrodMissingResponseException
@@ -56,9 +63,6 @@ class SprunedVOService(RPCAPIService):
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_transaction(txid)
         transaction = repo_tx or await self.electrod.getrawtransaction(txid)
-
-        #blockheader = self.repository.headers.get_block_header(transaction['blockhash'])
-        #merkleproof = await self.electrod.getmerkleproof(txid, blockheader['block_height'])
         res = {
             'source': 'p2p' if repo_tx else 'electrum',
             'rawtx': binascii.hexlify(repo_tx['transaction_object'].as_bin()).decode() if repo_tx else transaction
@@ -113,6 +117,7 @@ class SprunedVOService(RPCAPIService):
         try:
             res = await self.electrod.estimatefee(blocks)
         except ElectrodMissingResponseException as e:
+            Logger.electrum.error('Error with peer', exc_info=True)
             _r += 1
             if _r > 5:
                 raise e
@@ -138,3 +143,43 @@ class SprunedVOService(RPCAPIService):
             "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,
         }
+
+    async def gettxout(self, txid: str, index: int):
+        repo_tx = self.repository.blockchain.get_transaction(txid)
+        transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']) \
+                        or await self.electrod.getrawtransaction(txid)
+        deserialized = deserialize(transaction)
+        vout = deserialized['outs'][index]
+        scripthash = script_to_scripthash(vout['script'])
+        unspents = await self._listunspent_by_scripthash(scripthash) or []
+        txout = None
+        for unspent in unspents:
+            if unspent['tx_hash'] == txid and unspent['tx_pos'] == index:
+                txout = unspent
+        return txout and await self._format_gettxout(txout, vout)
+
+    async def _format_gettxout(self, txout: dict, deserialized_vout: dict):
+        best_header = self.repository.headers.get_best_header()
+        return {
+            "bestblock": best_header['block_hash'],
+            "confirmations": best_header['block_height'] - txout['height'],
+            "value": round(txout['value'] / 10**8, 8),
+            "scriptPubKey": {
+                "asm": None,  # todo
+                "hex": deserialized_vout['script'],
+                "reqSigs": None,  # todo
+                "type": "",
+                "addresses": []  # todo
+            }
+        }
+
+    async def _listunspent_by_scripthash(self, scripthash, _r=0):
+        try:
+            unspents = await self.electrod.listunspents_by_scripthash(scripthash)
+        except:
+            if _r > 15:
+                return
+            return await self._listunspent_by_scripthash(scripthash, _r=_r+1)
+        return unspents
+
+

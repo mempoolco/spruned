@@ -116,3 +116,9 @@ def check_internet_connection():
     Logger.electrum.debug('No internet connectivity!')
     return False
 
+## electrum tools
+
+
+def script_to_scripthash(script):
+    h = hashlib.sha256(bytes.fromhex(script)).digest()[0:32]
+    return binascii.hexlify(bytes(reversed(h))).decode('ascii')

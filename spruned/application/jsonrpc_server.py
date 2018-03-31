@@ -26,9 +26,10 @@ class JSONRPCServer:
         response = await methods.dispatch(request)
         if isinstance(response, ExceptionResponse):
             return web.json_response(response, status=response.http_status)
-        if response and "error" in response.get("result"):
-            Logger.jsonrpc.error('Error in response: %s', response)
-            return web.json_response(response["result"], status=400)
+        if response:
+            if response.get("result") and "error" in response["result"]:
+                Logger.jsonrpc.error('Error in response: %s', response)
+                return web.json_response(response["result"], status=400)
         return web.json_response(response, status=response.http_status)
 
     async def start(self):
@@ -46,7 +47,7 @@ class JSONRPCServer:
         methods.add(self.getblock)
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
-        #methods.add(self.gettxout)
+        methods.add(self.gettxout)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -112,7 +113,7 @@ class JSONRPCServer:
         response = await self.vo_service.estimatefee(blocks)
         if response is None:
             return "-1"
-        return response.get("response")
+        return response
 
     async def estimatesmartfee(self, blocks: int, estimate_mode=None):
         try:
@@ -137,10 +138,10 @@ class JSONRPCServer:
             return {"error": {"code": -8, "message": "server error: try again"}}
         return response
 
-    '''
     async def gettxout(self, txid: str, index: int):
-        response = await self.vo_service.gettxout(txid, index)
-        if not response:
+        try:
+            response = await self.vo_service.gettxout(txid, index)
+        except:
+            Logger.jsonrpc.error('Error in gettxout', exc_info=True)
             return {"error": {"code": -8, "message": "server error: try again"}}
         return response
-    '''
