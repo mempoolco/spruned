@@ -45,7 +45,8 @@ class TestElectrodConnection(unittest.TestCase):
 
     def test_connect_success(self):
         self.serverinfo.return_value = 'server info'
-        self.client.connect.return_value = async_coro('ElectrumX 1.2')
+        self.client.connect.return_value = async_coro(None)
+        self.client.server_version = 'ElectrumX 1.2'
         callback = Mock()
         callback.return_value = async_coro(True)
         self.sut.add_on_connect_callback(callback)

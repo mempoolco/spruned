@@ -144,8 +144,8 @@ class TestElectrodInterface(unittest.TestCase):
         Mock.assert_has_calls(
             self.connectionpool.call,
             calls=[
-                call('blockchain.transaction.get', 'cafebabe', False),
-                call('blockchain.transaction.get', 'cafebabe', True),
+                call('blockchain.transaction.get', 'cafebabe'),
+                call('blockchain.transaction.get', 'cafebabe'),
                 call('blockchain.block.get_chunk', 1),
                 call('blockchain.address.listunspent', 'address'),
                 call('blockchain.address.get_history', 'scripthash'),

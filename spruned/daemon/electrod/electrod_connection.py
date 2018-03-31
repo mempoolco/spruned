@@ -46,6 +46,7 @@ class ElectrodConnection(BaseConnection):
                     disable_cert_verify=True,
                     use_tor=self.use_tor
                 )
+                self._version = self.client.server_version
                 Logger.electrum.debug('Connected to %s', self.hostname)
                 await self.on_connect()
         except Exception as e:

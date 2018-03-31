@@ -1,7 +1,5 @@
-asyncio==3.4.3
-merkle
 git+https://github.com/Conio/pybitcointools.git
-git+https://github.com/gdassori/connectrum.git#egg=connectrum-0.5.3-gdassori-0.3
+git+https://github.com/gdassori/connectrum.git#egg=connectrum-0.5.3-gdassori-0.4
 async-timeout
 aiohttp
 jsonrpcserver
