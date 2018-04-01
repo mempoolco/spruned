@@ -45,8 +45,8 @@ class CacheAgent:
     def _serialize_index(self):
         data = []
         for k, d in self.index['keys'].items():
-            if k != 'total':
-                data.append([k, d['saved_at'], d['size']])
+            #if k != 'total':
+            data.append([k, d['saved_at'], d['size']])
         return pickle.dumps(data)
 
     @ldb_batch
