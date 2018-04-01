@@ -45,7 +45,6 @@ class CacheAgent:
     def _serialize_index(self):
         data = []
         for k, d in self.index['keys'].items():
-            #if k != 'total':
             data.append([k, d['saved_at'], d['size']])
         return pickle.dumps(data)
 
@@ -76,7 +75,7 @@ class CacheAgent:
         self.index['total'] += size
 
     async def check(self):
-        if self.index and not self._last_dump_size or (self.index and self.index['total'] != self._last_dump_size):
+        if self.index and not self._last_dump_size:
             Logger.cache.debug('Pending data, dumping')
             self._save_index()
         if not self.index:
