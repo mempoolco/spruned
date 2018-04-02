@@ -87,7 +87,8 @@ class BlocksReactor:
         _local_blocks = {h['block_hash']: self.repo.blockchain.get_block(h['block_hash'], with_transactions=False) for h in headers}
         _local_hblocks = {k: v for k, v in _local_blocks.items() if v is not None}
         _request = [x['block_hash'] for x in headers if x['block_hash'] not in _local_hblocks]
-        blocks = await self.interface.get_blocks(*_request)
+        blocks = _request and await self.interface.get_blocks(*_request)
+        _hheaders = {v['block_hash']: v for v in headers}
         if blocks:
             try:
                 saved_blocks = self.repo.blockchain.save_blocks(*blocks.values())
@@ -96,8 +97,8 @@ class BlocksReactor:
                 Logger.p2p.exception('Error saving blocks %s', blocks)
                 return
         else:
-            saved_blocks = [_local_hblocks[_request[-1]]]
-        _hheaders = {v['block_hash']: v for v in headers}
+            saved_blocks = [_local_hblocks[headers[-1]['block_hash']]]
+
         saved_blocks and self.set_last_processed_block(
                 {
                     'block_hash': saved_blocks[-1]['block_hash'],
