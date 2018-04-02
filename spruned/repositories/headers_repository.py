@@ -42,10 +42,13 @@ class HeadersSQLiteRepository(HeadersRepository):
         blockhash = self.get_block_hash(height)
         return self.get_block_header(blockhash)
 
-    def get_headers_since_height(self, height: int):
+    def get_headers_since_height(self, height: int, limit=None):
         session = self.session()
-        headers = session.query(database.Header).filter(database.Header.blockheight >= height)\
-            .order_by(database.Header.blockheight.asc()).all()
+        query = session.query(database.Header).filter(database.Header.blockheight >= height)\
+            .order_by(database.Header.blockheight.asc())
+        if limit is not None:
+            query = query.limit(limit)
+        headers = query.all()
         return headers and [
             self._header_model_to_dict(
                 h,

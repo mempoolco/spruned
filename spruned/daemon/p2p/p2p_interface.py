@@ -33,8 +33,24 @@ class P2PInterface:
             "block_bytes": bytes(response.as_bin())
         }
 
-    async def get_blocks(self, start: str, stop: str, max: int) -> List[Dict]:
-        pass
+    async def get_blocks(self, *blockhash: str) -> Dict:
+        """
+        I have to work on pycoinnet to understand how the invbatcher can handle a more efficient 'getblocks'.
+        Meanwhile, parallelize getblocks. This may be dirty, let's try it....
+        """
+        sorted_hash = [x for x in blockhash]
+        blocks = {}
+        r, max_retry = 0, 100
+        while not sorted_hash:
+            r += 1
+            if r > max_retry:
+                raise ValueError
+            _blocks = await asyncio.gather(*(self.get_block(h) for h in sorted_hash), return_exceptions=True)
+            for i, _hash in enumerate(sorted_hash):
+                if isinstance(_blocks[i], dict):
+                    blocks[_hash] = _blocks[i]
+            sorted_hash = [h for h in sorted_hash if h not in blocks]
+        return blocks
 
     def add_on_connect_callback(self, callback):
         self._on_connect_callbacks.append(callback)
