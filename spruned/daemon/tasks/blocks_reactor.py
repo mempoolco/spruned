@@ -106,7 +106,8 @@ class BlocksReactor:
         if blocks:
             urgent = urgent or False
             try:
-                saved_blocks = self.repo.blockchain.save_blocks(*blocks.values())
+                sorted_values = sorted(blocks.values(), key=lambda x: x['block_hash'])
+                saved_blocks = self.repo.blockchain.save_blocks(*sorted_values)
                 Logger.p2p.debug('Saved block %s', saved_blocks)
             except:
                 Logger.p2p.exception('Error saving blocks %s', blocks)

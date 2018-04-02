@@ -23,7 +23,7 @@ class ElectrodConnection(BaseConnection):
 
         self.protocol = protocol
         self.keepalive = keepalive
-        self.client: StratumClient = client()
+        self.client = client()
         self.serverinfo_factory = serverinfo
         self.client.keepalive_interval = keepalive
         self.nickname = nickname or binascii.hexlify(os.urandom(8)).decode()
@@ -70,7 +70,7 @@ class ElectrodConnection(BaseConnection):
         try:
             async with async_timeout.timeout(self._timeout):
                 return await self.client.RPC(method, *args)
-        except asyncio.base_futures.InvalidStateError:
+        except asyncio.InvalidStateError:
             raise
         except Exception as e:
             Logger.electrum.error('exception on rpc call: %s, %s, %s', self.client.server_info, self.client.protocol, e)

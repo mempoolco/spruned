@@ -44,8 +44,9 @@ class CacheAgent:
 
     def _serialize_index(self):
         data = []
-        for k, d in self.index['keys'].items():
-            data.append([k, d['saved_at'], d['size']])
+        sorted_data = sorted(self.index['keys'].values(), key=lambda x: x['saved_at'])
+        for x in sorted_data:
+            data.append([x['key'], x['saved_at'], x['size']])
         return pickle.dumps(data)
 
     @ldb_batch

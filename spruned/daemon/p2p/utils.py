@@ -10,7 +10,7 @@ async def dns_bootstrap_servers(network=MAINNET, howmany=50):  # pragma: no cove
     host_q = dns_bootstrap_host_port_q(network)
     ad = []
     while 1:
-        item: asyncio.coroutine = host_q.get()
+        item = host_q.get()
         try:
             async with async_timeout.timeout(1):
                 peer = await item

@@ -117,7 +117,6 @@ class TestBlocksReactory(TestCase):
             ]
         )
         Mock.assert_called_once_with(self.interface.get_blocks, 'block17', 'block18', 'block19', 'block20')
-        self.assertEqual(self.sut._last_processed_block, {'block_hash': 'block20', 'block_height': 20})
 
         Mock.assert_called_once_with(
             self.repo.blockchain.save_blocks,
@@ -126,6 +125,7 @@ class TestBlocksReactory(TestCase):
             {'block_hash': 'block19', 'block_bytes': b'raw'},
             {'block_hash': 'block20', 'block_bytes': b'raw'}
         )
+        self.assertEqual(self.sut._last_processed_block, {'block_hash': 'block20', 'block_height': 20})
 
     def test_check_corners_orphaned(self):
         self.sut.set_last_processed_block({'block_hash': 'cafe', 'block_height': 9})

@@ -39,7 +39,7 @@ class TestP2PConnection(TestCase):
         self.peer_factory().next_message.return_value = async_coro(None)
         self.loop.run_until_complete(self.sut.connect())
         self.assertEqual(self.sut._version, 'the peer version answer')
-        Mock.assert_called_once(self.loopmock.create_task)
+        self.assertEqual(len(self.loopmock.method_calls), 1)
         Mock.assert_not_called(callback_blocks)
         self.assertTrue(self.sut.connected)
 

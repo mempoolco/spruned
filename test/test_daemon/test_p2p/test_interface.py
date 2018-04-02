@@ -20,7 +20,7 @@ class TestP2PInterface(TestCase):
         self.peers_bootstrapper.return_value = async_coro((('1.2.3.4', 8333), ('1.2.3.5', 8333)))
 
         self.loop.run_until_complete(self.sut.start())
-        Mock.assert_called_once(self.pool.add_on_connected_observer)
+        self.assertEqual(self.pool.add_on_connected_observer.call_count, 1)
         Mock.assert_called_with(self.peers_bootstrapper, MAINNET)
         Mock.assert_has_calls(
             self.pool.add_peer,
@@ -30,7 +30,7 @@ class TestP2PInterface(TestCase):
             ]
         )
         Mock.assert_called_once_with(self.pool.connect)
-        Mock.assert_called_once(self.loopmock.create_task)
+        self.assertEqual(self.loopmock.create_task.call_count, 1)
         self.sut.set_bootstrap_status(10)
         self.assertEqual(self.sut.bootstrap_status, 10)
 

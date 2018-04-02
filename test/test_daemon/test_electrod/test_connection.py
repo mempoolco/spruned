@@ -65,7 +65,7 @@ class TestElectrodConnection(unittest.TestCase):
             self.sut.nickname, hostname='hostname', ports='s', version='1.2'
         )
         self.assertEqual(8, len(binascii.unhexlify(self.sut.nickname)))
-        Mock.assert_called_once(callback)
+        self.assertEqual(callback.call_count, 1)
 
     def test_disconnection(self):
         self.client.protocol = True

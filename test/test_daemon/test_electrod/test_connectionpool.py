@@ -81,12 +81,12 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.sut.loop = self.electrod_loop
 
         for conn in [conn1, conn2, conn3]:
-            Mock.assert_called_once(conn.add_on_connect_callback)
-            Mock.assert_called_once(conn.add_on_header_callbacks)
-            Mock.assert_called_once(conn.add_on_peers_callback)
-            Mock.assert_called_once(conn.add_on_error_callback)
+            self.assertEqual(conn.add_on_connect_callback.call_count, 1)
+            self.assertEqual(conn.add_on_header_callbacks.call_count, 1)
+            self.assertEqual(conn.add_on_peers_callback.call_count, 1)
+            self.assertEqual(conn.add_on_error_callback.call_count, 1)
             self.assertTrue(conn.connected)
-        Mock.assert_called_once(on_connected_observer)
+        self.assertEqual(on_connected_observer.call_count, 1)
         self.assertEqual(3, len(self.sut.connections))
         self.assertEqual(3, len(self.sut.established_connections))
 

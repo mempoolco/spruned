@@ -317,7 +317,7 @@ class TestHeadersReactor(unittest.TestCase):
         self.repo.save_header.side_effect = [exceptions.HeadersInconsistencyException]
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
         Mock.assert_called_once_with(self.repo.remove_headers_after_height, 2016)
-        Mock.assert_called(self.repo.get_best_header)
+        self.assertEqual(self.repo.get_best_header.call_count, 2)
         Mock.assert_called_once_with(self.repo.remove_headers_after_height, 2016)
 
         self.assertIsNone(self.sut._last_processed_header)
@@ -467,7 +467,7 @@ class TestHeadersReactor(unittest.TestCase):
         self.repo.save_header.side_effect = lambda a, b, c, d: True
 
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
-        Mock.assert_called_once(self.repo.get_best_header)
+        self.assertEqual(self.repo.get_best_header.call_count, 1)
         Mock.assert_called_once_with(
             self.repo.save_header,
             net_header['block_hash'], net_header['block_height'],
@@ -511,7 +511,7 @@ class TestHeadersReactor(unittest.TestCase):
         self.loop.run_until_complete(self.sut.on_new_header(Mock(), {}))
 
         self.loop.run_until_complete(self.sut.start())
-        Mock.assert_called(self.electrod_loop.create_task)
+        self.assertEqual(self.electrod_loop.create_task.call_count, 1)
         self.assertEqual(len(self.electrod_loop.method_calls), 1)
 
     def test_no_store_headers(self):
@@ -550,7 +550,7 @@ class TestHeadersReactor(unittest.TestCase):
         self.repo.get_best_header.return_value = loc_header
 
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
-        Mock.assert_called(self.repo.get_best_header)
+        self.assertEqual(self.repo.get_best_header.call_count, 1)
 
         self.assertEqual(0, len(self.interface.method_calls))
         self.assertEqual(0, len(self.electrod_loop.method_calls))
