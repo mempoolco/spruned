@@ -1,9 +1,9 @@
-from spruned.application import tools
-from spruned.application.tools import async_delayed_task
+import asyncio
 
+from spruned.application import tools
 tools.load_config()
 
-import asyncio
+from spruned.application.tools import async_delayed_task
 from spruned.application.logging_factory import Logger
 from spruned.builder import blocks_reactor, headers_reactor, jsonrpc_server, repository, cache
 
