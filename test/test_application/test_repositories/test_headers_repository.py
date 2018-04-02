@@ -7,7 +7,7 @@ from spruned.daemon import exceptions
 from test.utils import make_headers
 
 
-class TestRepository(unittest.TestCase):
+class TestHeadersRepository(unittest.TestCase):
     def setUp(self):
         assert not settings.SQLITE_DBNAME
         self.sut = HeadersSQLiteRepository(sqlite)

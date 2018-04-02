@@ -26,7 +26,7 @@ class Repository:
         return self._blockchain_repository
 
     @classmethod
-    def instance(cls):
+    def instance(cls):  # pragma: no cover
         from spruned.application import database
         headers_repository = HeadersSQLiteRepository(database.sqlite)
         blocks_repository = BlockchainRepository(
@@ -106,7 +106,7 @@ class Repository:
     def get_extemped_blockhash(self):
         best_header = self.headers.get_best_header()
         _keep_to = best_header and best_header.get('block_height') or 0
-        keep_from = _keep_to - 200 if _keep_to - 200 > 0 else 0
+        keep_from = _keep_to - self.keep_blocks if _keep_to - self.keep_blocks > 0 else 0
         keep_headers = keep_from and self.headers.get_headers_since_height(keep_from) or []
         keep_hashes = [k.get('block_hash') for k in keep_headers]
         return keep_hashes

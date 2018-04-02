@@ -6,7 +6,7 @@ import asyncio
 from spruned.application.logging_factory import Logger
 
 
-async def dns_bootstrap_servers(network=MAINNET, howmany=50):
+async def dns_bootstrap_servers(network=MAINNET, howmany=50):  # pragma: no cover
     host_q = dns_bootstrap_host_port_q(network)
     ad = []
     while 1:

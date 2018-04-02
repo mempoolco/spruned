@@ -2,6 +2,7 @@ from enum import Enum
 import os
 from pathlib import Path
 
+import binascii
 
 TESTING = os.getenv('TESTING')
 
@@ -12,6 +13,7 @@ class Network(Enum):
 
 # bitcoin
 # https://github.com/bitcoin/bitcoin/blob/master/src/chainparams.cpp
+
 CHECKPOINTS = {
     0: "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
     11111: "0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d",
@@ -55,7 +57,7 @@ CHECK_NETWORK_HOST = [
 
 # files
 SQLITE_DBNAME = ''
-LEVELDB_BLOCKCHAIN_ADDRESS = ''
+LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/{}-test.ldb'.format(binascii.hexlify(os.urandom(8)))
 
 if not TESTING:
     FILE_DIRECTORY = '%s/.spruned' % Path.home()
