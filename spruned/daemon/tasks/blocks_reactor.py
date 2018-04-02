@@ -47,12 +47,17 @@ class BlocksReactor:
         self.loop.create_task(self._check_blockchain(best_header))
 
     async def check(self):
+        urgent = False
         try:
             best_header = self.repo.headers.get_best_header()
             urgent = await self._check_blockchain(best_header)
-            self.loop.create_task(0 if urgent else self._fallback_check_interval)
         except Exception as e:
+            urgent = urgent or False
             Logger.p2p.exception('Error on BlocksReactor fallback %s', str(e))
+        finally:
+            self.loop.create_task(
+                self.delayer(self.check, 0 if urgent else self._fallback_check_interval)
+            )
 
     async def _check_blockchain(self, best_header):
         urgent = False
@@ -76,6 +81,7 @@ class BlocksReactor:
             exceptions.BlocksInconsistencyException
         ):
             Logger.p2p.exception('Exception checkping the blockchain')
+            self.set_last_processed_block(None)
             urgent = True
         finally:
             self.lock.release()
@@ -119,13 +125,6 @@ class BlocksReactor:
         else:
             urgent = True
         return urgent
-
-    async def _on_headers_behind_blocks(self, best_header):
-        try:
-            self.repo.blockchain.get_block(best_header['blockhash'])
-        except:
-            Logger.p2p.exception('Error fetching block in headers_behind_blocks behaviour: %s', best_header)
-            raise exceptions.BlocksInconsistencyException
 
     async def on_connected(self):
         self._available = True

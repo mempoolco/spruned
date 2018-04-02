@@ -126,3 +126,17 @@ class TestBlocksReactory(TestCase):
             {'block_hash': 'block19', 'block_bytes': b'raw'},
             {'block_hash': 'block20', 'block_bytes': b'raw'}
         )
+
+    def test_check_corners_orphaned(self):
+        self.sut.set_last_processed_block({'block_hash': 'cafe', 'block_height': 9})
+        self.assertEqual(self.sut._last_processed_block, {'block_hash': 'cafe', 'block_height': 9})
+        self.repo.headers.get_best_header.return_value = {'block_hash': 'babe', 'block_height': 8}
+        self.loop.run_until_complete(self.sut.check())
+        self.assertEqual(self.sut._last_processed_block, None)
+
+    def test_check_corners_reorg(self):
+        self.sut.set_last_processed_block({'block_hash': 'cafe', 'block_height': 9})
+        self.assertEqual(self.sut._last_processed_block, {'block_hash': 'cafe', 'block_height': 9})
+        self.repo.headers.get_best_header.return_value = {'block_hash': 'babe', 'block_height': 9}
+        self.loop.run_until_complete(self.sut.check())
+        self.assertEqual(self.sut._last_processed_block, None)
