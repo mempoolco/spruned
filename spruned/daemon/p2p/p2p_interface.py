@@ -10,12 +10,15 @@ from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
 
 
 class P2PInterface:
-    def __init__(self, connection_pool: P2PConnectionPool, loop=asyncio.get_event_loop(), network=MAINNET):
+    def __init__(self,
+                 connection_pool: P2PConnectionPool, loop=asyncio.get_event_loop(),
+                 network=MAINNET, peers_bootstrapper=utils.dns_bootstrap_servers):
         self.pool = connection_pool
         self._on_connect_callbacks = []
         self.loop = loop
         self.network = network
         self._bootstrap_status = 0
+        self.peers_bootstrapper = peers_bootstrapper
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:
@@ -41,7 +44,7 @@ class P2PInterface:
         sorted_hash = [x for x in blockhash]
         blocks = {}
         r, max_retry = 0, 100
-        while not sorted_hash:
+        while sorted_hash:
             r += 1
             if r > max_retry:
                 raise ValueError
@@ -62,7 +65,7 @@ class P2PInterface:
         while not peers:
             if i > 10:
                 raise exceptions.SprunedException
-            peers = await utils.dns_bootstrap_servers(self.network)
+            peers = await self.peers_bootstrapper(self.network)
             i += 1
         _ = [self.pool.add_peer(peer) for peer in peers]
         self.loop.create_task(self.pool.connect())
