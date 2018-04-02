@@ -154,7 +154,7 @@ class BlocksReactor:
                 missing_blocks = missing_blocks[::-1]
                 _blocks = [
                     missing_blocks.pop() for _ in
-                    range(0, int(len(self.interface.pool.established_connections)*0.75))
+                    range(0, int(len(self.interface.pool.established_connections)*0.75) or 1)
                     if missing_blocks
                 ]
                 if not _blocks:

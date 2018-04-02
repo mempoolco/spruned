@@ -140,3 +140,47 @@ class TestBlocksReactory(TestCase):
         self.repo.headers.get_best_header.return_value = {'block_hash': 'babe', 'block_height': 9}
         self.loop.run_until_complete(self.sut.check())
         self.assertEqual(self.sut._last_processed_block, None)
+
+    def test_bootstrap(self):
+        self.interface.pool = Mock()
+        self.interface.pool.required_connections = 1
+        self.interface.pool.established_connections = []
+
+        async def add_peers():
+            await asyncio.sleep(0)
+            for _ in range(0, 8):
+                self.interface.pool.established_connections.append(1)
+
+        self.repo.headers.get_best_header.return_value = {'block_hash': 'cafe', 'block_height': 6}
+        self.repo.headers.get_headers_since_height.return_value = [
+            {'block_hash': 'block2', 'block_height': 2},
+            {'block_hash': 'block3', 'block_height': 3},
+            {'block_hash': 'block4', 'block_height': 4},
+            {'block_hash': 'block5', 'block_height': 5},
+            {'block_hash': 'block6', 'block_height': 6}
+        ]
+        self.repo.blockchain.get_block.side_effect = [
+            {'block_hash': 'block2', 'block_bytes': b'raw'}, None, None, None, None
+        ]
+        self.interface.get_block.side_effect = [
+            async_coro({'block_hash': 'block3', 'block_bytes': b'raw'}),
+            async_coro({'block_hash': 'block4', 'block_bytes': b'raw'}),
+            async_coro({'block_hash': 'block5', 'block_bytes': b'raw'}),
+            async_coro({'block_hash': 'block6', 'block_bytes': b'raw'}),
+        ]
+
+        self.loop.run_until_complete(
+            asyncio.gather(
+                add_peers(),
+                self.sut.bootstrap_blocks()
+            )
+        )
+        Mock.assert_has_calls(
+            self.repo.blockchain.save_block,
+            calls=[
+                call({'block_hash': 'block3', 'block_bytes': b'raw'}),
+                call({'block_hash': 'block4', 'block_bytes': b'raw'}),
+                call({'block_hash': 'block5', 'block_bytes': b'raw'}),
+                call({'block_hash': 'block6', 'block_bytes': b'raw'})
+            ]
+        )
