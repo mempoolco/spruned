@@ -35,7 +35,7 @@ $ bitcoin-cli getblockchaininfo
 #### Requirements
 - An internet connection
 - **~200mb of disk space :-)**
-- Python 3.6
+- Python >= 3.5.2
 
 
 #### How sPRUNED works:
