@@ -24,7 +24,7 @@ class P2PConnection(BaseConnection):
             use_tor=None, start_score=3,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
-            call_timeout=30):
+            call_timeout=30, connector=asyncio.open_connection):
 
         super().__init__(
             hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
@@ -41,12 +41,13 @@ class P2PConnection(BaseConnection):
         self._call_timeout = call_timeout
         self._on_block_callbacks = []
         self._on_transaction_callbacks = []
+        self.connector = connector
 
     @property
     def connected(self):
         return bool(self.peer)
 
-    def add_on_block_callbacks(self, callback):
+    def add_on_blocks_callback(self, callback):
         self._on_block_callbacks.append(callback)
 
     def add_on_transaction_callback(self, callback):
@@ -59,8 +60,8 @@ class P2PConnection(BaseConnection):
     async def connect(self):
         try:
             async with async_timeout.timeout(self._timeout):
-                reader, writer = await asyncio.open_connection(host=self.hostname, port=self.port)
-                peer = Peer(
+                reader, writer = await self.connector(host=self.hostname, port=self.port)
+                peer = self._peer_factory(
                     reader,
                     writer,
                     self._peer_network.magic_header,
@@ -78,7 +79,7 @@ class P2PConnection(BaseConnection):
                 self._setup_events_handler()
         except Exception as e:
             self.peer = None
-            Logger.p2p.error('Exception connecting to %s (%s)', self.hostname, e)
+            Logger.p2p.exception('Exception connecting to %s (%s)', self.hostname, e)
             self.loop.create_task(self.on_error('connect'))
             return
 
@@ -109,17 +110,15 @@ class P2PConnection(BaseConnection):
         except:
             Logger.p2p.exception('Exception on inv')
 
-    def _on_alert(self, event_handler, name, data):
+    def _on_alert(self, event_handler, name, data):  # pragma: no cover
         try:
             Logger.p2p.debug('Handle alert: %s, %s, %s', event_handler, name, data)
         except:
             Logger.p2p.exception('Exception on alert')
 
-    def _on_addr(self, event_handler, name, data):
+    def _on_addr(self, event_handler, name, data):  # pragma: no cover
         try:
             Logger.p2p.debug('Handle addr: %s, %s, %s', event_handler, name, data)
-            for callback in self._on_peers_callbacks:
-                self.loop.create_task(callback(self, data))
         except:
             Logger.p2p.exception('Exception on addr')
 
