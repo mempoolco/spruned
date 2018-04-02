@@ -49,39 +49,47 @@ class BlocksReactor:
     async def check(self):
         try:
             best_header = self.repo.headers.get_best_header()
-            await self._check_blockchain(best_header)
-            self.loop.create_task(self._fallback_check_interval)
+            urgent = await self._check_blockchain(best_header)
+            self.loop.create_task(0 if urgent else self._fallback_check_interval)
         except Exception as e:
             Logger.p2p.exception('Error on BlocksReactor fallback %s', str(e))
 
     async def _check_blockchain(self, best_header):
+        urgent = False
         try:
             await self.lock.acquire()
-            if not self._last_processed_block:
-                # The bootstrap task must but ran
-                return
-            if best_header['block_height'] > self._last_processed_block['block_height']:
-                await self._on_blocks_behind_headers(best_header)
+            if not self._last_processed_block or \
+                    best_header['block_height'] > self._last_processed_block['block_height']:
+                urgent = await self._on_blocks_behind_headers(best_header)
             elif best_header['block_height'] < self._last_processed_block['block_height']:
-                Logger.p2p.warning('Headers index is behind what this task done.')
-                pass  # We do nothing. It's some sort of headers reactor issue.
+                Logger.p2p.warning('Headers index is behind what this task done. Reset current status')
+                self.set_last_processed_block(None)
+                urgent = True
+                # This will be fixed in the next iteration by on_blocks_behind_header
             else:
                 if best_header['block_hash'] != self._last_processed_block['block_hash']:
-                    raise exceptions.BlocksInconsistencyException
+                    Logger.p2p.warning('There must be a reorg. Reset current status')
+                    # This will be fixed in the next iteration by on_blocks_behind_header
+                    self.set_last_processed_block(None)
+                    urgent = True
         except (
             exceptions.BlocksInconsistencyException
         ):
             Logger.p2p.exception('Exception checkping the blockchain')
-            return
+            urgent = True
         finally:
             self.lock.release()
+            return urgent
 
     async def _on_blocks_behind_headers(self, best_header):
-        if best_header['block_height'] - self._last_processed_block['block_height'] < self._prune:
+        if self._last_processed_block and \
+                best_header['block_height'] - self._last_processed_block['block_height'] < self._prune:
             height_to_start = self._last_processed_block['block_height']
+            urgent = False
         else:
             height_to_start = best_header['block_height'] - self._prune
             height_to_start = height_to_start if height_to_start >= 0 else 0
+            urgent = True
 
         headers = self.repo.headers.get_headers_since_height(height_to_start, limit=self._max_per_batch)
         _local_blocks = {h['block_hash']: self.repo.blockchain.get_block(h['block_hash'], with_transactions=False) for h in headers}
@@ -90,22 +98,27 @@ class BlocksReactor:
         blocks = _request and await self.interface.get_blocks(*_request)
         _hheaders = {v['block_hash']: v for v in headers}
         if blocks:
+            urgent = urgent or False
             try:
                 saved_blocks = self.repo.blockchain.save_blocks(*blocks.values())
                 Logger.p2p.debug('Saved block %s', saved_blocks)
             except:
                 Logger.p2p.exception('Error saving blocks %s', blocks)
-                return
+                return True
         else:
+            urgent = True
             saved_blocks = [_local_hblocks[headers[-1]['block_hash']]]
 
-        saved_blocks and self.set_last_processed_block(
+        if saved_blocks:
+            self.set_last_processed_block(
                 {
                     'block_hash': saved_blocks[-1]['block_hash'],
                     'block_height': _hheaders[saved_blocks[-1]['block_hash']]['block_height']
                 }
             )
-        return
+        else:
+            urgent = True
+        return urgent
 
     async def _on_headers_behind_blocks(self, best_header):
         try:
