@@ -146,7 +146,7 @@ class SprunedVOService(RPCAPIService):
 
     async def gettxout(self, txid: str, index: int):
         repo_tx = self.repository.blockchain.get_transaction(txid)
-        transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']) \
+        transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']).decode() \
                         or await self.electrod.getrawtransaction(txid)
         if not transaction:
             return

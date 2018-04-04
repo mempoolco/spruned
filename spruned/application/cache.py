@@ -76,7 +76,7 @@ class CacheAgent:
         self.index['total'] += size
 
     async def check(self):
-        if self.index and not self._last_dump_size:
+        if self.index and self.index.get('keys') and not self._last_dump_size:
             Logger.cache.debug('Pending data, dumping')
             self._save_index()
         if not self.index:

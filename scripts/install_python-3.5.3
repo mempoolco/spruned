@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+cd $HOME
+wget https://www.python.org/ftp/python/3.5.3/Python-3.5.3.tgz
+tar -zxvf Python-3.5.3.tgz
+cd Python-3.5.3
+./configure
+make
+sudo make install
+cd ..
