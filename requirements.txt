@@ -7,4 +7,4 @@ sqlalchemy==1.2.6
 coverage==4.5.1
 -e git+https://github.com/gdassori/pycoinnet.git@spruned-support#egg=pycoinnet
 -e git+https://github.com/gdassori/pycoin.git@spruned-support#egg=pycoin-0.90a
-plyvel==1.0.4
+plyvel==0.9.0

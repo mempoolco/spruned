@@ -162,7 +162,7 @@ class BlocksReactor:
                     Logger.p2p.debug('Bootstrap: No blocks to fetch.')
                     break
                 Logger.p2p.debug('Bootstrap: Fetching %s blocks', len(_blocks))
-                futures = [self.interface.get_block(blockhash, peers=1, timeout=10) for blockhash in _blocks]
+                futures = [self.interface.get_block(blockhash, peers=1, timeout=20) for blockhash in _blocks]
                 data = await asyncio.gather(*futures, return_exceptions=True)
                 for i, d in enumerate(data):
                     if isinstance(d, dict):
