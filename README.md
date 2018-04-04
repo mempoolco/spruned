@@ -26,7 +26,7 @@ For the transactions related APIs and utxo tracking, spruned uses the electrum n
 
 #### Documentation
 
-* [Installation and usage on Raspberry Pi B (1 Core - 512 MB)](./docs/RASPBERRY.md)
+* [Installation and usage on Raspberry Pi B (1 Core - 512 MB)](docs/rpi-b-2012.md)
 
 #### Dependencies
 

@@ -135,7 +135,7 @@ class BlocksReactor:
         self.interface.add_on_connect_callback(self.on_connected)
         self.loop.create_task(self.interface.start())
 
-    @ldb_batch
+    #@ldb_batch
     async def bootstrap_blocks(self):
         while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
             Logger.p2p.debug('Bootstrap: ConnectionPool not ready yet')
@@ -149,13 +149,18 @@ class BlocksReactor:
                 if not self.repo.blockchain.get_block(blockheader['block_hash'], with_transactions=False):
                     missing_blocks.append(blockheader['block_hash'])
             while 1:
+                if len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
+                    Logger.p2p.debug('Missing peers. Waiting.')
+                    await asyncio.sleep(20)
+                    continue
+
                 status = float(100) / self._prune * (len(headers) - len(missing_blocks))
                 status = status if status <= 100 else 100
                 self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
                 _blocks = [
                     missing_blocks.pop() for _ in
-                    range(0, int(len(self.interface.pool.established_connections)*0.75) or 1)
+                    range(0, int(len(self.interface.pool.established_connections)*0.5) or 1)
                     if missing_blocks
                 ]
                 if not _blocks:
