@@ -182,6 +182,7 @@ class P2PConnectionPool(BaseConnectionPool):
 
     @property
     def connections(self):
+        self._connections = [connection for connection in self._connections if connection.peer]
         return self._connections
 
     async def connect(self):

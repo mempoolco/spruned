@@ -149,7 +149,8 @@ class BlocksReactor:
                 if not self.repo.blockchain.get_block(blockheader['block_hash'], with_transactions=False):
                     missing_blocks.append(blockheader['block_hash'])
             while 1:
-                if len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
+                if len(self.interface.pool.established_connections) - len(self.interface.pool._busy_peers) \
+                        < self.interface.pool.required_connections:
                     Logger.p2p.debug('Missing peers. Waiting.')
                     await asyncio.sleep(20)
                     continue
