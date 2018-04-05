@@ -264,7 +264,17 @@ class P2PConnectionPool(BaseConnectionPool):
                 _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
             except KeyError as e:
                 Logger.p2p.debug('Peer %s already removed from busy peers', str(e))
-            self.loop.run_in_executor(None, batcher.stop)
+
+            async def del_batcher():
+                try:
+                    async with async_timeout.timeout(5):
+                        batcher.stop()
+                except:
+                    pass
+                finally:
+                    del batcher
+                    
+            self.loop.run_in_executor(None, del_batcher)
 
     async def on_peer_connected(self, peer):
         Logger.p2p.debug('on_peer_connected: %s', peer.hostname)
