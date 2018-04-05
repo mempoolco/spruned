@@ -29,6 +29,10 @@ class BlockchainRepository:
             name = binascii.unhexlify(name.encode())
         return (prefix and (prefix + b'.') or b'') + name
 
+    async def async_save_block(self, block: Dict, tracker=None, callback=None):
+        res = self.save_block(block, tracker)
+        callback and callback(res)
+
     @ldb_batch
     def save_block(self, block: Dict, tracker=None) -> Dict:
         saved = self._save_block(block)

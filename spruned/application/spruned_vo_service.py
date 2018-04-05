@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import random
 import binascii
@@ -17,7 +18,8 @@ from spruned.daemon.exceptions import ElectrodMissingResponseException
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None):
+    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None,
+                 loop=asyncio.get_event_loop()):
         self.sources = []
         self.primary = []
         self.cache = cache
@@ -27,6 +29,7 @@ class SprunedVOService(RPCAPIService):
         self.current_best_height = None
         self.utxo_tracker = utxo_tracker
         self.repository = repository
+        self.loop = loop
 
     def available(self):
         raise NotImplementedError
@@ -57,7 +60,7 @@ class SprunedVOService(RPCAPIService):
             else:
                 return await self._get_block(blockheader, _r + 1)
         if not storedblock:
-            self.repository.blockchain.save_block(block, tracker=self.cache)
+            self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):
