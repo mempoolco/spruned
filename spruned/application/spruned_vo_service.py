@@ -1,9 +1,11 @@
 import asyncio
 import hashlib
+import io
 import random
 import binascii
 
 from bitcoin import deserialize
+from pycoin.block import Block
 from pycoin.tx import TxOut
 from pycoin.tx.Tx import Tx
 
@@ -40,10 +42,11 @@ class SprunedVOService(RPCAPIService):
             return
         block = await self._get_block(block_header)
         if mode == 1:
+            block_object = Block.parse(io.BytesIO(block['block_bytes']))
             best_header = self.repository.headers.get_best_header()
             block['confirmations'] = best_header['block_height'] - block_header['block_height']
             serialized = self._serialize_header(block_header)
-            serialized['tx'] = [tx.id() for tx in block['block_object'].txs]
+            serialized['tx'] = [tx.id() for tx in block_object.txs]
             return serialized
         elif mode == 2:
             raise NotImplementedError
