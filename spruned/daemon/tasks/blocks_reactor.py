@@ -167,14 +167,20 @@ class BlocksReactor:
                     Logger.p2p.debug('Bootstrap: No blocks to fetch.')
                     break
                 Logger.p2p.debug('Bootstrap: Fetching %s blocks', len(_blocks))
-                futures = [self.interface.get_block(blockhash, peers=1, timeout=20) for blockhash in _blocks]
-                data = await asyncio.gather(*futures, return_exceptions=True)
-                for i, d in enumerate(data):
-                    if isinstance(d, dict):
-                        Logger.p2p.debug('Bootstrap: saved block %s', d['block_hash'])
-                        self.repo.blockchain.save_block(d)
+
+                async def save_block(blockhash):
+                    block = await asyncio.gather(
+                        self.interface.get_block(blockhash, peers=1, timeout=20),
+                        return_exceptions=True
+                    )
+                    if isinstance(block, dict):
+                        Logger.p2p.debug('Bootstrap: saved block %s', block['block_hash'])
+                        self.repo.blockchain.save_block(block)
                     else:
-                        Logger.p2p.debug('Bootstrap: enqueuing block %s', _blocks[i])
-                        missing_blocks.insert(0, _blocks[i])
+                        Logger.p2p.debug('Bootstrap: enqueuing block %s', blockhash)
+                        missing_blocks.insert(0,blockhash)
+
+                futures = [save_block(blockhash) for blockhash in _blocks]
+                await asyncio.gather(*futures, return_exceptions=True)
         finally:
             self.lock.release()

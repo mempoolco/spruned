@@ -1,6 +1,10 @@
 import asyncio
 import hashlib
 import binascii
+
+import struct
+
+import bitcoin
 from bitcoin import deserialize, serialize, decode, bin_sha256, encode
 
 from spruned.application import exceptions
@@ -46,6 +50,11 @@ def deserialize_header(header: (str, bytes)):
         data['hash'] = binascii.hexlify(data['hash']).decode()
     verify_pow(h, blockhash)
     return data
+
+def deserialize_block(block: bytes):
+    header = block[:80]
+
+
 
 
 def verify_pow(header, blockhash):
