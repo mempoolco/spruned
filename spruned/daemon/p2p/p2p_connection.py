@@ -2,6 +2,7 @@ import asyncio
 import async_timeout
 import time
 
+from memory_profiler import profile
 from pycoin.message import InvItem
 from pycoin.message.InvItem import ITEM_TYPE_TX
 from pycoinnet.Peer import Peer
@@ -237,6 +238,7 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
 
+    @profile
     async def get(self, inv_item: InvItem, peers=None, timeout=None):
         batcher = self._batcher_factory()
         connections = []

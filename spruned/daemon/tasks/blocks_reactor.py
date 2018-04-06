@@ -169,16 +169,16 @@ class BlocksReactor:
                 Logger.p2p.debug('Bootstrap: Fetching %s blocks', len(_blocks))
 
                 async def save_block(blockhash):
-                    block = await asyncio.gather(
+                    block = (await asyncio.gather(
                         self.interface.get_block(blockhash, peers=1, timeout=20),
                         return_exceptions=True
-                    )
+                    ))[0]
                     if isinstance(block, dict):
                         Logger.p2p.debug('Bootstrap: saved block %s', block['block_hash'])
                         self.repo.blockchain.save_block(block)
                     else:
-                        Logger.p2p.debug('Bootstrap: enqueuing block %s', blockhash)
-                        missing_blocks.insert(0,blockhash)
+                        Logger.p2p.debug('Bootstrap: enqueuing block %s (%s)', blockhash, type(block))
+                        missing_blocks.insert(0, blockhash)
 
                 futures = [save_block(blockhash) for blockhash in _blocks]
                 await asyncio.gather(*futures, return_exceptions=True)
