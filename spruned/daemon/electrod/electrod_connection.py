@@ -50,7 +50,7 @@ class ElectrodConnection(BaseConnection):
                 Logger.electrum.debug('Connected to %s', self.hostname)
                 await self.on_connect()
         except Exception as e:
-            Logger.electrum.warning('Exception connecting to %s (%s)', self.hostname, e)
+            Logger.electrum.debug('Exception connecting to %s (%s)', self.hostname, e)
             await self.on_error('connect')
 
     def on_connectrum_disconnect(self, *_, **__):

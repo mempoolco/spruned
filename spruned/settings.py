@@ -34,7 +34,7 @@ CHECKPOINTS = {
 }
 
 # application
-DEBUG = True
+DEBUG = False
 TESTNET = 0
 CACHE_SIZE = 1024 * 1024 * 50
 NETWORK = Network.BITCOIN

@@ -82,7 +82,7 @@ def get_nearest_parent(number: int, divisor: int):
     return int(number - number % divisor)
 
 
-async def async_delayed_task(task, seconds: int=0, disable_log=False):
+async def async_delayed_task(task, seconds: int=0, disable_log=True):
     from spruned.application.logging_factory import Logger
     not disable_log and Logger.root.debug('Scheduling task %s in %s seconds', task, seconds)
     await asyncio.sleep(seconds)

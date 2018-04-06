@@ -137,8 +137,9 @@ class BlocksReactor:
 
     async def bootstrap_blocks(self):
         while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
-            Logger.p2p.debug('Bootstrap: ConnectionPool not ready yet')
+            Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
             await asyncio.sleep(5)
+        Logger.p2p.info('Bootstrap: Starting Bootstrap Procedure on %s blocks', self._prune)
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()
@@ -147,7 +148,9 @@ class BlocksReactor:
             for blockheader in headers:
                 if not self.repo.blockchain.get_block(blockheader['block_hash']):
                     missing_blocks.append(blockheader['block_hash'])
+            i = 0
             while 1:
+                i += 1
                 if len(self.interface.pool.established_connections) - len(self.interface.pool._busy_peers) \
                         < self.interface.pool.required_connections:
                     Logger.p2p.debug('Missing peers. Waiting.')
@@ -164,9 +167,9 @@ class BlocksReactor:
                     if missing_blocks
                 ]
                 if not _blocks:
-                    Logger.p2p.debug('Bootstrap: No blocks to fetch.')
+                    Logger.p2p.info('Bootstrap: No blocks to fetch.')
                     break
-                Logger.p2p.debug('Bootstrap: Fetching %s blocks', len(_blocks))
+                not i and Logger.p2p.info('Bootstrap: Fetching %s blocks', len(_blocks))
 
                 async def save_block(blockhash):
                     block = (await asyncio.gather(
@@ -174,7 +177,7 @@ class BlocksReactor:
                         return_exceptions=True
                     ))[0]
                     if isinstance(block, dict):
-                        Logger.p2p.debug('Bootstrap: saved block %s', block['block_hash'])
+                        Logger.p2p.info('Bootstrap: saved block %s', block['block_hash'])
                         self.repo.blockchain.save_block(block)
                     else:
                         Logger.p2p.debug('Bootstrap: enqueuing block %s (%s)', blockhash, type(block))
