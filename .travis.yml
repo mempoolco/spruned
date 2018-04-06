@@ -8,9 +8,9 @@ python:
   - 3.6.3
 before_install:
   - pwd
-  - pip install -r requirements.txt
   - sudo apt-get -qq update
   - sudo apt-get install -y libleveldb-dev python3-dev
+  - pip install -r requirements.txt
 script:
   - coverage run --source=spruned -m unittest discover
 after_success:
