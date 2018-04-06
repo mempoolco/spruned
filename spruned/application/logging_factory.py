@@ -57,8 +57,6 @@ class LoggingFactory:
         return logging.getLogger('jsonrpc')
 
 
-
-
 if settings.TESTING:
     Logger = LoggingFactory(
         logfile=None,

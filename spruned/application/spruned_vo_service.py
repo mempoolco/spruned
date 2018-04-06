@@ -53,7 +53,6 @@ class SprunedVOService(RPCAPIService):
             raise NotImplementedError
         return binascii.hexlify(block['block_bytes']).decode()
 
-    @ldb_batch
     async def _get_block(self, blockheader, _r=0):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
