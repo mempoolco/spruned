@@ -73,7 +73,9 @@ class ElectrodConnection(BaseConnection):
         except asyncio.InvalidStateError:
             raise
         except Exception as e:
-            Logger.electrum.error('exception on rpc call: %s, %s, %s', self.client.server_info, self.client.protocol, e)
+            Logger.electrum.warning(
+                'exception on rpc call: %s, %s, %s', self.client.server_info, self.client.protocol, e
+            )
             self.loop.create_task(self.delayer(self.on_error(e)))
 
     async def subscribe(self, channel: str, on_subscription: callable, on_traffic: callable):

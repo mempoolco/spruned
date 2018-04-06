@@ -177,7 +177,12 @@ class BlocksReactor:
                         return_exceptions=True
                     ))[0]
                     if isinstance(block, dict):
-                        Logger.p2p.info('Bootstrap: saved block %s', block['block_hash'])
+                        Logger.p2p.info(
+                            'Bootstrap: saved block %s (%s/%s)',
+                            block['block_hash'],
+                            self._prune - len(missing_blocks),
+                            self._prune
+                        )
                         self.repo.blockchain.save_block(block)
                     else:
                         Logger.p2p.debug('Bootstrap: enqueuing block %s (%s)', blockhash, type(block))

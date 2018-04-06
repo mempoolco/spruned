@@ -77,20 +77,20 @@ class CacheAgent:
 
     async def check(self):
         if self.index and self.index.get('keys') and not self._last_dump_size:
-            Logger.cache.debug('Pending data, dumping')
+            Logger.cache.info('Pending data, dumping')
             self._save_index()
         if not self.index:
-            Logger.cache.debug('No prev index found, trying to load')
+            Logger.cache.info('No prev index found, trying to load')
             self._load_index()
         if not self.index:
             self.index = {'keys': {}, 'total': 0}
-            Logger.cache.debug('No prev index found nor loaded')
+            Logger.cache.info('No prev index found nor loaded')
             self._save_index()
             return
         else:
             self._purge_stales()
         if self.index['total'] > self.limit:
-            Logger.cache.debug('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
+            Logger.cache.info('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
             blockfirst = {0: 2, 1: 1}
             index_sorted = sorted(
                 self.index['keys'].values(), key=lambda x: ((blockfirst[x['key'][0]] ** 33) + x['saved_at'])
@@ -102,7 +102,7 @@ class CacheAgent:
                 self.delete(item)
                 i += 1
         else:
-            Logger.cache.debug('Cache is ok, size: %s, limit: %s', self.index['total'], self.limit)
+            Logger.cache.info('Cache is ok, size: %s, limit: %s', self.index['total'], self.limit)
         if self.index['total'] != self._last_dump_size:
             self._save_index()
 

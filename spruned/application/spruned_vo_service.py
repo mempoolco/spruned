@@ -32,6 +32,7 @@ class SprunedVOService(RPCAPIService):
         self.utxo_tracker = utxo_tracker
         self.repository = repository
         self.loop = loop
+        self._last_estimatefee = None
 
     def available(self):
         raise NotImplementedError
@@ -117,7 +118,11 @@ class SprunedVOService(RPCAPIService):
         return self.repository.headers.get_best_header().get('block_height')
 
     async def estimatefee(self, blocks: int):
-        return await self._estimatefee(blocks)
+        try:
+            self._last_estimatefee = await self._estimatefee(blocks)
+        except:
+            pass
+        return self._last_estimatefee
 
     async def _estimatefee(self, blocks, _r=1):
         try:
