@@ -1,17 +1,10 @@
 import asyncio
-import hashlib
 import io
-import random
 import binascii
-
 from bitcoin import deserialize
 from pycoin.block import Block
-from pycoin.tx import TxOut
-from pycoin.tx.Tx import Tx
-
 from spruned import settings
 from spruned.application.cache import CacheAgent
-from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash
 from spruned.application import exceptions
@@ -195,5 +188,3 @@ class SprunedVOService(RPCAPIService):
                 return
             return await self._listunspent_by_scripthash(scripthash, _r=_r+1)
         return unspents
-
-

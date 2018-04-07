@@ -123,7 +123,7 @@ class CacheAgent:
             await self.check()
         finally:
             self.lock.release()
-            self.loop.create_task(self.delayer(self.lurk(), 30))
+            self.loop.create_task(self.delayer(self.lurk(), 600))
 
     def get_index(self):
         if not self.index:

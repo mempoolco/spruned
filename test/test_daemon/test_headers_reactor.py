@@ -2,9 +2,8 @@ import asyncio
 import unittest
 from unittest.mock import Mock, create_autospec, call
 import time
-
-from spruned import settings
 from spruned.application.abstracts import HeadersRepository
+from spruned.application.context import ctx
 from spruned.daemon import exceptions
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 from spruned.daemon.tasks.headers_reactor import HeadersReactor
@@ -348,7 +347,7 @@ class TestHeadersReactor(unittest.TestCase):
         peer = Mock(server_info='mock_peer')
         loc_header = None
         self.repo.get_best_header.return_value = loc_header
-        _chunk_1 = make_headers(0, 2015, settings.CHECKPOINTS[0])
+        _chunk_1 = make_headers(0, 2015, ctx.get_network()['checkpoints'][0])
         _chunk_2 = make_headers(2016, 2999, _chunk_1[-1]['block_height'])
         _chunk_2.append(net_header)
 
