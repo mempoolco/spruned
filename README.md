@@ -88,7 +88,6 @@ Pretty easy.
 
 #### Future development
  
-- Pluggable currencies specs
 - Full Tor support
 - Mempool emulation
 - Zeromq emulation

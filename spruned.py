@@ -6,8 +6,6 @@ import argparse
 import asyncio
 
 from spruned.application.context import ctx
-from spruned.application.tools import create_directory
-from spruned.main import main_task
 
 parser = argparse.ArgumentParser(
     description="A Bitcoin Lightweight Pseudonode",
@@ -46,11 +44,16 @@ parser.add_argument(
 parser.add_argument(
     '--keep-blocks',
     action='store', dest='keep_blocks', default=ctx.keep_blocks,
-    help=''
+    help='', type=int
 )
 parser.add_argument(
     '--network',
     action='store', dest='network', default=ctx.network,
+    choices=[
+        'bitcoin.mainnet',
+        #'bitcoin.testnet',
+        #'bitcoin.regtest'
+    ],
     help=''
 )
 parser.add_argument(
@@ -66,7 +69,11 @@ parser.add_argument(
 if __name__ == '__main__':  # pragma: no cover
     args = parser.parse_args()
     ctx.load_args(args)
+
+    from spruned.application.tools import create_directory
     create_directory()
+
     main_loop = asyncio.get_event_loop()
+    from spruned.main import main_task
     main_loop.create_task(main_task(main_loop))
     main_loop.run_forever()

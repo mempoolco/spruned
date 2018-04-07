@@ -24,7 +24,7 @@ def builder(ctx: Context):  # pragma: no cover
         repository=repository,
         cache=cache
     )
-
+    print('Loading JSONRPC Interface on %s:%s, user: %s, pass: %s' % (ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword))
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)
     headers_reactor = HeadersReactor(repository.headers, electrod_interface)
