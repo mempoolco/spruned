@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+mkdir ~/src
+cd ~/src
+sudo apt-get install libsnappy-dev
+wget https://github.com/google/leveldb/archive/v1.20.tar.gz
+tar xvzf v1.20.tar.gz
+cd leveldb-1.20
+make
+cd out-shared
+sudo cp -P lib* /usr/local/lib
+cd include
+sudo cp -R leveldb /usr/local/include
+sudo ldconfig

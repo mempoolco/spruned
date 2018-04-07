@@ -26,11 +26,14 @@ class JSONRPCServer:
         response = await methods.dispatch(request)
         if isinstance(response, ExceptionResponse):
             return web.json_response(response, status=response.http_status)
-        if response:
-            if response.get("result") and "error" in response["result"]:
+        elif isinstance(response, dict):
+            if response.get("result", None) is None:
+                return web.Response(body=response, status=200)
+            if isinstance(response["result"], dict) and "error" in response["result"]:
                 Logger.jsonrpc.error('Error in response: %s', response)
                 return web.json_response(response["result"], status=400)
-        return web.json_response(response, status=response.http_status)
+            return web.json_response(response)
+        return web.json_response(body=response, status=200)
 
     async def start(self):
         app = web.Application()

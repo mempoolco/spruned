@@ -1,6 +1,10 @@
 import asyncio
 import hashlib
 import binascii
+
+import struct
+
+import bitcoin
 from bitcoin import deserialize, serialize, decode, bin_sha256, encode
 
 from spruned.application import exceptions
@@ -47,6 +51,11 @@ def deserialize_header(header: (str, bytes)):
     verify_pow(h, blockhash)
     return data
 
+def deserialize_block(block: bytes):
+    header = block[:80]
+
+
+
 
 def verify_pow(header, blockhash):
     bits = header[72:76][::-1]
@@ -73,7 +82,7 @@ def get_nearest_parent(number: int, divisor: int):
     return int(number - number % divisor)
 
 
-async def async_delayed_task(task, seconds: int=0, disable_log=False):
+async def async_delayed_task(task, seconds: int=0, disable_log=True):
     from spruned.application.logging_factory import Logger
     not disable_log and Logger.root.debug('Scheduling task %s in %s seconds', task, seconds)
     await asyncio.sleep(seconds)

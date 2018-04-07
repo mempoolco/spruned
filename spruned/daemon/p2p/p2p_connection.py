@@ -79,7 +79,7 @@ class P2PConnection(BaseConnection):
                 self._setup_events_handler()
         except Exception as e:
             self.peer = None
-            Logger.p2p.exception('Exception connecting to %s (%s)', self.hostname, e)
+            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, e)
             self.loop.create_task(self.on_error('connect'))
             return
 
@@ -103,6 +103,12 @@ class P2PConnection(BaseConnection):
         self.peer_event_handler.set_request_callback('addr', self._on_addr)
         self.peer_event_handler.set_request_callback('alert', self._on_alert)
         self.peer_event_handler.set_request_callback('ping', self._on_ping)
+        self.peer_event_handler.set_request_callback('sendheaders', self._dummy_handler)
+        self.peer_event_handler.set_request_callback('feefilter', self._dummy_handler)
+        self.peer_event_handler.set_request_callback('sendcmpct', self._dummy_handler)
+
+    def _dummy_handler(self, *a, **kw):
+        pass
 
     def _on_inv(self, event_handler, name, data):
         try:
@@ -138,7 +144,7 @@ class P2PConnection(BaseConnection):
                     item
                     self.loop.create_task(callback(self, item))
             else:
-                Logger.p2p.error('Unhandled InvType: %s, %s, %s', event_handler, name, item)
+                Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
         Logger.p2p.debug('Received %s items, txs: %s', len(data.get('items')), txs)
 
 
@@ -182,6 +188,9 @@ class P2PConnectionPool(BaseConnectionPool):
 
     @property
     def connections(self):
+        lost = [connection for connection in self._connections if not connection.peer]
+        for l in lost:
+            del l
         return self._connections
 
     async def connect(self):
@@ -211,7 +220,7 @@ class P2PConnectionPool(BaseConnectionPool):
                 Logger.p2p.warning('Too many connections')
                 connection = self._pick_connection()
                 self.loop.create_task(connection.disconnect())
-            Logger.p2p.info(
+            Logger.p2p.debug(
                 'P2PConnectionPool: Sleeping %ss, connected to %s peers', 10, len(self.established_connections)
             )
             for connection in self._connections:
@@ -226,7 +235,7 @@ class P2PConnectionPool(BaseConnectionPool):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
         connection = P2PConnection(host, port, loop=self.loop, network=self._network)
         if not await connection.connect():
-            Logger.p2p.warning(
+            Logger.p2p.debug(
                 'Connection to %s - %s failed. Connected to %s peers', host, port, len(self.established_connections)
             )
             return
@@ -240,7 +249,7 @@ class P2PConnectionPool(BaseConnectionPool):
         batcher = self._batcher_factory()
         connections = []
         s = time.time()
-        Logger.p2p.info('Fetching InvItem %s', inv_item)
+        Logger.p2p.debug('Fetching InvItem %s', inv_item)
         try:
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
                 connections = self._pick_multiple_connections(peers if peers is not None else 1)
@@ -253,7 +262,7 @@ class P2PConnectionPool(BaseConnectionPool):
                 Logger.p2p.debug('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
                 return response and response
         except Exception as error:
-            Logger.p2p.error(
+            Logger.p2p.debug(
                 'Error in get InvItem %s, error: %s, failed in %ss', inv_item, str(error), round(time.time() - s, 4)
             )
             for connection in connections:
@@ -263,7 +272,15 @@ class P2PConnectionPool(BaseConnectionPool):
                 _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
             except KeyError as e:
                 Logger.p2p.debug('Peer %s already removed from busy peers', str(e))
-            self.loop.run_in_executor(None, batcher.stop)
+
+            def del_batcher(_b):
+                try:
+                    _b.stop()
+                    del _b
+                except:
+                    del _b
+
+            self.loop.run_in_executor(None, lambda: del_batcher(batcher))
 
     async def on_peer_connected(self, peer):
         Logger.p2p.debug('on_peer_connected: %s', peer.hostname)

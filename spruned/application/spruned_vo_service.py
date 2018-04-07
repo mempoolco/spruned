@@ -1,8 +1,11 @@
+import asyncio
 import hashlib
+import io
 import random
 import binascii
 
 from bitcoin import deserialize
+from pycoin.block import Block
 from pycoin.tx import TxOut
 from pycoin.tx.Tx import Tx
 
@@ -17,7 +20,8 @@ from spruned.daemon.exceptions import ElectrodMissingResponseException
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None):
+    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None,
+                 loop=asyncio.get_event_loop()):
         self.sources = []
         self.primary = []
         self.cache = cache
@@ -27,6 +31,8 @@ class SprunedVOService(RPCAPIService):
         self.current_best_height = None
         self.utxo_tracker = utxo_tracker
         self.repository = repository
+        self.loop = loop
+        self._last_estimatefee = None
 
     def available(self):
         raise NotImplementedError
@@ -37,16 +43,16 @@ class SprunedVOService(RPCAPIService):
             return
         block = await self._get_block(block_header)
         if mode == 1:
+            block_object = Block.parse(io.BytesIO(block['block_bytes']))
             best_header = self.repository.headers.get_best_header()
             block['confirmations'] = best_header['block_height'] - block_header['block_height']
             serialized = self._serialize_header(block_header)
-            serialized['tx'] = [tx.id() for tx in block['block_object'].txs]
+            serialized['tx'] = [tx.id() for tx in block_object.txs]
             return serialized
         elif mode == 2:
             raise NotImplementedError
         return binascii.hexlify(block['block_bytes']).decode()
 
-    @ldb_batch
     async def _get_block(self, blockheader, _r=0):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
@@ -57,7 +63,7 @@ class SprunedVOService(RPCAPIService):
             else:
                 return await self._get_block(blockheader, _r + 1)
         if not storedblock:
-            self.repository.blockchain.save_block(block, tracker=self.cache)
+            self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):
@@ -111,7 +117,11 @@ class SprunedVOService(RPCAPIService):
         return self.repository.headers.get_best_header().get('block_height')
 
     async def estimatefee(self, blocks: int):
-        return await self._estimatefee(blocks)
+        try:
+            self._last_estimatefee = await self._estimatefee(blocks)
+        except:
+            pass
+        return self._last_estimatefee
 
     async def _estimatefee(self, blocks, _r=1):
         try:
@@ -146,7 +156,7 @@ class SprunedVOService(RPCAPIService):
 
     async def gettxout(self, txid: str, index: int):
         repo_tx = self.repository.blockchain.get_transaction(txid)
-        transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']) \
+        transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']).decode() \
                         or await self.electrod.getrawtransaction(txid)
         if not transaction:
             return

@@ -87,7 +87,7 @@ class Repository:
                 purged += 1
             else:
                 raise ValueError(x)
-        Logger.cache.debug(
+        Logger.cache.info(
             '\nPurged from storage %s elements not tracked by cache.\n'
             'Total tracked: %s\n'
             'Total protected: %s,\n'

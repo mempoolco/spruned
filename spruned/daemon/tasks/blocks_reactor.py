@@ -136,41 +136,60 @@ class BlocksReactor:
         self.interface.add_on_connect_callback(self.on_connected)
         self.loop.create_task(self.interface.start())
 
-    @ldb_batch
     async def bootstrap_blocks(self):
         while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
-            Logger.p2p.debug('Bootstrap: ConnectionPool not ready yet')
+            Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
             await asyncio.sleep(5)
+        Logger.p2p.info('Bootstrap: Starting Bootstrap Procedure on %s blocks', self._prune)
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()
             headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._prune)
             missing_blocks = []
             for blockheader in headers:
-                if not self.repo.blockchain.get_block(blockheader['block_hash'], with_transactions=False):
+                if not self.repo.blockchain.get_block(blockheader['block_hash']):
                     missing_blocks.append(blockheader['block_hash'])
+            i = 0
             while 1:
+                i += 1
+                if len(self.interface.pool.established_connections) - len(self.interface.pool._busy_peers) \
+                        < self.interface.pool.required_connections:
+                    Logger.p2p.debug('Missing peers. Waiting.')
+                    await asyncio.sleep(20)
+                    continue
+
                 status = float(100) / self._prune * (len(headers) - len(missing_blocks))
                 status = status if status <= 100 else 100
                 self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
                 _blocks = [
                     missing_blocks.pop() for _ in
-                    range(0, int(len(self.interface.pool.established_connections)*0.75) or 1)
+                    range(0, int(len(self.interface.pool.established_connections)*0.5) or 1)
                     if missing_blocks
                 ]
                 if not _blocks:
-                    Logger.p2p.debug('Bootstrap: No blocks to fetch.')
+                    Logger.p2p.info('Bootstrap: No blocks to fetch.')
                     break
-                Logger.p2p.debug('Bootstrap: Fetching %s blocks', len(_blocks))
-                futures = [self.interface.get_block(blockhash, peers=1, timeout=10) for blockhash in _blocks]
-                data = await asyncio.gather(*futures, return_exceptions=True)
-                for i, d in enumerate(data):
-                    if isinstance(d, dict):
-                        Logger.p2p.debug('Bootstrap: saved block %s', d['block_hash'])
-                        self.repo.blockchain.save_block(d)
+                not i and Logger.p2p.info('Bootstrap: Fetching %s blocks', len(_blocks))
+
+                async def save_block(blockhash):
+                    block = (await asyncio.gather(
+                        self.interface.get_block(blockhash, peers=1, timeout=20),
+                        return_exceptions=True
+                    ))[0]
+                    if isinstance(block, dict):
+                        Logger.p2p.info(
+                            'Bootstrap: saved block %s (%s/%s)',
+                            block['block_hash'],
+                            self._prune - len(missing_blocks),
+                            self._prune
+                        )
+                        self.repo.blockchain.save_block(block)
                     else:
-                        Logger.p2p.debug('Bootstrap: enqueuing block %s', _blocks[i])
-                        missing_blocks.insert(0, _blocks[i])
+                        Logger.p2p.debug('Bootstrap: enqueuing block %s (%s)', blockhash, type(block))
+                        missing_blocks.insert(0, blockhash)
+
+                futures = [save_block(blockhash) for blockhash in _blocks]
+                await asyncio.gather(*futures, return_exceptions=True)
         finally:
             self.lock.release()

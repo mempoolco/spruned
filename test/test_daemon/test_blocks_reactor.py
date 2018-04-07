@@ -142,7 +142,7 @@ class TestBlocksReactory(TestCase):
         self.assertEqual(self.sut._last_processed_block, None)
 
     def test_bootstrap(self):
-        self.interface.pool = Mock()
+        self.interface.pool = Mock(_busy_peers=[])
         self.interface.pool.required_connections = 1
         self.interface.pool.established_connections = []
 
