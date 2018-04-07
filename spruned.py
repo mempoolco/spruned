@@ -1,43 +1,52 @@
+#!/usr/bin/env python3
+# Copyright (C) 2018 Guido Dassori <guido.dassori@gmail.com>
+#
+
+import argparse
 import asyncio
 
 from spruned.application import tools
-tools.load_config()
+from spruned.main import main_task
 
-from spruned.application.tools import async_delayed_task
-from spruned.application.logging_factory import Logger
-from spruned.builder import blocks_reactor, headers_reactor, jsonrpc_server, repository, cache
-
-
-async def main_task(loop):
-    try:
-        Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
-        try:
-            await loop_check_integrity(loop)
-        except asyncio.TimeoutError:
-            Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
-        Logger.leveldb.debug('Checking cache limits')
-        try:
-            asyncio.wait_for(asyncio.gather(cache.check()), timeout=30)
-        except asyncio.TimeoutError:
-            Logger.cache.error('There must be an error in cache, 30 seconds to check are too many')
-        headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.start())
-        headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.bootstrap_blocks())
-        loop.create_task(headers_reactor.start())
-        loop.create_task(jsonrpc_server.start())
-        loop.create_task(cache.lurk())
-    finally:
-        pass
-
-
-async def loop_check_integrity(l):
-    """
-    this task also prune blocks
-    """
-    await repository.ensure_integrity()
-    l.create_task(async_delayed_task(loop_check_integrity(l), 3600))
+parser = argparse.ArgumentParser(
+    description="A Bitcoin Lightweight Pseudonode",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter
+)
+parser.add_argument(
+    '--rpcuser',
+    action='store', dest='user', default="",
+    help='Username for JSON-RPC connections'
+)
+parser.add_argument(
+    '--rpcpassword',
+    action='store', dest='password', default="",
+    help='Password for JSON-RPC connections'
+)
+parser.add_argument(
+    '--rpcport',
+    action='store', dest='port', default="",
+    help='Listen for JSON-RPC connections on <port> (default: 8332 or testnet: 18332)'
+)
+parser.add_argument(
+    '--rpcbind',
+    action='store', dest='address', default="",
+    help='Bind to given address to listen for JSON-RPC connections.'
+)
+parser.add_argument(
+    '--datadir',
+    action='store', dest='datadir',default="",
+    help='Specify data directory'
+)
+parser.add_argument(
+    '--daemon',
+    action='store_true', dest='daemonize', default=False,
+    help='Run in the background as a daemon and accept commands'
+)
 
 
 if __name__ == '__main__':  # pragma: no cover
+    args = parser.parse_args()
+    tools.load_config(args)
     main_loop = asyncio.get_event_loop()
     main_loop.create_task(main_task(main_loop))
     main_loop.run_forever()

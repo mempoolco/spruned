@@ -85,7 +85,7 @@ def decode_raw_transaction(rawtx: str):
     pass
 
 
-def load_config():
+def load_config(args):
     """
     todo: parse config or create with default values
     """
