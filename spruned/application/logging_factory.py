@@ -57,8 +57,6 @@ class LoggingFactory:
         return logging.getLogger('jsonrpc')
 
 
-
-
 if settings.TESTING:
     Logger = LoggingFactory(
         logfile=None,
@@ -70,9 +68,11 @@ elif settings.DEBUG:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     logging.getLogger('pycoin').setLevel(logging.DEBUG)
     logging.getLogger('p2p').setLevel(logging.DEBUG)
-    logging.getLogger('connectrum').setLevel(logging.INFO)
-    logging.getLogger('electrum').setLevel(logging.INFO)
-    logging.getLogger('asyncio').setLevel(logging.DEBUG)
+    logging.getLogger('connectrum').setLevel(logging.DEBUG)
+    logging.getLogger('electrum').setLevel(logging.DEBUG)
+    logging.getLogger('cache').setLevel(logging.DEBUG)
+    logging.getLogger('leveldb').setLevel(logging.DEBUG)
+    logging.getLogger('asyncio').setLevel(logging.INFO)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,
@@ -81,10 +81,13 @@ elif settings.DEBUG:
 
 else:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
-    logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
-    logging.getLogger('connectrum').setLevel(logging.WARNING)
-    logging.getLogger('pycoin').setLevel(logging.WARNING)
-    logging.getLogger('p2p').setLevel(logging.WARNING)
+    logging.getLogger('pycoin').setLevel(logging.ERROR)
+    logging.getLogger('p2p').setLevel(logging.INFO)
+    logging.getLogger('connectrum').setLevel(logging.ERROR)
+    logging.getLogger('electrum').setLevel(logging.INFO)
+    logging.getLogger('cache').setLevel(logging.INFO)
+    logging.getLogger('leveldb').setLevel(logging.INFO)
+    logging.getLogger('asyncio').setLevel(logging.CRITICAL)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.INFO,

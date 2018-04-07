@@ -79,6 +79,7 @@ def ldb_batch(fun):
             _local.storage_ldb.write()
             if _local.in_ldb_batch:
                 _local.in_ldb_batch = False
+                del _local.storage_ldb
                 _local.storage_ldb = storage_ldb
         _local.leveldb_counter -= 1
         return r

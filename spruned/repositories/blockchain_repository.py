@@ -7,6 +7,7 @@ from pycoin.tx.Tx import Tx
 from spruned.application import utils, exceptions
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
+from spruned.application.tools import deserialize_header
 
 TRANSACTION_PREFIX = b'\x00'
 BLOCK_PREFIX = b'\x01'
@@ -29,6 +30,10 @@ class BlockchainRepository:
             name = binascii.unhexlify(name.encode())
         return (prefix and (prefix + b'.') or b'') + name
 
+    async def async_save_block(self, block: Dict, tracker=None, callback=None):
+        res = self.save_block(block, tracker)
+        callback and callback(res)
+
     @ldb_batch
     def save_block(self, block: Dict, tracker=None) -> Dict:
         saved = self._save_block(block)
@@ -46,17 +51,7 @@ class BlockchainRepository:
     def _save_block(self, block: Dict) -> Dict:
         _block = block['block_object']
         key = self.get_key(_block.id(), prefix=BLOCK_PREFIX)
-        data = bytes(_block.as_blockheader().as_bin())
-        for tx in _block.txs:
-            data += binascii.unhexlify(str(tx.id()))
-            transaction = {
-                'transaction_bytes': tx.as_bin(),
-                'block_hash': _block.id(),
-                'txid': tx.id()
-            }
-            self.save_transaction(transaction)
-        assert len(data) % 32 == 16
-        self.session.put(self.storage_name + b'.' + key, data)
+        self.session.put(self.storage_name + b'.' + key, block['block_bytes'])
         block['key'] = key
         block['size'] = len(block['block_bytes'])
         return block
@@ -76,30 +71,18 @@ class BlockchainRepository:
             saved.append(self.save_transaction(transaction))
         return saved
 
-    def get_block(self, blockhash: str, with_transactions=True) -> (None, Dict):
+    def get_block(self, blockhash: str) -> (None, Dict):
         key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
-        now = time.time()
         data = self.session.get(self.storage_name + b'.' + key)
         if not data:
             Logger.leveldb.debug('%s not found under key %s', blockhash, key)
             return
-        header = data[:80]
-        block = Block.parse(io.BytesIO(header), include_transactions=False)
-        if with_transactions:
-            txids = utils.split(data[80:], offset=32)
-            transactions = [self.get_transaction(txid) for txid in txids]
-            if len(txids) != len(transactions):
-                Logger.cache.error('Storage corrupted')
-                return
-            Logger.leveldb.debug('Found %s transactions for block %s', len(transactions), blockhash)
-            block.set_txs([transaction['transaction_object'] for transaction in transactions])
-            Logger.leveldb.debug('Blockchain storage, transaction mounted in {:.4f}'.format(time.time() - now))
+        header = deserialize_header(data[:80])
         return {
-            'block_hash': block.id(),
-            'block_bytes': block.as_bin(),
-            'header_bytes': header,
-            'timestamp': block.timestamp,
-            'block_object': block
+            'block_hash': header['hash'],
+            'block_bytes': data,
+            'header_bytes': data[:80],
+            'timestamp': header['timestamp']
         }
 
     def get_transaction(self, txid) -> (None, Dict):
@@ -124,12 +107,12 @@ class BlockchainRepository:
     def remove_block(self, blockhash: str):
         key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
         data = self.session.get(self.storage_name + b'.' + key)
-        if data:
-            txids = utils.split(data[80:], offset=32)
-            for txid in txids:
-                self.remove_transaction(txid)
-        else:
-            Logger.leveldb.warning('remove block on block not found: %s', blockhash)
+        #if data:
+        #    txids = utils.split(data[80:], offset=32)
+        #    for txid in txids:
+        #        self.remove_transaction(txid)
+        #else:
+        #    Logger.leveldb.warning('remove block on block not found: %s', blockhash)
         key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
         self.session.delete(self.storage_name + b'.' + key)
 

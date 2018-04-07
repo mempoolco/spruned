@@ -10,12 +10,12 @@ from spruned.builder import blocks_reactor, headers_reactor, jsonrpc_server, rep
 
 async def main_task(loop):
     try:
-        Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
+        Logger.leveldb.info('Ensuring integrity of the storage, and tracking missing items')
         try:
             await loop_check_integrity(loop)
         except asyncio.TimeoutError:
             Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
-        Logger.leveldb.debug('Checking cache limits')
+        Logger.leveldb.info('Checking cache limits')
         try:
             asyncio.wait_for(asyncio.gather(cache.check()), timeout=30)
         except asyncio.TimeoutError:

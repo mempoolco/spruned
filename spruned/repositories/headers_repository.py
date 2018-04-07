@@ -104,7 +104,9 @@ class HeadersSQLiteRepository(HeadersRepository):
         for i, header in enumerate(headers):
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
-                assert prev_block.blockhash == header['prev_block_hash']
+                if prev_block.blockhash != header['prev_block_hash']:
+                    Logger.repository.exception('Integrity Error on check prev block hash')
+                    raise exceptions.HeadersInconsistencyException
             model = database.Header(
                 blockhash=header['block_hash'],
                 blockheight=header['block_height'],
@@ -113,7 +115,7 @@ class HeadersSQLiteRepository(HeadersRepository):
             session.add(model)
         try:
             session.flush()
-        except IntegrityError as e:
+        except (IntegrityError, AssertionError) as e:
             Logger.repository.exception('Integrity Error on save_headers')
             raise exceptions.HeadersInconsistencyException
         return headers
