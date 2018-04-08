@@ -59,6 +59,7 @@ class JSONRPCServer:
 
     async def getblock(self, blockhash: str, mode: int = 1):
         try:
+            blockhash = blockhash.strip()
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
@@ -70,6 +71,7 @@ class JSONRPCServer:
 
     async def getrawtransaction(self, txid: str, verbose=False):
         try:
+            txid = txid.strip()
             binascii.unhexlify(txid)
         except (binascii.Error):
             return {"error": {"code": -8, "message": "parameter 1 must be hexadecimal string (not '%s')" % txid}}
@@ -99,6 +101,7 @@ class JSONRPCServer:
 
     async def getblockheader(self, blockhash: str, verbose=True):
         try:
+            blockhash = blockhash.strip()
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
@@ -143,6 +146,7 @@ class JSONRPCServer:
 
     async def gettxout(self, txid: str, index: int):
         try:
+            txid = txid.strip()
             response = await self.vo_service.gettxout(txid, index)
         except:
             Logger.jsonrpc.error('Error in gettxout', exc_info=True)
