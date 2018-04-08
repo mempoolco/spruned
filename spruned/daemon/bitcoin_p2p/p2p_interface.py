@@ -5,8 +5,8 @@ from pycoin.serialize import h2b_rev
 from pycoinnet.networks import MAINNET
 
 from spruned.application import exceptions
-from spruned.daemon.p2p import utils
-from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
+from spruned.daemon.bitcoin_p2p import utils
+from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
 
 
 class P2PInterface:

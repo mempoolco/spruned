@@ -1,4 +1,5 @@
 import asyncio
+import gc
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_server, repository
@@ -21,6 +22,7 @@ async def main_task(loop):
         loop.create_task(headers_reactor.start())
         loop.create_task(jsonrpc_server.start())
         loop.create_task(cache.lurk())
+        loop.create_task(loop_check_integrity(loop))
     finally:
         pass
 
@@ -30,4 +32,8 @@ async def loop_check_integrity(l):
     this task also prune blocks
     """
     await repository.ensure_integrity()
-    #l.create_task(async_delayed_task(loop_check_integrity(l), 3600))  # just on boot is ok
+
+
+async def loop_collect_garbage(l):
+    gc.collect()
+    l.create_task(async_delayed_task(loop_check_integrity(l)), 300)

@@ -1,6 +1,6 @@
 import binascii
+import gc
 from aiohttp import web
-from decimal import Decimal
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config
 from jsonrpcserver.response import ExceptionResponse
@@ -51,6 +51,8 @@ class JSONRPCServer:
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
+        methods.add(self.dev_memorysummary, name="dev-gc-stats")
+        methods.add(self.dev_collect, name="dev-gc-collect")
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -152,3 +154,14 @@ class JSONRPCServer:
             Logger.jsonrpc.error('Error in gettxout', exc_info=True)
             return {"error": {"code": -8, "message": "server error: try again"}}
         return response
+
+    async def dev_memorysummary(self):
+        return {"stats": gc.get_stats()}
+
+    async def dev_collect(self):
+        res = {
+            "before": gc.get_stats()
+        }
+        gc.collect()
+        res['after'] = gc.get_stats()
+        return res

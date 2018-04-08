@@ -1,12 +1,8 @@
 import asyncio
-
-from pycoin.block import Block
-
-from spruned.application.database import ldb_batch
 from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.daemon.p2p import P2PInterface
+from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
 from spruned.repositories.repository import Repository
 
 

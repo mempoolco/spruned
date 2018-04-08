@@ -1,8 +1,8 @@
 from typing import Dict
 
-from spruned.daemon.p2p import utils
-from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
-from spruned.daemon.p2p.p2p_interface import P2PInterface
+from spruned.daemon.bitcoin_p2p import utils
+from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
+from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
 
 
 def build(network: Dict):
