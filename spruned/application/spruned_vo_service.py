@@ -44,10 +44,13 @@ class SprunedVOService(RPCAPIService):
             block['confirmations'] = best_header['block_height'] - block_header['block_height']
             serialized = self._serialize_header(block_header)
             serialized['tx'] = [tx.id() for tx in block_object.txs]
+            del block
             return serialized
         elif mode == 2:
             raise NotImplementedError
-        return binascii.hexlify(block['block_bytes']).decode()
+        bb = block['block_bytes']
+        del block
+        return binascii.hexlify(bb).decode()
 
     async def _get_block(self, blockheader, _r=0):
         blockhash = blockheader['block_hash']
