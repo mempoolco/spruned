@@ -30,4 +30,4 @@ async def loop_check_integrity(l):
     this task also prune blocks
     """
     await repository.ensure_integrity()
-    l.create_task(async_delayed_task(loop_check_integrity(l), 3600))
+    #l.create_task(async_delayed_task(loop_check_integrity(l), 3600))  # just on boot is ok
