@@ -22,7 +22,7 @@ async def main_task(loop):
         loop.create_task(headers_reactor.start())
         loop.create_task(jsonrpc_server.start())
         loop.create_task(cache.lurk())
-        loop.create_task(loop_check_integrity(loop))
+        #loop.create_task(loop_collect_garbage(loop))
     finally:
         pass
 
@@ -36,4 +36,4 @@ async def loop_check_integrity(l):
 
 async def loop_collect_garbage(l):
     gc.collect()
-    l.create_task(async_delayed_task(loop_collect_garbage(l)), 300)
+    l.create_task(async_delayed_task(loop_collect_garbage(l), 300))
