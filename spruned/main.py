@@ -36,4 +36,4 @@ async def loop_check_integrity(l):
 
 async def loop_collect_garbage(l):
     gc.collect()
-    l.create_task(async_delayed_task(loop_check_integrity(l)), 300)
+    l.create_task(async_delayed_task(loop_collect_garbage(l)), 300)
