@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, ANY
 
 from pycoinnet.networks import MAINNET
 
-from spruned.daemon.p2p import P2PInterface
+from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
 from test.utils import async_coro
 
 

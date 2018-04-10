@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import time
 from pycoin.message.InvItem import ITEM_TYPE_TX
 
-from spruned.daemon.p2p.p2p_connection import P2PConnection
+from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnection
 from test.utils import async_coro
 
 
