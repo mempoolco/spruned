@@ -31,7 +31,9 @@ class JSONRPCServer:
                 return web.Response(body=response, status=200)
             if isinstance(response["result"], dict) and "error" in response["result"]:
                 Logger.jsonrpc.error('Error in response: %s', response)
-                return web.json_response(response["result"], status=400)
+                r = {'error': None}
+                response.update(response['result'])
+                return web.json_response(r, status=400)
             return web.json_response(response)
         return web.json_response(body=response, status=200)
 
