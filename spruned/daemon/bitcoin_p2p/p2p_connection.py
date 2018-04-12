@@ -33,6 +33,7 @@ class P2PConnection(BaseConnection):
         )
         self.port = port
         self._peer_factory = peer
+        print('NEW PEER: Network: ', network)
         self._peer_network = network
         self.peer = None
         self._version = None

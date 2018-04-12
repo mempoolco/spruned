@@ -144,12 +144,6 @@ class HeadersReactor:
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
                 self.synced = True
-                while 1:
-                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
-                    if not callback:
-                        break
-                    self.loop.create_task(callback)
-
                 return
             local_best_header = self.repo.get_best_header()
 
@@ -182,6 +176,12 @@ class HeadersReactor:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
         finally:
+            if self.synced and self.on_best_height_hit_callbacks:
+                while 1:
+                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
+                    if not callback:
+                        break
+                    self.loop.create_task(callback)
             not _r and self.lock.release()
 
     @database.atomic
