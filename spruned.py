@@ -43,7 +43,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--keep-blocks',
-    action='store', dest='keep_blocks', default=ctx.keep_blocks,
+    action='store', dest='keep_blocks', default=int(ctx.keep_blocks),
     help='', type=int
 )
 parser.add_argument(
@@ -63,7 +63,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--cache-size',
-    action='store', dest='cache_size', default=ctx.debug,
+    action='store', dest='cache_size', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
 if __name__ == '__main__':  # pragma: no cover

@@ -36,7 +36,7 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return self._get_param('keep_blocks')
+        return int(self._get_param('keep_blocks'))
 
     @property
     def network(self):
@@ -64,7 +64,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return self._get_param('cache_size') * 1024 * 1024
+        return int(self._get_param('cache_size')) * 1024 * 1024
 
     def load_args(self, args: Namespace):
         self['args'] = {
@@ -76,8 +76,8 @@ class Context(dict):
             'rpcuser': args.rpcuser,
             'network': args.network,
             'debug': args.debug,
-            'cache_size': args.cache_size,
-            'keep_blocks': args.keep_blocks
+            'cache_size': int(args.cache_size),
+            'keep_blocks': int(args.keep_blocks)
         }
         self.apply_context()
 
