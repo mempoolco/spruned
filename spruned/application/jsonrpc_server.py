@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import binascii
 import gc
@@ -7,6 +8,7 @@ from jsonrpcserver import config
 from jsonrpcserver.response import ExceptionResponse
 
 from spruned.application.logging_factory import Logger
+from spruned.application.tools import async_delayed_task
 
 config.schema_validation = False
 
@@ -62,6 +64,7 @@ class JSONRPCServer:
         methods.add(self.gettxout)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
+        methods.add(self.stop, name="stop")
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -174,3 +177,12 @@ class JSONRPCServer:
         gc.collect()
         res['after'] = gc.get_stats()
         return res
+
+    async def stop(self):
+        loop = asyncio.get_event_loop()
+
+        async def stop():
+            loop.stop()
+            loop.close()
+        loop.create_task(async_delayed_task(stop(), 0))
+        return {"error": None, "response": None}
