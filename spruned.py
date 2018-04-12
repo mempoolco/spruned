@@ -48,10 +48,10 @@ parser.add_argument(
 )
 parser.add_argument(
     '--network',
-    action='store', dest='network', default=ctx.network,
+    action='store', dest='network',
     choices=[
         'bitcoin.mainnet',
-        #'bitcoin.testnet',
+        'bitcoin.testnet',
         #'bitcoin.regtest'
     ],
     help=''

@@ -15,7 +15,7 @@ class Context(dict):
                     'daemonize': False,
                     'datadir': str(Path.home()) + '/.spruned',
                     'rpcbind': '127.0.0.1',
-                    'rpcport': 8332,
+                    'rpcport': None,
                     'rpcuser': 'rpcuser',
                     'rpcpassword': 'rpcpassword',
                     'network': 'bitcoin.mainnet',
@@ -28,6 +28,8 @@ class Context(dict):
 
     @property
     def datadir(self):
+        if self._get_param('network') != 'bitcoin.mainnet':
+            return self._get_param('datadir') + '/' + self._get_param('network')
         return self._get_param('datadir')
 
     @property
@@ -48,7 +50,7 @@ class Context(dict):
 
     @property
     def rpcport(self):
-        return self._get_param('rpcport')
+        return self._get_param('rpcport') or self.get_network().get('rpc_port')
 
     @property
     def rpcuser(self):

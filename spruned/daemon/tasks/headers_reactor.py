@@ -300,12 +300,16 @@ class HeadersReactor:
                 # here just "fetch headers". stop.
                 self.synced = True
                 return
-            headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
+            peer, headers = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
             if not headers:
                 raise exceptions.NoHeadersException
             saving_headers = [h for h in headers if h['block_height'] > local_best_height] if local_best_height \
                 else headers
-            saved_headers = headers and self.repo.save_headers(saving_headers)
+            try:
+                saved_headers = headers and self.repo.save_headers(saving_headers)
+            except exceptions.HeadersInconsistencyException:
+                await peer.disconnect()
+                raise
             Logger.electrum.debug(
                 'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
                 len(headers), _from, _to, len(saved_headers), len(saving_headers)
