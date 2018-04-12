@@ -8,7 +8,7 @@ from spruned.repositories.blockchain_repository import BlockchainRepository, BLO
 
 
 class Repository:
-    def __init__(self, headers, blocks, keep_blocks=settings.BOOTSTRAP_BLOCKS):
+    def __init__(self, headers, blocks, keep_blocks=200):
         self._headers_repository = headers
         self._blockchain_repository = blocks
         self.ldb = None
@@ -28,6 +28,7 @@ class Repository:
     @classmethod
     def instance(cls):  # pragma: no cover
         from spruned.application import database
+        from spruned.application.context import ctx
         headers_repository = HeadersSQLiteRepository(database.sqlite)
         blocks_repository = BlockchainRepository(
             database.storage_ldb,
@@ -36,7 +37,8 @@ class Repository:
         )
         i = cls(
             headers=headers_repository,
-            blocks=blocks_repository
+            blocks=blocks_repository,
+            keep_blocks=ctx.keep_blocks
         )
         i.sqlite = database.sqlite
         i.ldb = database.storage_ldb

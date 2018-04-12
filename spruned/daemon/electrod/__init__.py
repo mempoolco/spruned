@@ -6,7 +6,7 @@ from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
 
 
-def build(network, connections=8, loop=asyncio.get_event_loop()):  # pragma: no cover
+def build(network, connections=4, loop=asyncio.get_event_loop()):  # pragma: no cover
     assert network
 
     def load_electrum_servers(network):

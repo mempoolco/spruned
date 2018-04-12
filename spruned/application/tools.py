@@ -1,12 +1,7 @@
 import asyncio
 import hashlib
 import binascii
-
-import struct
-
-import bitcoin
 from bitcoin import deserialize, serialize, decode, bin_sha256, encode
-
 from spruned.application import exceptions
 
 
@@ -51,11 +46,6 @@ def deserialize_header(header: (str, bytes)):
     verify_pow(h, blockhash)
     return data
 
-def deserialize_block(block: bytes):
-    header = block[:80]
-
-
-
 
 def verify_pow(header, blockhash):
     bits = header[72:76][::-1]
@@ -89,19 +79,12 @@ async def async_delayed_task(task, seconds: int=0, disable_log=True):
     return await task
 
 
-def decode_raw_transaction(rawtx: str):
-    tx = deserialize(rawtx)
-    pass
-
-
-def load_config():
-    """
-    todo: parse config or create with default values
-    """
+def create_directory():
     from spruned import settings
+    from spruned.application.context import ctx
     import os
-    if not os.path.exists(settings.FILE_DIRECTORY):
-        os.makedirs(settings.FILE_DIRECTORY)
+    if not os.path.exists(ctx.datadir):
+        os.makedirs(ctx.datadir)
     if not os.path.exists(settings.STORAGE_ADDRESS):
         os.makedirs(settings.STORAGE_ADDRESS)
 
@@ -124,8 +107,6 @@ def check_internet_connection():
         i += 1
     Logger.electrum.debug('No internet connectivity!')
     return False
-
-## electrum tools
 
 
 def script_to_scripthash(script):

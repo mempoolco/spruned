@@ -1,12 +1,8 @@
 import asyncio
-
-from pycoin.block import Block
-
-from spruned.application.database import ldb_batch
 from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.daemon.p2p import P2PInterface
+from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
 from spruned.repositories.repository import Repository
 
 
@@ -98,7 +94,8 @@ class BlocksReactor:
             urgent = True
 
         headers = self.repo.headers.get_headers_since_height(height_to_start, limit=self._max_per_batch)
-        _local_blocks = {h['block_hash']: self.repo.blockchain.get_block(h['block_hash'], with_transactions=False) for h in headers}
+        _local_blocks = {h['block_hash']: self.repo.blockchain.get_block(h['block_hash'],
+                                                                         with_transactions=False) for h in headers}
         _local_hblocks = {k: v for k, v in _local_blocks.items() if v is not None}
         _request = [x['block_hash'] for x in headers if x['block_hash'] not in _local_hblocks]
         blocks = _request and await self.interface.get_blocks(*_request)

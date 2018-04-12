@@ -1,7 +1,7 @@
 import asyncio
 import binascii
 from typing import Dict
-from spruned import settings
+from spruned.application.context import ctx
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
@@ -11,8 +11,9 @@ from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, 
 
 class ElectrodInterface:
     def __init__(self, connectionpool: ElectrodConnectionPool, loop=asyncio.get_event_loop()):
+        self._network = ctx.get_network()
         self.pool = connectionpool
-        self._checkpoints = settings.CHECKPOINTS
+        self._checkpoints = self._network['checkpoints']
         self.loop = loop
 
     @property

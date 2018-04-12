@@ -141,7 +141,6 @@ class P2PConnection(BaseConnection):
             if item.item_type == ITEM_TYPE_TX:
                 txs += 1
                 for callback in self._on_transaction_callbacks:
-                    item
                     self.loop.create_task(callback(self, item))
             else:
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
@@ -250,6 +249,7 @@ class P2PConnectionPool(BaseConnectionPool):
         connections = []
         s = time.time()
         Logger.p2p.debug('Fetching InvItem %s', inv_item)
+        future = None
         try:
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
                 connections = self._pick_multiple_connections(peers if peers is not None else 1)
@@ -267,16 +267,19 @@ class P2PConnectionPool(BaseConnectionPool):
             )
             for connection in connections:
                 connection.add_error()
+            future and future.cancel()
         finally:
             try:
                 _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
+                del connections
             except KeyError as e:
                 Logger.p2p.debug('Peer %s already removed from busy peers', str(e))
 
             def del_batcher(_b):
                 try:
                     _b.stop()
-                    del _b
+                    del _b._inv_item_future_queue
+                    del _b._inv_item_hash_to_future[str(inv_item)]
                 except:
                     del _b
 

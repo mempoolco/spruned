@@ -1,6 +1,7 @@
 import logging
 import sys
 from spruned import settings
+from spruned.application.context import ctx
 
 
 class LoggingFactory:
@@ -64,7 +65,7 @@ if settings.TESTING:
         stdout=True
     )  # type: LoggingFactory
 
-elif settings.DEBUG:
+elif ctx.debug:
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     logging.getLogger('pycoin').setLevel(logging.DEBUG)
     logging.getLogger('p2p').setLevel(logging.DEBUG)

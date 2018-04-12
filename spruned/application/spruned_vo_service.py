@@ -1,17 +1,10 @@
 import asyncio
-import hashlib
 import io
-import random
 import binascii
-
 from bitcoin import deserialize
 from pycoin.block import Block
-from pycoin.tx import TxOut
-from pycoin.tx.Tx import Tx
-
 from spruned import settings
 from spruned.application.cache import CacheAgent
-from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash
 from spruned.application import exceptions
@@ -43,15 +36,21 @@ class SprunedVOService(RPCAPIService):
             return
         block = await self._get_block(block_header)
         if mode == 1:
-            block_object = Block.parse(io.BytesIO(block['block_bytes']))
+            block_object = block.get(
+                'block_object',
+                Block.parse(io.BytesIO(block['block_bytes']), check_merkle_hash=False)
+            )
             best_header = self.repository.headers.get_best_header()
             block['confirmations'] = best_header['block_height'] - block_header['block_height']
             serialized = self._serialize_header(block_header)
             serialized['tx'] = [tx.id() for tx in block_object.txs]
+            del block
             return serialized
         elif mode == 2:
             raise NotImplementedError
-        return binascii.hexlify(block['block_bytes']).decode()
+        bb = block['block_bytes']
+        del block
+        return binascii.hexlify(bb).decode()
 
     async def _get_block(self, blockheader, _r=0):
         blockhash = blockheader['block_hash']
@@ -179,9 +178,9 @@ class SprunedVOService(RPCAPIService):
             "confirmations": best_header['block_height'] - txout['height'],
             "value": round(txout['value'] / 10**8, 8),
             "scriptPubKey": {
-                "asm": None,  # todo
+                "asm": "",  # todo
                 "hex": deserialized_vout['script'],
-                "reqSigs": None,  # todo
+                "reqSigs": 0,  # todo
                 "type": "",
                 "addresses": []  # todo
             }
@@ -195,5 +194,3 @@ class SprunedVOService(RPCAPIService):
                 return
             return await self._listunspent_by_scripthash(scripthash, _r=_r+1)
         return unspents
-
-

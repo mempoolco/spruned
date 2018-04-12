@@ -1,6 +1,7 @@
+import base64
 import binascii
+import gc
 from aiohttp import web
-from decimal import Decimal
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config
 from jsonrpcserver.response import ExceptionResponse
@@ -12,17 +13,23 @@ config.schema_validation = False
 
 class JSONRPCServer:
     def __init__(self, host, port, username, password):
-        self.username = username
-        self.password = password
+        self.username = username.encode()
+        self.password = password.encode()
         self.host = host
         self.port = port
         self.vo_service = None
+        self._auth = 'Basic %s' % base64.b64encode(self.username + b':' + self.password).decode()
 
     def set_vo_service(self, vo_service):
         self.vo_service = vo_service
 
-    async def _handle(self, request):
-        request = await request.text()
+    def _authenticate(self, request):
+        return bool(request.headers.get('Authorization') == self._auth)
+
+    async def _handle(self, jsonrequest):
+        if not self._authenticate(jsonrequest):
+            return web.Response(body=b'', status=401)
+        request = await jsonrequest.text()
         response = await methods.dispatch(request)
         if isinstance(response, ExceptionResponse):
             return web.json_response(response, status=response.http_status)
@@ -31,7 +38,9 @@ class JSONRPCServer:
                 return web.Response(body=response, status=200)
             if isinstance(response["result"], dict) and "error" in response["result"]:
                 Logger.jsonrpc.error('Error in response: %s', response)
-                return web.json_response(response["result"], status=400)
+                r = {'error': None}
+                response.update(response['result'])
+                return web.json_response(r, status=400)
             return web.json_response(response)
         return web.json_response(body=response, status=200)
 
@@ -51,6 +60,8 @@ class JSONRPCServer:
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
+        methods.add(self.dev_memorysummary, name="dev-gc-stats")
+        methods.add(self.dev_collect, name="dev-gc-collect")
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -59,6 +70,7 @@ class JSONRPCServer:
 
     async def getblock(self, blockhash: str, mode: int = 1):
         try:
+            blockhash = blockhash.strip()
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
@@ -70,6 +82,7 @@ class JSONRPCServer:
 
     async def getrawtransaction(self, txid: str, verbose=False):
         try:
+            txid = txid.strip()
             binascii.unhexlify(txid)
         except (binascii.Error):
             return {"error": {"code": -8, "message": "parameter 1 must be hexadecimal string (not '%s')" % txid}}
@@ -99,6 +112,7 @@ class JSONRPCServer:
 
     async def getblockheader(self, blockhash: str, verbose=True):
         try:
+            blockhash = blockhash.strip()
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
@@ -143,8 +157,20 @@ class JSONRPCServer:
 
     async def gettxout(self, txid: str, index: int):
         try:
+            txid = txid.strip()
             response = await self.vo_service.gettxout(txid, index)
         except:
             Logger.jsonrpc.error('Error in gettxout', exc_info=True)
             return {"error": {"code": -8, "message": "server error: try again"}}
         return response
+
+    async def dev_memorysummary(self):
+        return {"stats": gc.get_stats()}
+
+    async def dev_collect(self):
+        res = {
+            "before": gc.get_stats()
+        }
+        gc.collect()
+        res['after'] = gc.get_stats()
+        return res
