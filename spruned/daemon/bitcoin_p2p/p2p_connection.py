@@ -141,7 +141,6 @@ class P2PConnection(BaseConnection):
             if item.item_type == ITEM_TYPE_TX:
                 txs += 1
                 for callback in self._on_transaction_callbacks:
-                    item
                     self.loop.create_task(callback(self, item))
             else:
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)

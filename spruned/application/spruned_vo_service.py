@@ -178,9 +178,9 @@ class SprunedVOService(RPCAPIService):
             "confirmations": best_header['block_height'] - txout['height'],
             "value": round(txout['value'] / 10**8, 8),
             "scriptPubKey": {
-                "asm": None,  # todo
+                "asm": "",  # todo
                 "hex": deserialized_vout['script'],
-                "reqSigs": None,  # todo
+                "reqSigs": 0,  # todo
                 "type": "",
                 "addresses": []  # todo
             }
