@@ -110,9 +110,6 @@ class CacheAgent:
         if item['key'][0] == int.from_bytes(BLOCK_PREFIX, 'little'):
             Logger.leveldb.debug('Deleting block %s', item)
             self.repository.blockchain.remove_block(item['key'][2:])
-        elif item['key'][0] == int.from_bytes(TRANSACTION_PREFIX, 'little'):
-            Logger.leveldb.debug('Deleting transaction %s', item)
-            self.repository.blockchain.remove_transaction(item['key'][2:])
         else:
             raise ValueError('Problem: %s' % item)
         self.index['total'] -= self.index['keys'].pop(item['key'])['size']
