@@ -74,7 +74,12 @@ class ElectrodInterface:
         await self.pool.on_peer_error(peer)
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        return await self.pool.call('blockchain.transaction.get', txid)
+        if txid=='4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b':	
+             return {'error code':-5,
+                 'error message': 'The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved'}
+        a=await self.pool.call('blockchain.transaction.get', txid)
+        return a
+
 
     async def listunspents_by_address(self, address: str):
         return await self.pool.call('blockchain.address.listunspent', address)
