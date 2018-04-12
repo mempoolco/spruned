@@ -1,3 +1,4 @@
+import base64
 import binascii
 import gc
 from aiohttp import web
@@ -12,17 +13,23 @@ config.schema_validation = False
 
 class JSONRPCServer:
     def __init__(self, host, port, username, password):
-        self.username = username
-        self.password = password
+        self.username = username.encode()
+        self.password = password.encode()
         self.host = host
         self.port = port
         self.vo_service = None
+        self._auth = 'Basic %s' % base64.b64encode(self.username + b':' + self.password).decode()
 
     def set_vo_service(self, vo_service):
         self.vo_service = vo_service
 
-    async def _handle(self, request):
-        request = await request.text()
+    def _authenticate(self, request):
+        return bool(request.headers.get('Authorization') == self._auth)
+
+    async def _handle(self, jsonrequest):
+        if not self._authenticate(jsonrequest):
+            return web.Response(body=b'', status=401)
+        request = await jsonrequest.text()
         response = await methods.dispatch(request)
         if isinstance(response, ExceptionResponse):
             return web.json_response(response, status=response.http_status)

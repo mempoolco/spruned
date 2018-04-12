@@ -82,9 +82,7 @@ class Context(dict):
         self.apply_context()
 
     def _get_param(self, key):
-        if self['args'].get(key):
-            return self['args'][key]
-        return self['default'].get(key, None)
+        return self['args'].get(key, self['default'].get(key, None))
 
     def apply_context(self):
         pass
