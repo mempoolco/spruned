@@ -4,7 +4,7 @@
 
 import argparse
 import asyncio
-
+from daemonize import Daemonize
 from spruned.application.context import ctx
 
 parser = argparse.ArgumentParser(
@@ -38,20 +38,20 @@ parser.add_argument(
 )
 parser.add_argument(
     '--daemon',
-    action='store_true', dest='daemonize', default=ctx.daemonize,
+    action='store_true', dest='daemonize', default=bool(ctx.daemonize),
     help='Run in the background as a daemon and accept commands'
 )
 parser.add_argument(
     '--keep-blocks',
-    action='store', dest='keep_blocks', default=ctx.keep_blocks,
+    action='store', dest='keep_blocks', default=int(ctx.keep_blocks),
     help='', type=int
 )
 parser.add_argument(
     '--network',
-    action='store', dest='network', default=ctx.network,
+    action='store', dest='network',
     choices=[
         'bitcoin.mainnet',
-        #'bitcoin.testnet',
+        'bitcoin.testnet',
         #'bitcoin.regtest'
     ],
     help=''
@@ -63,17 +63,26 @@ parser.add_argument(
 )
 parser.add_argument(
     '--cache-size',
-    action='store', dest='cache_size', default=ctx.debug,
+    action='store', dest='cache_size', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
-if __name__ == '__main__':  # pragma: no cover
-    args = parser.parse_args()
+
+
+def start():
     ctx.load_args(args)
-
-    from spruned.application.tools import create_directory
     create_directory()
-
     main_loop = asyncio.get_event_loop()
     from spruned.main import main_task
     main_loop.create_task(main_task(main_loop))
     main_loop.run_forever()
+
+
+if __name__ == '__main__':  # pragma: no cover
+    args = parser.parse_args()
+    from spruned.application.tools import create_directory
+    if args.daemonize:
+        pid = ctx.datadir + 'spruned.pid'
+        daemon = Daemonize(app="spruned", pid=pid, action=start)
+        daemon.start()
+    else:
+        start()

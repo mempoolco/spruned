@@ -1,12 +1,12 @@
 import async_timeout
 from pycoinnet.dnsbootstrap import dns_bootstrap_host_port_q
-from pycoinnet.networks import MAINNET
+from pycoinnet.networks import MAINNET, TESTNET
 import asyncio
 
 from spruned.application.logging_factory import Logger
 
 
-async def dns_bootstrap_servers(network=MAINNET, howmany=50):  # pragma: no cover
+async def dns_bootstrap_servers(network=TESTNET, howmany=50):  # pragma: no cover
     host_q = dns_bootstrap_host_port_q(network)
     ad = []
     while 1:

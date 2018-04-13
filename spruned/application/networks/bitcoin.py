@@ -1,6 +1,9 @@
 from pycoinnet.networks import MAINNET, TESTNET, REGTEST
 
 mainnet = {
+    'pycoin': MAINNET,
+    'electrum_servers': 'bc_mainnet',
+    'electrum_concurrency': 4,
     'checkpoints': {
         0: "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
         11111: "0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d",
@@ -19,11 +22,19 @@ mainnet = {
         418824: "0000000000000000001c8018d9cb3b742ef25114f27563e3fc4a1902167f9893",
         478559: "00000000000000000019f112ec0a9982926f1258cdcc558dd7c3b7e5dc7fa148"
     },
-    'pycoin': MAINNET
+    'rpc_port': 8332
 }
 
 testnet = {
-    'pycoin': TESTNET
+    'pycoin': TESTNET,
+    'electrum_servers': 'bc_testnet',
+    'electrum_concurrency': 1,
+    'checkpoints': {
+        0: "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943",
+        500000: "000000000001a7c0aaa2630fbb2c0e476aafffc60f82177375b2aaa22209f606",
+        1000000: "0000000000478e259a3eda2fafbeeb0106626f946347955e99278fe6cc848414"
+    },
+    'rpc_port': 18332
 }
 
 regtest = {

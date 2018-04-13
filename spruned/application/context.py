@@ -15,7 +15,7 @@ class Context(dict):
                     'daemonize': False,
                     'datadir': str(Path.home()) + '/.spruned',
                     'rpcbind': '127.0.0.1',
-                    'rpcport': 8332,
+                    'rpcport': None,
                     'rpcuser': 'rpcuser',
                     'rpcpassword': 'rpcpassword',
                     'network': 'bitcoin.mainnet',
@@ -28,6 +28,8 @@ class Context(dict):
 
     @property
     def datadir(self):
+        if self._get_param('network') != 'bitcoin.mainnet':
+            return self._get_param('datadir') + '/' + self._get_param('network')
         return self._get_param('datadir')
 
     @property
@@ -36,7 +38,7 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return self._get_param('keep_blocks')
+        return int(self._get_param('keep_blocks'))
 
     @property
     def network(self):
@@ -48,7 +50,7 @@ class Context(dict):
 
     @property
     def rpcport(self):
-        return self._get_param('rpcport')
+        return self._get_param('rpcport') or self.get_network().get('rpc_port')
 
     @property
     def rpcuser(self):
@@ -64,7 +66,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return self._get_param('cache_size') * 1024 * 1024
+        return int(self._get_param('cache_size')) * 1024 * 1024
 
     def load_args(self, args: Namespace):
         self['args'] = {
@@ -76,15 +78,13 @@ class Context(dict):
             'rpcuser': args.rpcuser,
             'network': args.network,
             'debug': args.debug,
-            'cache_size': args.cache_size,
-            'keep_blocks': args.keep_blocks
+            'cache_size': int(args.cache_size),
+            'keep_blocks': int(args.keep_blocks)
         }
         self.apply_context()
 
     def _get_param(self, key):
-        if self['args'].get(key):
-            return self['args'][key]
-        return self['default'].get(key, None)
+        return self['args'].get(key, self['default'].get(key, None))
 
     def apply_context(self):
         pass

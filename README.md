@@ -70,7 +70,7 @@ optional arguments:
                         8332 or testnet: 18332) (default: 8332)
   --rpcbind RPCBIND     Bind to given address to listen for JSON-RPC
                         connections. (default: 127.0.0.1)
-  --datadir DATADIR     Specify data directory (default: /home/pi/.spruned)
+  --datadir DATADIR     Specify data directory (default: $HOME/.spruned)
   --daemon              Run in the background as a daemon and accept commands
                         (default: False)
   --keep-blocks KEEP_BLOCKS
@@ -189,4 +189,4 @@ $ bitcoin-cli getrawtransaction 0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb
 
 Spruned is **plenty** of bugs, because I care of you and I don't what you to get bored.
 To reduce the entropy and help to put some interim order into the universe, you can have fun
-with spruned by fixing bugs and enhancing it with new features. You can be this will help.
+with spruned by fixing bugs and enhancing it with new features. You can bet this will help.

@@ -22,7 +22,7 @@ async def main_task(loop):
         loop.create_task(headers_reactor.start())
         loop.create_task(jsonrpc_server.start())
         loop.create_task(cache.lurk())
-        #loop.create_task(loop_collect_garbage(loop))
+        loop.create_task(loop_collect_garbage(loop))
     finally:
         pass
 

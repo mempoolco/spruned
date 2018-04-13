@@ -94,5 +94,11 @@
     ["erbium1.sytes.net", "s"],
     ["gh05.geekhosters.com", "s"],
     ["electrum-1.mempool.co", "s"]
+  ],
+  "bc_testnet": [
+    ["testnet1.bauerj.eu", ["s", "t"]],
+    ["testnet.qtornado.com", ["s", "t"]],
+    ["testnet.hsmiths.com", ["s", "t"]],
+    ["electrumx.kekku.li", "s"]
   ]
 }

@@ -144,12 +144,6 @@ class HeadersReactor:
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
                 self.synced = True
-                while 1:
-                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
-                    if not callback:
-                        break
-                    self.loop.create_task(callback)
-
                 return
             local_best_header = self.repo.get_best_header()
 
@@ -182,6 +176,12 @@ class HeadersReactor:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
         finally:
+            if self.synced and self.on_best_height_hit_callbacks:
+                while 1:
+                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
+                    if not callback:
+                        break
+                    self.loop.create_task(callback)
             not _r and self.lock.release()
 
     @database.atomic
@@ -300,12 +300,16 @@ class HeadersReactor:
                 # here just "fetch headers". stop.
                 self.synced = True
                 return
-            headers = await self.interface.get_headers_in_range_from_chunks(_from, _to)
+            peer, headers = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
             if not headers:
                 raise exceptions.NoHeadersException
             saving_headers = [h for h in headers if h['block_height'] > local_best_height] if local_best_height \
                 else headers
-            saved_headers = headers and self.repo.save_headers(saving_headers)
+            try:
+                saved_headers = headers and self.repo.save_headers(saving_headers)
+            except exceptions.HeadersInconsistencyException:
+                await peer.disconnect()
+                raise
             Logger.electrum.debug(
                 'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
                 len(headers), _from, _to, len(saved_headers), len(saving_headers)

@@ -92,20 +92,27 @@ class ElectrodInterface:
     async def getaddresshistory(self, scripthash: str):
         return await self.pool.call('blockchain.address.get_history', scripthash)
 
-    async def get_chunk(self, chunks_index: int):
-        return await self.pool.call('blockchain.block.get_chunk', chunks_index)
+    async def get_chunk(self, chunks_index: int, get_peer=False):
+        return await self.pool.call('blockchain.block.get_chunk', chunks_index, get_peer=get_peer)
 
     async def get_merkleproof(self, txid: str, block_height: int):
         return await self.pool.call('blockchain.transaction.get_merkle', txid, block_height)
 
-    async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int):
+    async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int, get_peer=False):
         futures = []
         for chunk_index in range(starts_from, ends_to):
-            futures.append(self.get_headers_from_chunk(chunk_index))
+            futures.append(self.get_headers_from_chunk(chunk_index, get_peer=get_peer))
         headers = []
-        for _headers in await asyncio.gather(*futures):
-            _headers and headers.extend(_headers)
-        return headers
+        if not get_peer:
+            for _headers in await asyncio.gather(*futures):
+                _headers and headers.extend(_headers)
+            return headers
+        else:
+            peer = None
+            for response in await asyncio.gather(*futures):
+                response and headers.extend(response[1])
+                peer = response[0]
+            return peer, headers
 
     async def get_headers_in_range(self, starts_from: int, ends_to: int):
         chunks_range = [x for x in range(starts_from, ends_to)]
@@ -117,8 +124,12 @@ class ElectrodInterface:
     async def estimatefee(self, blocks: int):
         return await self.pool.call('blockchain.estimatefee', blocks)
 
-    async def get_headers_from_chunk(self, chunk_index: int):
-        chunk = await self.get_chunk(chunk_index)
+    async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
+        peer = None
+        if get_peer:
+            peer, chunk = await self.get_chunk(chunk_index, get_peer=get_peer)
+        else:
+            chunk = await self.get_chunk(chunk_index, get_peer=get_peer)
         if not chunk:
             return
         hex_headers = [chunk[i:i + 160] for i in range(0, len(chunk), 160)]
@@ -128,8 +139,15 @@ class ElectrodInterface:
             header['block_height'] = int(chunk_index * 2016 + i)
             header['header_bytes'] = binascii.unhexlify(header_hex)
             header['block_hash'] = header.pop('hash')
+            if header['block_height'] in self._checkpoints:
+                if self._checkpoints[header['block_height']] != header['block_hash']:
+                    await peer.disconnect()
+                    raise exceptions.NetworkHeadersInconsistencyException(
+                        'Checkpoint failure. Expected: %s, Failure: %s',
+                        self._checkpoints[header['block_height']], header_hex
+                    )
             headers.append(header)
-        return headers
+        return get_peer and (peer, headers) or headers
 
     async def start(self):
         self.loop.create_task(self.pool.connect())
