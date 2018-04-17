@@ -176,7 +176,7 @@ class SprunedVOService(RPCAPIService):
         return {
             "bestblock": best_header['block_hash'],
             "confirmations": best_header['block_height'] - txout['height'],
-            "value": round(txout['value'] / 10**8, 8),
+            "value": "{:.8f}".format(txout['value'] / 10**8, 8),
             "scriptPubKey": {
                 "asm": "",  # todo
                 "hex": deserialized_vout['script'],
