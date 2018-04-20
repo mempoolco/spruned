@@ -9,7 +9,7 @@ from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
-from spruned.daemon.exceptions import ElectrodMissingResponseException
+from spruned.daemon.exceptions import ElectrodMissingResponseException, GenesisTransactionRequestedException
 
 
 class SprunedVOService(RPCAPIService):

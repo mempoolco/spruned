@@ -35,3 +35,7 @@ class NoServersException(SprunedException):
 
 class BlocksInconsistencyException(SprunedException):
     pass
+
+
+class GenesisTransactionRequestedException(SprunedException):
+    pass

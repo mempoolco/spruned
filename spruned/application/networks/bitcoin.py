@@ -4,6 +4,7 @@ mainnet = {
     'pycoin': MAINNET,
     'electrum_servers': 'bc_mainnet',
     'electrum_concurrency': 4,
+    'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'checkpoints': {
         0: "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
         11111: "0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d",
@@ -29,6 +30,7 @@ testnet = {
     'pycoin': TESTNET,
     'electrum_servers': 'bc_testnet',
     'electrum_concurrency': 1,
+    'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'checkpoints': {
         0: "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943",
         500000: "000000000001a7c0aaa2630fbb2c0e476aafffc60f82177375b2aaa22209f606",

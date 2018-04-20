@@ -74,6 +74,8 @@ class ElectrodInterface:
         await self.pool.on_peer_error(peer)
 
     async def getrawtransaction(self, txid: str, verbose=False):
+        if txid == self._network['tx0']:
+            raise exceptions.GenesisTransactionRequestedException
         return await self.pool.call('blockchain.transaction.get', txid)
 
     async def listunspents_by_address(self, address: str):
