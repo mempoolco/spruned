@@ -29,7 +29,7 @@ For the transactions related APIs and utxo tracking, spruned uses the electrum n
 
 #### Dependencies
 
-spruned works with Python >= 3.5.3. Right now it should work only on Linux systems.<br />
+spruned works with Python >= 3.5.2. Right now it should work only on Linux systems.<br />
 <br />
 It make intensive usage of connectrum, pybitcointools and pycoinnet libraries. Thanks to mantainers & contributors! <br />
 Especially at this stage of development (but it would be better always), it is recommended to use virtualenv to run spruned.
@@ -166,7 +166,7 @@ $ bitcoin-cli getrawtransaction 0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb
 #### Requirements
 - An internet connection
 - **less than 500mb of disk space :-)**
-- Python >= 3.5.3
+- Python >= 3.5.2
 
 
 #### Limitations
