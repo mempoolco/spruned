@@ -1,7 +1,7 @@
 git+https://github.com/Conio/pybitcointools.git#egg=pybitcointools
 git+https://github.com/gdassori/connectrum.git#egg=connectrum-0.5.3-gdassori-0.4
 async-timeout==2.0.1
-aiohttp==3.1.1
+aiohttp==3.0.0b0
 jsonrpcserver==3.5.3
 sqlalchemy==1.2.6
 coverage==4.5.1
