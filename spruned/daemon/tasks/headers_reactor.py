@@ -300,7 +300,8 @@ class HeadersReactor:
                 # here just "fetch headers". stop.
                 self.synced = True
                 return
-            peer, headers = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
+            res = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
+            peer, headers = res if res else (None, None)
             if not headers:
                 raise exceptions.NoHeadersException
             saving_headers = [h for h in headers if h['block_height'] > local_best_height] if local_best_height \

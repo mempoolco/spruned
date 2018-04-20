@@ -122,7 +122,8 @@ class ElectrodInterface:
     async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
         peer = None
         if get_peer:
-            peer, chunk = await self.get_chunk(chunk_index, get_peer=get_peer)
+            res = await self.get_chunk(chunk_index, get_peer=get_peer)
+            peer, chunk = res if res else (None, None)
         else:
             chunk = await self.get_chunk(chunk_index, get_peer=get_peer)
         if not chunk:

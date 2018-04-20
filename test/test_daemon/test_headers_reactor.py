@@ -270,7 +270,7 @@ class TestHeadersReactor(unittest.TestCase):
         self.sut.set_last_processed_header(loc_header)
         self.repo.get_best_header.return_value = loc_header
         _headers = make_headers(2017, 2120, '00'*32)
-        self.interface.get_headers_in_range_from_chunks.side_effect = [async_coro(_headers), async_coro(None)]
+        self.interface.get_headers_in_range_from_chunks.side_effect = [async_coro((Mock(), _headers)), async_coro(None)]
         self.interface.get_header.return_value = async_coro(net_header)
         self.repo.save_headers.side_effect = lambda x, **k: x
 
@@ -354,10 +354,10 @@ class TestHeadersReactor(unittest.TestCase):
         self.interface.get_headers_in_range_from_chunks.side_effect = [
             exceptions.NoPeersException,
             async_coro(None),
-            async_coro(_chunk_1),
-            async_coro(_chunk_2)
+            async_coro((Mock(), _chunk_1)),
+            async_coro((Mock(), _chunk_2))
         ]
-        self.interface.get_header.return_value = async_coro(net_header)
+        self.interface.get_header.return_value = async_coro((Mock(), net_header))
         self.repo.save_headers.side_effect = lambda x, **k: x
 
         self.loop.run_until_complete(self.sut.on_new_header(peer, net_header))
