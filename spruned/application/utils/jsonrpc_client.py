@@ -29,7 +29,7 @@ class JSONClient:
             )
         if jsonRes:
             try:
-                return (await response.json()).get('result')
+                return (await response.json())
             except JSONDecodeError as e:
                 raise e
         else:
@@ -52,7 +52,8 @@ async def getblock_test(cli, bestheight=50000):
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    cli = JSONClient(b'rpcuser', b'password', 'localhost', 8332)
+    cli = JSONClient(b'rpcuser', b'passw0rd', '10.8.10.217', 8332)
     loop = asyncio.get_event_loop()
     bestheight = 500000
-    loop.run_until_complete(getblock_test(cli, bestheight=bestheight))
+    print(loop.run_until_complete(cli._call('getblockcount')))
+    #loop.run_until_complete(getblock_test(cli, bestheight=bestheight))
