@@ -3,7 +3,7 @@
 
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
-[![pypi](https://badge.fury.io/py/spruned.svg)(https://pypi.org/project/spruned/)
+[![pypi](https://badge.fury.io/py/spruned.svg)](https://pypi.org/project/spruned/)
 #### What's this?
 
 <p>sPRUNED is a bitcoin client for light systems. <br />
