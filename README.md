@@ -17,7 +17,7 @@ It's a replacement for bitcoind on lightweight systems (It's proven to work on a
 #### How it works?
 
 spruned downloads and store the bitcoin blocks on demand, when you need them, directly from the Peer2Peer Bitcoin Network.<br/>
-there's a "bootstrap" functionality, to keep the last ~200 (default settings) blocks on the local storage, because 
+there's a "bootstrap" functionality, to keep the last ~50 (default settings) blocks on the local storage, because 
 fetch blocks may require also up to 10 seconds with slow connections, and this "bootstrap mode" reduces latencies on usage.<br />
 
 You can use bitcoin-cli, or any other RPC client, as if you had bitcoind up & running.<br />
