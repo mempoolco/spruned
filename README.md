@@ -1,5 +1,5 @@
 ## sPRUNED
-#### A Bitcoin lightweight client that can fetch any block or transaction
+#### A Bitcoin lightweight pseudonode with RPC that can fetch any block or transaction
 
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
@@ -10,7 +10,7 @@
 256mb ram & 500mb hdd should be fairly enough to keep it up & running.
 <br />
 
-At this very moment it supports only bitcoin mainnet. Testnet support will come soon before beta release.<br /><br />
+Supports both Bitcoin Mainnet and Testnet
 It's a replacement for bitcoind on lightweight systems (It's proven to work on a Raspberry Zero, along with CLightning), it provides an interface for bitcoin-cli. <br />
 <br />
 
@@ -44,18 +44,15 @@ create a virtual environment and install spruned into it.
 Well, try this:
 ```
 $ cd ~/src
-$ sudo apt-get install livleveldb-dev python3-dev git virtualenv
+$ sudo apt-get install libleveldb-dev python3-dev git virtualenv
 $ git clone https://github.com/gdassori/spruned.git
 $ cd spruned
 $ ./setup.sh
 $ venv/bin/python spruned.py --help
-
-$ venv/bin/python spruned.py --help
-
 usage: spruned.py [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
                   [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
                   [--daemon] [--keep-blocks KEEP_BLOCKS]
-                  [--network {bitcoin.mainnet}] [--debug]
+                  [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
                   [--cache-size CACHE_SIZE]
 
 A Bitcoin Lightweight Pseudonode
@@ -70,15 +67,14 @@ optional arguments:
                         8332 or testnet: 18332) (default: 8332)
   --rpcbind RPCBIND     Bind to given address to listen for JSON-RPC
                         connections. (default: 127.0.0.1)
-  --datadir DATADIR     Specify data directory (default: $HOME/.spruned)
+  --datadir DATADIR     Specify data directory (default: /home/guido/.spruned)
   --daemon              Run in the background as a daemon and accept commands
                         (default: False)
   --keep-blocks KEEP_BLOCKS
-  --network {bitcoin.mainnet}
+  --network {bitcoin.mainnet,bitcoin.testnet}
   --debug               Enable debug mode (default: False)
   --cache-size CACHE_SIZE
-                        Cache size (in megabytes) (default: False)
-
+                        Cache size (in megabytes) (default: 50)
 ```
 
 And, once you run spruned:
@@ -136,7 +132,7 @@ $ bitcoin-cli getrawtransaction 0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb
 8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000
 
 ```
-######* bitcoin-cli is not included
+_* bitcoin-cli is not included_
 <br /><br />
 
 ##### Emulated APIs as in bitcoind 0.16:
