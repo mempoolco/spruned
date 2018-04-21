@@ -31,7 +31,7 @@ class JSONRPCServer:
 
     async def _handle(self, jsonrequest):
         if not self._authenticate(jsonrequest):
-            return web.Response(body=b'', status=401)
+            return web.json_response({}, status=401)
         request = await jsonrequest.json()
         result = {
             "id": request.get("id"),
@@ -44,11 +44,12 @@ class JSONRPCServer:
 
         assert isinstance(response, dict), response
         result.update(response)
+        print(response)
         if result.get("error"):
             Logger.jsonrpc.error('Error in response: %s', response)
-            return web.json_response(response, status=400)
+            return web.json_response(result, status=400)
 
-        return web.json_response(response)
+        return web.json_response(result)
 
     async def start(self):
         app = web.Application()
@@ -114,7 +115,7 @@ class JSONRPCServer:
 
     async def getblockcount(self):
         res = await self.vo_service.getblockcount()
-        return res is not None and str(res)
+        return res
 
     async def getblockhash(self, blockheight: int):
         try:

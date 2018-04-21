@@ -6,6 +6,12 @@ import argparse
 import asyncio
 from daemonize import Daemonize
 from spruned.application.context import ctx
+import sys
+
+
+if sys.version < '3.5.2':
+    raise ValueError('Python >= 3.5.2 is required')
+
 
 parser = argparse.ArgumentParser(
     description="A Bitcoin Lightweight Pseudonode",

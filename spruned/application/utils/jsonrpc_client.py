@@ -56,4 +56,8 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     bestheight = 500000
     print(loop.run_until_complete(cli._call('getblockcount')))
+    cli = JSONClient(b'rpcuser', b'rpcpassword', 'localhost', 8332)
+    loop = asyncio.get_event_loop()
+    bestheight = 500000
+    print(loop.run_until_complete(cli._call('getblockcount')))
     #loop.run_until_complete(getblock_test(cli, bestheight=bestheight))
