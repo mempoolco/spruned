@@ -8,8 +8,10 @@ from spruned.application import networks
 class Context(dict):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
+        self.configfile = kw.get('configfile', 'spruned.conf')
         self.update(
             {
+                'configfile': {},
                 'args': {},
                 'default': {
                     'daemonize': False,
@@ -25,6 +27,32 @@ class Context(dict):
                 }
             }
         )
+        self.load_config()
+
+    def load_config(self):
+        values = {
+            'i': ['cache_size', 'keep_blocks', 'rpcport'],
+            'b': ['daemonize', 'debug']
+        }
+        import os
+        filename = self.datadir + '/' + self.configfile
+        if not os.path.exists(filename):
+            return
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+        for i, line in enumerate(lines, 1):
+            line = line.strip().replace(' ', '')
+            if not line:
+                continue
+            k, v = line.split('=')
+            if k not in self['default']:
+                raise ValueError('Configuration file error: parameter not admitted: %s (%s:%s)' % (line, filename, i))
+            if k in values['i']:
+                self['configfile'][k] = int(v)
+            elif k in values['b']:
+                self['configfile'][k] = bool(v)
+            else:
+                self['configfile'][k] = v
 
     @property
     def datadir(self):
@@ -84,7 +112,9 @@ class Context(dict):
         self.apply_context()
 
     def _get_param(self, key):
-        return self['args'].get(key, None) or self['default'].get(key, None)
+        return self['args'].get(key, None) or \
+               self['configfile'].get(key, None) or \
+               self['default'].get(key, None)
 
     def apply_context(self):
         pass
