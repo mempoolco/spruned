@@ -70,6 +70,7 @@ class JSONRPCServer:
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         methods.add(self.stop, name="stop")
+        methods.add(self.sendrawtransaction)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -112,6 +113,9 @@ class JSONRPCServer:
 
     async def getbestblockhash(self):
         return await self.vo_service.getbestblockhash()
+
+    async def sendrawtransaction(self, rawtx: str):
+        return await self.vo_service.sendrawtransaction(rawtx)
 
     async def getblockcount(self):
         res = await self.vo_service.getblockcount()

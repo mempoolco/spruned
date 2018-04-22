@@ -67,5 +67,6 @@ setup(
         'console_scripts': [
             'spruned = spruned.app:main'
         ]
-    }
+    },
+    include_package_data=True
 )

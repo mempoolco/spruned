@@ -4,6 +4,7 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
+from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
 from spruned.application.logging_factory import Logger
@@ -72,6 +73,9 @@ class ElectrodConnection(BaseConnection):
                 return await self.client.RPC(method, *args)
         except asyncio.InvalidStateError:
             raise
+        except ElectrumErrorResponse as e:
+            if e.args and isinstance(e.args[0], dict):
+                return e.args[0]
         except Exception as e:
             Logger.electrum.warning(
                 'exception on rpc call: %s, %s, %s', self.client.server_info, self.client.protocol, e
@@ -186,7 +190,6 @@ class ElectrodConnectionPool(BaseConnectionPool):
             raise ValueError('Agreement requested is out of range %s' % self._required_connections)
         if agreement > len(self.established_connections):
             raise exceptions.NoPeersException
-
         if agreement > 1:
             connections = self._pick_multiple_connections(agreement)
             responses = await asyncio.gather(

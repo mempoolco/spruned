@@ -90,6 +90,7 @@ class ElectrodInterface:
         return await self.pool.call('blockchain.address.get_history', scripthash)
 
     async def get_chunk(self, chunks_index: int, get_peer=False):
+        print('get chunk: chunks index %s ' % chunks_index)
         return await self.pool.call('blockchain.block.get_chunk', chunks_index, get_peer=get_peer)
 
     async def get_merkleproof(self, txid: str, block_height: int):
@@ -142,7 +143,7 @@ class ElectrodInterface:
                     await peer.disconnect()
                     raise exceptions.NetworkHeadersInconsistencyException(
                         'Checkpoint failure. Expected: %s, Failure: %s',
-                        self._checkpoints[header['block_height']], header_hex
+                        self._checkpoints[header['block_height']], header['block_hash']
                     )
             headers.append(header)
         return get_peer and (peer, headers) or headers
@@ -152,3 +153,6 @@ class ElectrodInterface:
 
     async def disconnect_from_peer(self, peer: ElectrodConnection):
         self.loop.create_task(peer.disconnect())
+
+    async def sendrawtransaction(self, rawtx: str):
+        return await self.pool.call('blockchain.transaction.broadcast', rawtx)

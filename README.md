@@ -132,6 +132,13 @@ $ bitcoin-cli getrawtransaction 0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb
 8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000
 
 ```
+
+And, eventually, broadcast a transaction:
+```
+$ bitcoin-cli sendrawtransaction 01000000011cee4c0dd7f1a90ae80311c414d48f3a16596e9ea08fa3edfb793734e2b2a100010000006a47304402205a665616085b4f425cccfde5be2113258f3c104c2c53ef918866ada8f02f7caf0220458bdbc220a3f1017b65d9138e5121a9c63decc89550a2e64e914013d26cb93b0121029643906e277eae677134d40356dfb575a2dfbe09a18a1fd7fadfd853715a7242ffffffff0234e3e600000000001976a91410a71790c6bbc2694c74b6fee9a449a11f74123388ac444c5501000000001976a9148c9e0a9029bbce075e2b5aae90010905aa4c64b188ac00000000
+489feae0e317b9255031710eadc238bb1ba3009fff0e86b303b0963e34a332b0
+
+```
 _* bitcoin-cli is not included_
 <br /><br />
 
@@ -147,12 +154,12 @@ _* bitcoin-cli is not included_
 - getblockheader [ verbose \ non verbose ]
 - getrawtransaction [ non verbose only ]
 - gettxout
+- sendrawtransaction
 ```
 
 ##### Work in progress:
 
 ```
-- sendrawtransaction
 - getrawtransaction [ verbose ]
 - getmempoolinfo
 - getrawmempool

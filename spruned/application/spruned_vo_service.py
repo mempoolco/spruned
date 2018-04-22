@@ -80,6 +80,10 @@ class SprunedVOService(RPCAPIService):
         res = self.repository.headers.get_best_header().get('block_hash')
         return res and res
 
+    async def sendrawtransaction(self, rawtx: str):
+        res = await self.electrod.sendrawtransaction(rawtx)
+        return res
+
     async def getblockhash(self, blockheight: int):
         return self.repository.headers.get_block_hash(blockheight)
 
