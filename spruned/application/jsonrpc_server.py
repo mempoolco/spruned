@@ -4,7 +4,8 @@ import binascii
 import gc
 from aiohttp import web
 from jsonrpcserver.aio import methods
-from jsonrpcserver import config
+from jsonrpcserver import config, status
+from jsonrpcserver.exceptions import JsonRpcServerError
 from jsonrpcserver.response import ExceptionResponse
 
 from spruned.application.logging_factory import Logger
@@ -12,6 +13,14 @@ from spruned.application.tools import async_delayed_task
 from spruned.daemon.exceptions import GenesisTransactionRequestedException
 
 config.schema_validation = False
+
+
+class JsonRpcServerException(JsonRpcServerError):
+    def __init__(self, code, message, data=None):
+        super().__init__(data=data)
+        self.code = code
+        self.message = message
+        self.http_status = status.HTTP_BAD_REQUEST
 
 
 class JSONRPCServer:
@@ -41,14 +50,7 @@ class JSONRPCServer:
         response = await methods.dispatch(request)
         if isinstance(response, ExceptionResponse):
             return web.json_response(response, status=response.http_status)
-
-        assert isinstance(response, dict), response
         result.update(response)
-        print(response)
-        if result.get("error"):
-            Logger.jsonrpc.error('Error in response: %s', response)
-            return web.json_response(result, status=400)
-
         return web.json_response(result)
 
     async def start(self):
@@ -83,32 +85,38 @@ class JSONRPCServer:
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
-            return {"error": {"code": -5, "message": "Block not found"}}
+            raise JsonRpcServerException(code=-5, message="Block not found")
         response = await self.vo_service.getblock(blockhash, mode)
         if not response:
-            return {"error": {"code": -5, "message": "Block not found"}}
+            raise JsonRpcServerException(code=-5, message="Block not found")
         return response
 
     async def getrawtransaction(self, txid: str, verbose=False):
         try:
             txid = txid.strip()
             binascii.unhexlify(txid)
-        except (binascii.Error):
-            return {"error": {"code": -8, "message": "parameter 1 must be hexadecimal string (not '%s')" % txid}}
+        except binascii.Error:
+            raise JsonRpcServerException(
+                code=-8,
+                message="parameter 1 must be hexadecimal string (not '%s')" % txid
+            )
         if len(txid) != 64:
-            return {"error": {"code": -8, "message": "parameter 1 must be of length 64 (not '%s')" % len(txid)}}
+            raise JsonRpcServerException(
+                code=-8,
+                message="parameter 1 must be of length 64 (not '%s')" % len(txid)
+            )
         try:
             response = await self.vo_service.getrawtransaction(txid, verbose)
         except GenesisTransactionRequestedException:
-            return {
-                "error": {
-                    "code": -5,
-                    "message":
-                        "The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved"
-                }
-            }
+            raise JsonRpcServerException(
+                code=-5,
+                message="The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved"
+            )
         if not response:
-            return {"error": {"code": -5, "message": "No such mempool or blockchain transaction. [maybe try again]"}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="No such mempool or blockchain transaction. [maybe try again]"
+            )
         return response
 
     async def getbestblockhash(self):
@@ -125,10 +133,16 @@ class JSONRPCServer:
         try:
             int(blockheight)
         except ValueError:
-            return {"error": {"code": -5, "message": "Error parsing JSON:%s" % blockheight}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="Error parsing JSON:%s" % blockheight
+            )
         response = await self.vo_service.getblockhash(blockheight)
         if not response:
-            return {"error": {"code": -8, "message": "Block height out of range"}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="Block height out of range"
+            )
         return response
 
     async def getblockheader(self, blockhash: str, verbose=True):
@@ -137,17 +151,26 @@ class JSONRPCServer:
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
-            return {"error": {"code": -5, "message": "Block not found"}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="Block not found"
+            )
         response = await self.vo_service.getblockheader(blockhash, verbose=verbose)
         if not response:
-            return {"error": {"code": -5, "message": "Block not found"}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="Block not found"
+            )
         return response
 
     async def estimatefee(self, blocks: int):
         try:
             int(blocks)
         except ValueError:
-            return {"error": {"code": -5, "message": "Error parsing JSON:%s" % blocks}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="Error parsing JSON:%s" % blocks
+            )
         response = await self.vo_service.estimatefee(blocks)
         if response is None:
             return "-1"
@@ -157,13 +180,21 @@ class JSONRPCServer:
         try:
             int(blocks)
         except ValueError:
-            return {"error": {"code": -5, "message": "Error parsing JSON:%s" % blocks}}
+            raise JsonRpcServerException(
+                code=-5,
+                message="Error parsing JSON:%s" % blocks
+            )
         if not 0 < int(blocks) < 1009:
-            return {"error": {"code": -8, "message": "Invalid conf_target, must be between 1 - 1008"}}
+            raise JsonRpcServerException(
+                code=-8,
+                message="Invalid conf_target, must be between 1 - 1008"
+            )
         response = await self.vo_service.estimatefee(blocks)
         if response is None:
-            return {"error": {"code": -8, "message": "server error: try again"}}
-
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )
         return {
             "blocks": blocks,
             "feerate": response,
@@ -173,7 +204,10 @@ class JSONRPCServer:
     async def getblockchaininfo(self):
         response = await self.vo_service.getblockchaininfo()
         if response is None:
-            return {"error": {"code": -8, "message": "server error: try again"}}
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )
         return response
 
     async def gettxout(self, txid: str, index: int):
@@ -182,7 +216,10 @@ class JSONRPCServer:
             response = await self.vo_service.gettxout(txid, index)
         except:
             Logger.jsonrpc.error('Error in gettxout', exc_info=True)
-            return {"error": {"code": -8, "message": "server error: try again"}}
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )
         return response
 
     async def dev_memorysummary(self):
