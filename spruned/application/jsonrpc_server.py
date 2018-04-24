@@ -49,6 +49,7 @@ class JSONRPCServer:
         }
         response = await methods.dispatch(request)
         if isinstance(response, ExceptionResponse):
+            response['result'] = response.get('result', None)
             return web.json_response(response, status=response.http_status)
         result.update(response)
         return web.json_response(result)
@@ -85,7 +86,10 @@ class JSONRPCServer:
             binascii.unhexlify(blockhash)
             assert len(blockhash) == 64
         except (binascii.Error, AssertionError):
-            raise JsonRpcServerException(code=-5, message="Block not found")
+            raise JsonRpcServerException(
+                code=-5,
+                message="Error parsing JSON:%s" % blockhash
+            )
         response = await self.vo_service.getblock(blockhash, mode)
         if not response:
             raise JsonRpcServerException(code=-5, message="Block not found")
@@ -153,7 +157,7 @@ class JSONRPCServer:
         except (binascii.Error, AssertionError):
             raise JsonRpcServerException(
                 code=-5,
-                message="Block not found"
+                message="Error parsing JSON:%s" % blockhash
             )
         response = await self.vo_service.getblockheader(blockhash, verbose=verbose)
         if not response:
