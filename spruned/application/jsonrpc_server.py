@@ -132,6 +132,13 @@ class JSONRPCServer:
         return await self.vo_service.getbestblockhash()
 
     async def sendrawtransaction(self, rawtx: str):
+        try:
+            binascii.unhexlify(rawtx)
+        except (binascii.Error, AssertionError):
+            raise JsonRpcServerException(
+                code=-22,
+                message="TX decode failed"
+            )
         return await self.vo_service.sendrawtransaction(rawtx)
 
     async def getblockcount(self):
