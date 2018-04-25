@@ -37,6 +37,19 @@ class TestJSONRPCServerGetblockheader(TestCase):
         res = self.loop.run_until_complete(test())
         self.assertEqual(res, {'id': 1, 'result': '', 'error': None, 'jsonrpc': '2.0'})
 
+    def test_help(self):
+        from spruned import __version__ as spruned_version
+        from spruned import __bitcoind_version_emulation__ as bitcoind_version
+
+        async def test():
+            await self.sut.start()
+            response = await self.client.call('help')
+            return response
+
+        res = self.loop.run_until_complete(test())
+        print(res)
+        self.assertTrue('== spruned %s, emulating bitcoind %s ==' % (spruned_version, bitcoind_version) in res['result'])
+
     def test_getblockheader_success(self):
         self.vo_service.getblockheader.side_effect = [async_coro({'block': 'header'}),
                                                       async_coro('cafebabe')]

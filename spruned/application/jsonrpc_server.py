@@ -11,8 +11,32 @@ from jsonrpcserver.response import ExceptionResponse
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.daemon.exceptions import GenesisTransactionRequestedException
+from spruned import __version__ as spruned_version
+from spruned import __bitcoind_version_emulation__ as bitcoind_version
 
 config.schema_validation = False
+
+API_HELP = """
+== spruned %s, emulating bitcoind %s ==
+
+== Blockchain ==
+getbestblockhash
+getblock "blockhash" ( verbosity ) 
+getblockchaininfo
+getblockcount
+getblockhash height
+getblockheader "hash" ( verbose )
+gettxout "txid" n ( include_mempool )
+
+== Rawtransactions ==
+getrawtransaction "txid" ( verbose )
+sendrawtransaction "hexstring" ( allowhighfees )
+
+== Util ==
+estimatefee nblocks
+estimatesmartfee conf_target ("estimate_mode")
+
+""" % (spruned_version, bitcoind_version)
 
 
 class JsonRpcServerException(JsonRpcServerError):
@@ -60,6 +84,7 @@ class JSONRPCServer:
         runner = web.AppRunner(app)
         await runner.setup()
         methods.add(self.echo)
+        methods.add(self.help)
         methods.add(self.estimatefee)
         methods.add(self.estimatesmartfee)
         methods.add(self.getbestblockhash)
@@ -76,6 +101,9 @@ class JSONRPCServer:
         methods.add(self.sendrawtransaction)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
+
+    async def help(self, *args):
+        return API_HELP
 
     async def echo(self, *args):
         return ""

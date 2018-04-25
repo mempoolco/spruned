@@ -114,7 +114,8 @@ class TestJSONRPCServerGetrawtransaction(TestCase):
             res,
             {'error': {'code': -5,
                        'message': 'The genesis block coinbase is not considered an '
-                                  'ordinary transaction and cannot be retrieved'},
+                                  'ordinary transaction and cannot be retrieved'
+                       },
              'id': 1,
              'jsonrpc': '2.0',
              'result': None}
