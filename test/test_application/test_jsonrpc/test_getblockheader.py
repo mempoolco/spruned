@@ -9,17 +9,37 @@ from test.utils import async_coro
 
 class TestJSONRPCServer(TestCase):
     def setUp(self):
-        bindport = random.randint(31337, 41337)
+        bindport = self.bindport = random.randint(31337, 41337)
         self.sut = JSONRPCServer('127.0.0.1', bindport, 'testuser', 'testpassword')
         self.vo_service = Mock()
         self.sut.set_vo_service(self.vo_service)
         self.client = JSONClient(b'testuser', b'testpassword', '127.0.0.1', bindport)
         self.loop = asyncio.get_event_loop()
 
+    def test_auth_failed(self):
+        client = JSONClient(b'testuser', b'testpassworda', '127.0.0.1', self.bindport)
+
+        async def test():
+            await self.sut.start()
+            response = await client.call('getblockheader', params=['00'*32])
+            return response
+
+        res = self.loop.run_until_complete(test())
+        self.assertEqual(res, {})
+        Mock.assert_not_called(self.vo_service.getblockheader)
+
+    def test_echo(self):
+        async def test():
+            await self.sut.start()
+            response = await self.client.call('echo')
+            return response
+
+        res = self.loop.run_until_complete(test())
+        self.assertEqual(res, {'id': 1, 'result': '', 'error': None, 'jsonrpc': '2.0'})
+
     def test_getblockheader_success(self):
         self.vo_service.getblockheader.side_effect = [async_coro({'block': 'header'}),
                                                       async_coro('cafebabe')]
-
         async def test():
             await self.sut.start()
             response = await self.client.call('getblockheader', params=['00'*32])
