@@ -1,7 +1,7 @@
 import asyncio
 import random
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 from spruned.application.jsonrpc_server import JSONRPCServer
 from spruned.application.utils.jsonrpc_client import JSONClient
 from test.utils import async_coro
@@ -17,19 +17,30 @@ class TestJSONRPCServer(TestCase):
         self.loop = asyncio.get_event_loop()
 
     def test_getblockheader_success(self):
-        response = {'block': 'header'}
-        self.vo_service.getblockheader.return_value = async_coro(response)
+        self.vo_service.getblockheader.side_effect = [async_coro({'block': 'header'}),
+                                                      async_coro('cafebabe')]
 
         async def test():
-            self.loop.create_task(self.sut.start())
-            await asyncio.sleep(1)
+            await self.sut.start()
             response = await self.client.call('getblockheader', params=['00'*32])
-            return response
+            response2 = await self.client.call('getblockheader', params=['00'*32, False])
+            return response, response2
 
-        res = self.loop.run_until_complete(test())
+        res, res2 = self.loop.run_until_complete(test())
         self.assertEqual(
             res,
             {'error': None, 'id': 1, 'jsonrpc': '2.0', 'result': {'block': 'header'}}
+        )
+        self.assertEqual(
+            res2,
+            {'error': None, 'id': 1, 'jsonrpc': '2.0', 'result': 'cafebabe'}
+        )
+        Mock.assert_has_calls(
+            self.vo_service.getblockheader,
+            calls=[
+                call('00' * 32, verbose=True),
+                call('00' * 32, verbose=False)
+            ]
         )
 
     def test_getblockheader_error_missing(self):
@@ -37,8 +48,7 @@ class TestJSONRPCServer(TestCase):
         self.vo_service.getblockheader.return_value = async_coro(response)
 
         async def test():
-            self.loop.create_task(self.sut.start())
-            await asyncio.sleep(1)
+            await self.sut.start()
             response = await self.client.call('getblockheader', params=['00'*32])
             return response
 
@@ -47,14 +57,14 @@ class TestJSONRPCServer(TestCase):
             res,
             {'error': {'code': -5, 'message': 'Block not found'}, 'id': 1, 'jsonrpc': '2.0', 'result': None}
         )
+        Mock.assert_called_with(self.vo_service.getblockheader, '00' * 32, verbose=True)
 
     def test_getblockheader_error_params(self):
         response = None
         self.vo_service.getblockheader.return_value = async_coro(response)
 
         async def test():
-            self.loop.create_task(self.sut.start())
-            await asyncio.sleep(1)
+            await self.sut.start()
             response1 = await self.client.call('getblockheader', params=['wrong_blockhash'])
             response2 = await self.client.call('getblockheader')
             return response1, response2
@@ -75,21 +85,4 @@ class TestJSONRPCServer(TestCase):
             res2,
             {'jsonrpc': '2.0', 'error': {'code': -32602, 'message': 'Invalid params'}, 'id': 1, 'result': None}
         )
-
-    def test_getblock_success(self):
-        pass
-
-    def test_getblock_error_missing(self):
-        pass
-
-    def test_getblock_error_params(self):
-        pass
-
-    def test_getrawtransaction_success(self):
-        pass
-
-    def test_getrawtransaction_error_missing(self):
-        pass
-
-    def test_getrawtransaction_error_params(self):
-        pass
+        Mock.assert_not_called(self.vo_service.getblockheader)
