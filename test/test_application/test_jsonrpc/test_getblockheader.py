@@ -7,7 +7,7 @@ from spruned.application.utils.jsonrpc_client import JSONClient
 from test.utils import async_coro
 
 
-class TestJSONRPCServer(TestCase):
+class TestJSONRPCServerGetblockheader(TestCase):
     def setUp(self):
         bindport = self.bindport = random.randint(31337, 41337)
         self.sut = JSONRPCServer('127.0.0.1', bindport, 'testuser', 'testpassword')

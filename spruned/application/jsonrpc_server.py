@@ -96,6 +96,11 @@ class JSONRPCServer:
         return response
 
     async def getrawtransaction(self, txid: str, verbose=False):
+        if verbose:
+            raise JsonRpcServerException(
+                code=-8,
+                message="spruned error: Verbose mode not supported"
+            )
         try:
             txid = txid.strip()
             binascii.unhexlify(txid)
