@@ -142,11 +142,13 @@ class SprunedVOService(RPCAPIService):
         return await self.getblockheader(best_header['block_hash'], verbose=verbose)
 
     async def getblockchaininfo(self):
+        from spruned import __version__ as spruned_version
+        from spruned import __bitcoind_version_emulation__ as bitcoind_version
         best_header = self.repository.headers.get_best_header()
         _deserialized_header = deserialize_header(best_header['header_bytes'])
         return {
             "chain": "main",
-            "warning": "spruned v%s. emulating bitcoind v%s" % (settings.VERSION, settings.BITCOIND_API_VERSION),
+            "warning": "spruned %s, emulating bitcoind v%s" % (spruned_version, bitcoind_version),
             "blocks": best_header["block_height"],
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],

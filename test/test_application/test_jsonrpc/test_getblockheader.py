@@ -48,7 +48,7 @@ class TestJSONRPCServerGetblockheader(TestCase):
 
         res = self.loop.run_until_complete(test())
         print(res)
-        self.assertTrue('== spruned %s, emulating bitcoind %s ==' % (spruned_version, bitcoind_version) in res['result'])
+        self.assertTrue('spruned %s, emulating bitcoind %s' % (spruned_version, bitcoind_version) in res['result'], msg=res['result'])
 
     def test_getblockheader_success(self):
         self.vo_service.getblockheader.side_effect = [async_coro({'block': 'header'}),
