@@ -1,11 +1,11 @@
 git+https://github.com/gdassori/pybitcointools.git@spruned-support#egg=pybitcointools-1.0.0a1
 git+https://github.com/gdassori/connectrum.git@spruned-support#egg=connectrum-0.5.3a4
+git+https://github.com/gdassori/pycoinnet.git@spruned-support#egg=pycoinnet-0.19a3
+git+https://github.com/gdassori/pycoin.git@spruned-support#egg=pycoin-0.90a4
 async-timeout==2.0.1
 jsonrpcserver==3.5.3
 sqlalchemy==1.2.6
 coverage==4.5.1
-git+https://github.com/gdassori/pycoinnet.git@spruned-support#egg=pycoinnet-0.19a3
-git+https://github.com/gdassori/pycoin.git@spruned-support#egg=pycoin-0.90a4
 plyvel==0.9.0
 daemonize==2.4.7
 aiohttp==3.0.0b0

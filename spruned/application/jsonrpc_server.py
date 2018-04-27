@@ -17,7 +17,7 @@ from spruned import __bitcoind_version_emulation__ as bitcoind_version
 config.schema_validation = False
 
 API_HELP = """
-== spruned %s, emulating bitcoind %s ==
+spruned %s, emulating bitcoind %s
 
 == Blockchain ==
 getbestblockhash

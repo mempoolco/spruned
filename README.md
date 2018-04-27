@@ -6,26 +6,23 @@
 [![pypi](https://badge.fury.io/py/spruned.svg)](https://pypi.org/project/spruned/)
 #### What's this?
 
-<p>sPRUNED is a bitcoin client for light systems. <br />
-256mb ram & 500mb hdd should be fairly enough to keep it up & running.
+spruned is a bitcoin pseudonode for lightweight systems. <br />
+__256mb ram & 500mb hdd__ should be fairly enough to keep it up & running.
 <br />
 
-Supports both Bitcoin Mainnet and Testnet
-It's a replacement for bitcoind on lightweight systems (It's proven to work on a Raspberry Zero, along with CLightning), it provides an interface for bitcoin-cli. <br />
+Supports both Bitcoin Mainnet and Testnet<br />
+It's proven to work on a Raspberry Zero, along with CLightning, it simply provides an interface for bitcoin-cli. <br />
 <br />
 
 #### How it works?
 
 spruned downloads and store the bitcoin blocks on demand, when you need them, directly from the __peer to peer bitcoin network__.<br/>
-there's a "bootstrap" functionality, to keep the last ~50 (default settings) blocks on the local storage, because 
+<br />there's a "bootstrap" functionality, to keep the last ~50 (default settings) blocks on the local storage, because 
 fetch blocks may require also up to 10 seconds with slow connections, and this "bootstrap mode" reduces latencies on usage.<br />
 
 You can use bitcoin-cli, or any other RPC client, as if you had bitcoind up & running.<br />
+
 For the transactions related APIs and utxo tracking, spruned uses the __electrum network__.
-
-#### Documentation
-
-* [Installation and usage on Raspberry Pi (Raspbian 9.3)](docs/rpi-b-2012.md)
 
 #### Dependencies
 
@@ -41,14 +38,38 @@ Developers: I hope code is self explaining enough, if you're familiar with async
 Everyone else: You can get inspiration on how to install spruned taking a look at setup.sh but, if you're lucky enough, setup.sh itself will 
 create a virtual environment and install spruned into it. 
 
-Well, try this:
-```bash
+#### Installation from pip
+
+```console
+$ sudo apt-get install libleveldb-dev python3-dev git virtualenv
+$ virtualenv -p python3.5 venv
+$ . venv/bin/activate
+$ pip install spruned
+```
+
+__NOTE__: pip will try to install a set of dependencies from github. Check the requirements.txt file. 
+To avoid conflicts, use a dedicated virtual environment.
+
+#### Installation from github:
+
+```console
 $ cd ~/src
 $ sudo apt-get install libleveldb-dev python3-dev git virtualenv
 $ git clone https://github.com/gdassori/spruned.git
 $ cd spruned
-$ ./setup.sh
-$ venv/bin/python spruned.py --help
+$ virtualenv -p python3.5 venv
+$ . venv/bin/activate
+$ pip install -r requirements.txt
+```
+
+### Spruned usage:
+
+
+spruned options:
+```console
+
+$ spruned
+
 usage: spruned.py [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
                   [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
                   [--daemon] [--keep-blocks KEEP_BLOCKS]
@@ -79,13 +100,13 @@ optional arguments:
 
 And, once you run spruned:
 
-```bash
+```console
 $ tail -f ~/.spruned/spruned.log # to see what's going on!
 ```
 
 see the list of available commands:
 
-```bash
+```console
 $ bitcoin-cli help
 
 == spruned 0.0.1a5, emulating bitcoind 0.16 ==
@@ -112,7 +133,7 @@ estimatesmartfee conf_target ("estimate_mode")
 
 or check the status*:
 
-```bash
+```console
 $ bitcoin-cli getblockchaininfo
 {
   "mediantime": 1523387051,
@@ -129,7 +150,7 @@ $ bitcoin-cli getblockchaininfo
 ```
 
 Download a block:
-```bash
+```console
 $ bitcoin-cli getblock `bitcoin-cli getblockhash 1`
 {
   "bits": 486604799,
@@ -152,7 +173,7 @@ $ bitcoin-cli getblock `bitcoin-cli getblockhash 1`
 ```
 
 Or a transaction:
-```bash
+```console
 $ bitcoin-cli getrawtransaction 0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098
 01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff
 001d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb
@@ -161,7 +182,7 @@ $ bitcoin-cli getrawtransaction 0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb
 ```
 
 And, eventually, broadcast one:
-```bash
+```console
 $ bitcoin-cli sendrawtransaction 01000000011cee4c0dd7f1a90ae80311c414d48f3a16596e9ea08fa3edfb793734e2b2a100010000006a47304402205a665616085b4f425cccfde5be2113258f3c104c2c53ef918866ada8f02f7caf0220458bdbc220a3f1017b65d9138e5121a9c63decc89550a2e64e914013d26cb93b0121029643906e277eae677134d40356dfb575a2dfbe09a18a1fd7fadfd853715a7242ffffffff0234e3e600000000001976a91410a71790c6bbc2694c74b6fee9a449a11f74123388ac444c5501000000001976a9148c9e0a9029bbce075e2b5aae90010905aa4c64b188ac00000000
 489feae0e317b9255031710eadc238bb1ba3009fff0e86b303b0963e34a332b0
 
@@ -209,7 +230,12 @@ _* bitcoin-cli is not included_
 
 #### Future development
  
-- Full Tor support
+- Tor support
 - Mempool emulation
 - Zeromq emulation
-- Maintenance UI
+- Maintenance web ui
+
+
+#### Contribute
+
+Help the development of spruned! Report bugs with the issue tracker. If you're a developer, feel free to discuss a PR.

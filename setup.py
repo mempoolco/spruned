@@ -1,11 +1,11 @@
 import os
+import subprocess
 from setuptools import setup, find_packages
 import sys
+from setuptools.command.install import install
+
 sys.path.insert(0, '.')
 import spruned
-
-if sys.version < '3.5.2':
-    raise ValueError('Python >= 3.5.2 is required')
 
 
 def read_pip_requirements():
@@ -16,10 +16,6 @@ def read_pip_requirements():
         line = line.strip()
         if '://' not in line:
             reqs.append(line)
-        else:
-            u, p = line.split('#egg=')
-            p = p.replace('-', '==', 1)
-            reqs.append(p)
     return reqs
 
 
@@ -31,11 +27,7 @@ def read_dependency_links():
         line = l.strip()
         if '://' in line:
             links.append(line)
-    res = []
-    for link in links:
-        link = link.replace('git+', '')
-        res.append(link.replace('.git@spruned-support#', '/tarball/spruned-support#'))
-    return res
+    return links
 
 
 def read_file(name):
@@ -44,7 +36,31 @@ def read_file(name):
     return file
 
 
+class InstallGithubDepedenciesCommand(install):
+    description = 'install github deps'
+
+    def run(self):
+        def install_github_dependencies():
+
+            for dep in read_dependency_links():
+                subprocess.call(['pip', 'install', '-e', dep])
+
+        install_github_dependencies()
+        install.run(self)
+
+
+github_links = '\n- '.join(read_dependency_links())
+github_libraries = '\n- '.join([x.split('#egg=')[1] for x in read_dependency_links()])
+print('\nWarning! Know what you do!')
+print('\nSpruned installer will also install custom dependencies from the following github links:\n\n-', github_links)
+print('\nIs warmly advised to run spruned into a virtual environment, '
+      'especially if you have installed the following libraries:\n\n-', github_libraries)
+# Ouch, pip captured this. Find a way to inform the user on what's going on.
+
 setup(
+    cmdclass={
+        'install': InstallGithubDepedenciesCommand,
+    },
     name='spruned',
     version=spruned.__version__,
     url='https://github.com/gdassori/spruned/',
@@ -52,10 +68,9 @@ setup(
     author='Guido Dassori',
     author_email='guido.dassori@gmail.com',
     python_requires='>=3.5.2',
-        description='Bitcoin Lightweight Pseudonode',
-        long_description=read_file('README.rst'),
-        dependency_links=read_dependency_links(),
-        install_requires=read_pip_requirements(),
+    description='Bitcoin Lightweight Pseudonode',
+    long_description=read_file('README.rst'),
+    install_requires=read_pip_requirements(),
     packages=find_packages(exclude=['htmlcov']),
     classifiers=[
         'Development Status :: 3 - Alpha',
