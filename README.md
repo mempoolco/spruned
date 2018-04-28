@@ -38,18 +38,6 @@ Developers: I hope code is self explaining enough, if you're familiar with async
 Everyone else: You can get inspiration on how to install spruned taking a look at setup.sh but, if you're lucky enough, setup.sh itself will 
 create a virtual environment and install spruned into it. 
 
-#### Installation from pip
-
-```console
-$ sudo apt-get install libleveldb-dev python3-dev git virtualenv
-$ virtualenv -p python3.5 venv
-$ . venv/bin/activate
-$ pip install spruned
-```
-
-__NOTE__: pip will try to install a set of dependencies from github. Check the requirements.txt file. 
-To avoid conflicts, use a dedicated virtual environment.
-
 #### Installation from github:
 
 ```console
@@ -60,6 +48,7 @@ $ cd spruned
 $ virtualenv -p python3.5 venv
 $ . venv/bin/activate
 $ pip install -r requirements.txt
+$ python setup.py install
 ```
 
 ### Spruned usage:
@@ -68,9 +57,9 @@ $ pip install -r requirements.txt
 spruned options:
 ```console
 
-$ spruned
+$ ~/src/spruned/venv/bin/spruned
 
-usage: spruned.py [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
+usage: spruned    [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
                   [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
                   [--daemon] [--keep-blocks KEEP_BLOCKS]
                   [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
@@ -104,7 +93,9 @@ And, once you run spruned:
 $ tail -f ~/.spruned/spruned.log # to see what's going on!
 ```
 
-see the list of available commands:
+You'll see it will took about 15 minutes to sync block headers (up to 2 hours on a raspberry pi zero, I'm working on this.)
+
+In sync ? Ok, see the list of available commands:
 
 ```console
 $ bitcoin-cli help
@@ -128,7 +119,6 @@ sendrawtransaction "hexstring" ( allowhighfees )
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
 
-
 ```
 
 or check the status*:
@@ -144,7 +134,7 @@ $ bitcoin-cli getblockchaininfo
   "chainwork": null,
   "difficulty": null,
   "bestblockhash": "00000000000000000018e502dec1f93d32521674019a45d7d095cbd390279dff",
-  "warning": "spruned v0.0.1. emulating bitcoind v0.16",
+  "warning": "spruned 0.0.1a7, emulating bitcoind v0.16",
   "pruned": false
 }
 ```
