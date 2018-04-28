@@ -31,14 +31,7 @@ spruned works with Python >= 3.5.2. Right now it should work only on Linux syste
 It make intensive usage of connectrum, pybitcointools and pycoinnet libraries. Thanks to mantainers & contributors! <br />
 Especially at this stage of development (but it would be better always), it is recommended to use virtualenv to run spruned.
 
-
-#### Usage
-Developers: I hope code is self explaining enough, if you're familiar with asyncio.<br />
-
-Everyone else: You can get inspiration on how to install spruned taking a look at setup.sh but, if you're lucky enough, setup.sh itself will 
-create a virtual environment and install spruned into it. 
-
-#### Installation from github:
+#### Installation from github
 
 ```console
 $ cd ~/src
@@ -51,7 +44,7 @@ $ pip install -r requirements.txt
 $ python setup.py install
 ```
 
-### Spruned usage:
+#### Usage
 
 
 spruned options:
