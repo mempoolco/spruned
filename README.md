@@ -3,7 +3,7 @@
 
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
-[![pypi](https://badge.fury.io/py/spruned.svg)](https://pypi.org/project/spruned/)
+[![rtd](https://readthedocs.org/projects/spruned/badge/?version=latest)](http://spruned.readthedocs.io/en/latest/#)
 #### What's this?
 
 spruned is a bitcoin pseudonode for lightweight systems. <br />
@@ -13,6 +13,8 @@ __256mb ram & 500mb hdd__ should be fairly enough to keep it up & running.
 Supports both Bitcoin Mainnet and Testnet<br />
 It's proven to work on a Raspberry Zero, along with CLightning, it simply provides an interface for bitcoin-cli. <br />
 <br />
+
+Dive into spruned by reading the __[documentation](http://spruned.readthedocs.io/en/latest/#)__
 
 #### How it works?
 
