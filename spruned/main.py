@@ -1,5 +1,7 @@
 import asyncio
 import gc
+import threading
+
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_server, repository
@@ -20,7 +22,8 @@ async def main_task(loop):
         headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.start())
         headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.bootstrap_blocks())
         loop.create_task(headers_reactor.start())
-        loop.create_task(jsonrpc_server.start())
+        t = threading.Thread(target=jsonrpc_server.run, args=(loop,), daemon=1)
+        t.start()
         loop.create_task(cache.lurk())
         loop.create_task(loop_collect_garbage(loop))
     finally:
