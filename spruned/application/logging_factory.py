@@ -83,8 +83,6 @@ elif ctx.debug:
     )  # type: LoggingFactory
 
 else:
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.getLogger('root').setLevel(logging.DEBUG)
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     logging.getLogger('pycoin').setLevel(logging.ERROR)
     logging.getLogger('p2p').setLevel(logging.INFO)
@@ -96,5 +94,5 @@ else:
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.INFO,
-        stdout=True
+        stdout=False
     )  # type: LoggingFactory

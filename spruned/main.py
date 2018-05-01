@@ -8,6 +8,8 @@ from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_serv
 
 
 async def main_task(loop):
+    t = threading.Thread(target=jsonrpc_server.run, args=(loop,), daemon=1)
+    t.start()
     try:
         Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
         try:
@@ -22,8 +24,6 @@ async def main_task(loop):
         headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.start())
         headers_reactor.add_on_best_height_hit_callbacks(blocks_reactor.bootstrap_blocks())
         loop.create_task(headers_reactor.start())
-        t = threading.Thread(target=jsonrpc_server.run, args=(loop,), daemon=1)
-        t.start()
         loop.create_task(cache.lurk())
         loop.create_task(loop_collect_garbage(loop))
     finally:
