@@ -7,7 +7,7 @@ Installation
 To install spruned, run this command in the terminal::
 
     $ cd ~/src
-    $ sudo apt-get install libleveldb-dev python3-dev git virtualenv
+    $ sudo apt-get install libleveldb-dev python3-dev git virtualenv gcc g++
     $ git clone https://github.com/gdassori/spruned.git
     $ cd spruned
     $ virtualenv -p python3.5 venv
