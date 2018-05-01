@@ -3,6 +3,9 @@
 #
 
 import sys
+
+from spruned import settings
+
 if sys.version < '3.5.2':
     raise ValueError('Python >= 3.5.2 is required')
 sys.path.insert(0, './')
@@ -12,9 +15,7 @@ import asyncio
 from daemonize import Daemonize
 from spruned.application.context import ctx
 from spruned.application.tools import create_directory
-
-
-
+from spruned.main import main_task
 
 parser = argparse.ArgumentParser(
     description="A Bitcoin Lightweight Pseudonode",
@@ -78,19 +79,22 @@ parser.add_argument(
 
 
 def main():   # pragma: no cover
+    args = parser.parse_args()
+    ctx.load_args(args)
 
     def start():  # pragma: no cover
-        ctx.load_args(args)
-        create_directory()
+        from spruned.application.logging_factory import Logger
+        Logger.root.debug('Arguments: %s', args)
+        create_directory(ctx, settings.STORAGE_ADDRESS)
         main_loop = asyncio.get_event_loop()
-        from spruned.main import main_task
         main_loop.create_task(main_task(main_loop))
         main_loop.run_forever()
 
-    args = parser.parse_args()
     if args.daemonize:
+        from spruned.application.logging_factory import Logger
         pid = ctx.datadir + 'spruned.pid'
-        daemon = Daemonize(app="spruned", pid=pid, action=start)
+        Logger.root.debug('Running spruned daemon')
+        daemon = Daemonize(app="spruned", pid=pid, action=start, logger=Logger.root, auto_close_fds=False)
         daemon.start()
     else:
         start()

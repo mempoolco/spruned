@@ -79,14 +79,13 @@ async def async_delayed_task(task, seconds: int=0, disable_log=True):
     return await task
 
 
-def create_directory():
+def create_directory(ctx, storage_address):
     from spruned import settings
-    from spruned.application.context import ctx
     import os
     if not os.path.exists(ctx.datadir):
         os.makedirs(ctx.datadir)
-    if not os.path.exists(settings.STORAGE_ADDRESS):
-        os.makedirs(settings.STORAGE_ADDRESS)
+    if not os.path.exists(storage_address):
+        os.makedirs(storage_address)
 
 
 def check_internet_connection():
