@@ -8,6 +8,7 @@ from jsonrpcserver import config, status
 from jsonrpcserver.exceptions import JsonRpcServerError
 from jsonrpcserver.response import ExceptionResponse
 
+from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.daemon.exceptions import GenesisTransactionRequestedException
@@ -150,6 +151,11 @@ class JSONRPCServer:
             raise JsonRpcServerException(
                 code=-5,
                 message="The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved"
+            )
+        except InvalidPOWException:
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error, try again"
             )
         if not response:
             raise JsonRpcServerException(
