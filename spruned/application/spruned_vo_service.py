@@ -67,10 +67,14 @@ class SprunedVOService(RPCAPIService):
 
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_transaction(txid)
-        transaction = repo_tx or await self.electrod.getrawtransaction(txid, verbose=verbose)
+        transaction = repo_tx or await self.electrod.getrawtransaction(txid, verbose=True)
+        if not repo_tx and transaction.get('block_height'):
+            block_header = self.repository.blockchain.get_block_header(transaction['blockhash'])
+            merkle_proof = self.electrod.get_merkleproof(txid, block_header['block_height'])
+            assert merkle_proof  # TODO VERIFY
         if verbose:
             return transaction
-        return binascii.hexlify(repo_tx['transaction_object'].as_bin()).decode() if repo_tx else transaction
+        return transaction['hex']
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')

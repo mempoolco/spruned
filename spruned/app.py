@@ -5,13 +5,12 @@
 import sys
 sys.path.insert(0, './')
 
-import asyncio
 if sys.version < '3.5.2':
     raise ValueError('Python >= 3.5.2 is required')
 
 import argparse
+import asyncio
 from spruned.application.context import ctx
-
 
 parser = argparse.ArgumentParser(
     description="A Bitcoin Lightweight Pseudonode",
@@ -78,6 +77,8 @@ ctx.load_args(args)
 
 
 def main():   # pragma: no cover
+    args = parser.parse_args()
+    ctx.load_args(args)
 
     from spruned import settings
     from daemonize import Daemonize

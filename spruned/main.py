@@ -10,7 +10,7 @@ from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_serv
 async def main_task(loop):
     #t = threading.Thread(target=jsonrpc_server.run, args=(loop,), daemon=1)
     #t.start()
-    loop.create_task(jsonrpc_server.run())
+    loop.create_task(jsonrpc_server.start())
     try:
         Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
         try:
