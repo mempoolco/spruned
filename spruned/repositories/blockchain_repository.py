@@ -19,6 +19,15 @@ class BlockchainRepository:
         self.session = session
         self.dbpath = dbpath
         self._cache = None
+        self.volatile = {}
+
+    def save_json_transaction(self, txid: str, txdict: dict):
+        # todo, at least avoid during same session
+        self.volatile[txid] = txdict
+
+    def get_json_transaction(self, txid: dict):
+        # todo
+        return self.volatile.get(txid)
 
     def set_cache(self, cache):
         self._cache = cache

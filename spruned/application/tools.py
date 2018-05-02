@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
 import binascii
+
+import merkle
 from bitcoin import deserialize, serialize, decode, bin_sha256, encode
 from spruned.application import exceptions
 
@@ -109,5 +111,60 @@ def check_internet_connection():
 
 
 def script_to_scripthash(script):
+    # This code comes from the Electrum codebase.
     h = hashlib.sha256(bytes.fromhex(script)).digest()[0:32]
     return binascii.hexlify(bytes(reversed(h))).decode('ascii')
+
+
+import hashlib
+import binascii
+
+
+class ElectrumMerkleVerify:
+    # This is a microfork of Electrum Merkle Verify modules. Come from the Electrum codebase
+    # it comes from var modules into
+    # https://github.com/spesmilo/electrum/tree/81666bf9ac8b42d0ac25415ee3815d899c8adda6/lib
+    # Thanks to the Electrum team.
+
+    hash_decode = lambda x: bytes.fromhex(x)[::-1]
+
+    @staticmethod
+    def to_bytes(something, encoding='utf8'):
+        """
+        cast string to bytes() like object, but for python2 support it's bytearray copy
+        """
+        if isinstance(something, bytes):
+            return something
+        if isinstance(something, str):
+            return something.encode(encoding)
+        elif isinstance(something, bytearray):
+            return bytes(something)
+        else:
+            raise TypeError("Not a string or bytes like object")
+
+    @classmethod
+    def sha256(cls, x):
+        x = cls.to_bytes(x, 'utf8')
+        return bytes(hashlib.sha256(x).digest())
+
+    @classmethod
+    def _hash(cls, x):
+        x = cls.to_bytes(x, 'utf8')
+        out = bytes(cls.sha256(cls.sha256(x)))
+        return out
+
+    @classmethod
+    def hash_merkle_root(cls, merkle_s, target_hash, pos):
+        h = bytes.fromhex(target_hash)[::-1]
+        for i in range(len(merkle_s)):
+            item = merkle_s[i]
+            h = cls._hash(cls.hash_decode(item) + h) if ((pos >> i) & 1) else cls._hash(h + cls.hash_decode(item))
+        return binascii.hexlify(h[::-1])
+
+    @classmethod
+    def verify_merkle(self, txid, merkle, header):
+        tx_hash = txid
+        merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, merkle['pos'])
+        if not header or header.get('merkle_root') != merkle_root:
+            return
+        return True
