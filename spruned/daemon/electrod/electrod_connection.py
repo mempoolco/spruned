@@ -7,6 +7,8 @@ import async_timeout
 from connectrum import ElectrumErrorResponse
 from connectrum.client import StratumClient
 from connectrum.svr_info import ServerInfo
+
+from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task, check_internet_connection
 from spruned.daemon import exceptions
@@ -19,7 +21,7 @@ class ElectrodConnection(BaseConnection):
             self, hostname: str, protocol: str, keepalive=180,
             client=StratumClient, serverinfo=ServerInfo, nickname=None, use_tor=False, loop=None,
             start_score=10, timeout=10, expire_errors_after=180,
-            is_online_checker: callable=None, delayer=async_delayed_task
+            is_online_checker: callable=None, delayer=async_delayed_task, network=ctx.get_network()
     ):
 
         self.protocol = protocol
@@ -28,6 +30,7 @@ class ElectrodConnection(BaseConnection):
         self.serverinfo_factory = serverinfo
         self.client.keepalive_interval = keepalive
         self.nickname = nickname or binascii.hexlify(os.urandom(8)).decode()
+        self.network = network
         super().__init__(
             hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
@@ -49,6 +52,12 @@ class ElectrodConnection(BaseConnection):
                 )
                 self._version = self.client.server_version
                 Logger.electrum.debug('Connected to %s', self.hostname)
+                res = await self.rpc_call(
+                    'blockchain.transaction.get', [self.network['tx1'], 1]
+                )
+                if not isinstance(res, dict) or not res['blockhash'] == self.network['checkpoints'][1]:
+                    raise ValueError
+                print(res)
                 await self.on_connect()
         except Exception as e:
             Logger.electrum.debug('Exception connecting to %s (%s)', self.hostname, e)

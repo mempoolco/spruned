@@ -76,7 +76,7 @@ class ElectrodInterface:
     async def getrawtransaction(self, txid: str, verbose=False):
         if txid == self._network['tx0']:
             raise exceptions.GenesisTransactionRequestedException
-        return await self.pool.call('blockchain.transaction.get', txid)
+        return await self.pool.call('blockchain.transaction.get', txid, int(verbose))
 
     async def listunspents_by_address(self, address: str):
         return await self.pool.call('blockchain.address.listunspent', address)
