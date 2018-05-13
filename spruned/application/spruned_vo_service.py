@@ -3,26 +3,20 @@ import io
 import binascii
 from bitcoin import deserialize
 from pycoin.block import Block
-from spruned import settings
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
-from spruned.daemon.exceptions import ElectrodMissingResponseException, GenesisTransactionRequestedException
+from spruned.daemon.exceptions import ElectrodMissingResponseException
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None,
+    def __init__(self, electrod, p2p, cache: CacheAgent=None, repository=None,
                  loop=asyncio.get_event_loop()):
-        self.sources = []
-        self.primary = []
         self.cache = cache
         self.p2p = p2p
         self.electrod = electrod
-        self.min_sources = 1
-        self.current_best_height = None
-        self.utxo_tracker = utxo_tracker
         self.repository = repository
         self.loop = loop
         self._last_estimatefee = None
@@ -79,9 +73,10 @@ class SprunedVOService(RPCAPIService):
             if transaction.get('confirmations') > 2:
                 self.repository.blockchain.save_json_transaction(txid, transaction)
         if verbose:
-            incl_height = block_header and block_header['block_height'] or \
-              self.repository.headers.get_block_header(transaction['blockhash'])['block_height']
-            transaction['confirmations'] = ((await self.getblockcount()) - incl_height) + 1
+            if transaction.get('blockhash'):
+                incl_height = block_header and block_header['block_height'] or \
+                  self.repository.headers.get_block_header(transaction['blockhash'])['block_height']
+                transaction['confirmations'] = ((await self.getblockcount()) - incl_height) + 1
             return transaction
         return transaction['hex']
 

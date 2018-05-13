@@ -24,9 +24,6 @@ LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/{}-test.ldb'.format(binascii.hexlify(os.urand
 LEVELDB_BLOCKCHAIN_SLUG = b'blockchain'
 LEVELDB_CACHE_SLUG = b'cache'
 
-VERSION = "0.0.1"
-BITCOIND_API_VERSION = "0.16"
-
 if not TESTING:
     STORAGE_ADDRESS = '%s/storage/' % ctx.datadir
     LOGFILE = '%s/spruned.log' % ctx.datadir
