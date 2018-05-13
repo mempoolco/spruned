@@ -31,15 +31,6 @@ class TestJSONRPCServerGetrawtransaction(TestCase):
             res,
             {'error': None, 'id': 1, 'jsonrpc': '2.0', 'result': 'cafebabe'}
         )
-        self.assertEqual(
-            res2,
-            {
-                'error': {'code': -8, 'message': 'spruned error: Verbose mode not supported'},
-                'id': 1,
-                'jsonrpc': '2.0',
-                'result': None
-            }
-        )
         Mock.assert_has_calls(
             self.vo_service.getrawtransaction,
             calls=[

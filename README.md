@@ -180,20 +180,19 @@ _* bitcoin-cli is not included_
 - estimatefee
 - estimatesmartfee
 - getbestblockhash
-- getblock [mode 0 and mode 1]
+- getblock [ mode 0 and mode 1, mode 2 unavailable ]
 - getblockchaininfo
 - getblockcount
 - getblockhash
-- getblockheader [ verbose \ non verbose ]
-- getrawtransaction [ non verbose only ]
+- getblockheader [ verbose  ]
+- getrawtransaction [ verbose ]
 - gettxout
 - sendrawtransaction
 ```
 
-#### Work in progress:
+#### RPC Roadmap:
 
 ```
-- getrawtransaction [ verbose ]
 - getmempoolinfo
 - getrawmempool
 ```

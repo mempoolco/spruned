@@ -3,26 +3,20 @@ import io
 import binascii
 from bitcoin import deserialize
 from pycoin.block import Block
-from spruned import settings
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import deserialize_header, script_to_scripthash
+from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
-from spruned.daemon.exceptions import ElectrodMissingResponseException, GenesisTransactionRequestedException
+from spruned.daemon.exceptions import ElectrodMissingResponseException
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, p2p, cache: CacheAgent=None, utxo_tracker=None, repository=None,
+    def __init__(self, electrod, p2p, cache: CacheAgent=None, repository=None,
                  loop=asyncio.get_event_loop()):
-        self.sources = []
-        self.primary = []
         self.cache = cache
         self.p2p = p2p
         self.electrod = electrod
-        self.min_sources = 1
-        self.current_best_height = None
-        self.utxo_tracker = utxo_tracker
         self.repository = repository
         self.loop = loop
         self._last_estimatefee = None
@@ -66,15 +60,25 @@ class SprunedVOService(RPCAPIService):
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        repo_tx = self.repository.blockchain.get_transaction(txid)
-        transaction = repo_tx or await self.electrod.getrawtransaction(txid)
-        res = {
-            'source': 'p2p' if repo_tx else 'electrum',
-            'rawtx': binascii.hexlify(repo_tx['transaction_object'].as_bin()).decode() if repo_tx else transaction
-        }
+        repo_tx = self.repository.blockchain.get_json_transaction(txid)
+        transaction = repo_tx or await self.electrod.getrawtransaction(txid, verbose=True)
+        block_header = None
+        if not repo_tx and transaction.get('blockhash'):
+            block_header = self.repository.headers.get_block_header(transaction['blockhash'])
+            merkle_proof = await self.electrod.get_merkleproof(txid, block_header['block_height'])
+            dh = deserialize_header(block_header['header_bytes'])
+            dh['merkle_root'] = binascii.hexlify(dh['merkle_root'])
+            if not ElectrumMerkleVerify.verify_merkle(txid, merkle_proof, dh):
+                raise exceptions.InvalidPOWException
+            if transaction.get('confirmations') > 2:
+                self.repository.blockchain.save_json_transaction(txid, transaction)
         if verbose:
-            return res
-        return res['rawtx']
+            if transaction.get('blockhash'):
+                incl_height = block_header and block_header['block_height'] or \
+                  self.repository.headers.get_block_header(transaction['blockhash'])['block_height']
+                transaction['confirmations'] = ((await self.getblockcount()) - incl_height) + 1
+            return transaction
+        return transaction['hex']
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')
@@ -116,7 +120,7 @@ class SprunedVOService(RPCAPIService):
             "nextblockhash": header.get('next_block_hash')
         }
 
-    async def getblockcount(self):
+    async def getblockcount(self) -> int:
         return self.repository.headers.get_best_header().get('block_height')
 
     async def estimatefee(self, blocks: int):
