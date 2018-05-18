@@ -1,19 +1,8 @@
 import asyncio
 import hashlib
 import binascii
-
-import merkle
-from bitcoin import deserialize, serialize, decode, bin_sha256, encode
+from bitcoin import decode, bin_sha256, encode
 from spruned.application import exceptions
-
-
-def normalize_transaction(tx):
-    _tx = deserialize(tx)
-    _tx['segwit'] = True
-    for i, vin in enumerate(_tx['ins']):
-        if vin.get('txinwitness', '0'*64) == '0'*64:
-            _tx['ins'][i]['txinwitness'] = ''
-    return serialize(_tx)
 
 
 def blockheader_to_blockhash(header: (bytes, str)) -> (bytes, str):
@@ -81,7 +70,7 @@ async def async_delayed_task(task, seconds: int=0, disable_log=True):
     return await task
 
 
-def create_directory(ctx, storage_address):
+def create_directory(ctx, storage_address):  # pragma: no cover
     from spruned import settings
     import os
     if not os.path.exists(ctx.datadir):
@@ -90,7 +79,7 @@ def create_directory(ctx, storage_address):
         os.makedirs(storage_address)
 
 
-def check_internet_connection():
+def check_internet_connection():  # pragma: no cover
     from spruned.application.logging_factory import Logger
     from spruned.settings import CHECK_NETWORK_HOST
     import subprocess
@@ -114,10 +103,6 @@ def script_to_scripthash(script):
     # This code comes from the Electrum codebase.
     h = hashlib.sha256(bytes.fromhex(script)).digest()[0:32]
     return binascii.hexlify(bytes(reversed(h))).decode('ascii')
-
-
-import hashlib
-import binascii
 
 
 class ElectrumMerkleVerify:
