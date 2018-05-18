@@ -1,13 +1,19 @@
 
 import asyncio
+import io
+import json
 import unittest
 from unittest.mock import Mock, create_autospec
 import binascii
 
+from pycoin.block import Block
+
 from spruned import settings
 
 from spruned.application.cache import CacheAgent
+from spruned.application.exceptions import ServiceException, InvalidPOWException
 from spruned.application.spruned_vo_service import SprunedVOService
+from spruned.daemon.exceptions import ElectrodMissingResponseException
 from test.utils import async_coro
 
 
@@ -52,6 +58,82 @@ class TestVOService(unittest.TestCase):
         self.electrod.reset_mock()
         self.repository.reset_mock()
 
+    def test_getblock_not_found(self):
+        self.repository.headers.get_block_header.return_value = None
+        block = self.loop.run_until_complete(
+            self.sut.getblock('00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048', 1)
+        )
+        self.assertEqual(block, None)
+
+    def test_getblock_full_verbose(self):
+        self.repository.headers.get_block_header.return_value = None
+        with self.assertRaises(NotImplementedError):
+            self.loop.run_until_complete(
+                self.sut.getblock('00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048', 2)
+            )
+
+    def test_getblock_verbose(self):
+        header_hex = '010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051' \
+                     'fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299'
+        block_json = {
+              "hash": "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048",
+              "height": 1,
+              "version": 1,
+              "versionHex": "Not Implemented Yet",
+              "merkleroot": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+              "time": 1231469665,
+              "mediantime": 1231469665,
+              "nonce": 2573394689,
+              "bits": 486604799,
+              "difficulty": "Not Implemented Yet",
+              "chainwork": "Not Implemented Yet",
+              "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+              "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
+              "tx": [
+                "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
+              ]
+        }
+        self.repository.headers.get_best_header.return_value = {'block_height': 513980}
+        self.repository.headers.get_block_header.return_value = {
+            'block_hash': block_json['hash'],
+            'block_height': block_json['height'],
+            'header_bytes': binascii.unhexlify(header_hex.encode()),
+            'next_block_hash': block_json['nextblockhash']
+        }
+        hex_block ='010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe6' \
+                   '80e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e3629901010000000100000000000000' \
+                   '00000000000000000000000000000000000000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a0' \
+                   '100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0' \
+                   'a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000'
+        block_bytes = binascii.unhexlify(hex_block.encode())
+        self.repository.blockchain.get_block.return_value = {
+            'block_hash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
+            'block_bytes': block_bytes
+        }
+
+        block = self.loop.run_until_complete(
+            self.sut.getblock('00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048', 1)
+        )
+        block_json = {
+              "hash": "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048",
+              "height": 1,
+              "version": 1,
+              "versionHex": "Not Implemented Yet",
+              "merkleroot": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+              "time": 1231469665,
+              "mediantime": 1231469665,
+              "nonce": 2573394689,
+              "bits": 486604799,
+              "difficulty": "Not Implemented Yet",
+              "chainwork": "Not Implemented Yet",
+              "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+              "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
+              "tx": [
+                "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
+              ]
+        }
+        self.assertEqual(block, block_json)
+
     def test_getblock_non_verbose(self):
         self.repository.headers.get_best_header.return_value = {'block_height': 513980}
         self.repository.headers.get_block_header.return_value = self.header
@@ -64,6 +146,43 @@ class TestVOService(unittest.TestCase):
             self.sut.getblock('000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e', 0)
         )
         self.assertEqual(block, 'cafebabe')
+
+    def test_getblock_p2p_non_verbose(self):
+        hex_block ='010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe6' \
+                   '80e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e3629901010000000100000000000000' \
+                   '00000000000000000000000000000000000000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a0' \
+                   '100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0' \
+                   'a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000'
+        bytes_block = binascii.unhexlify(hex_block.encode())
+
+        self.repository.headers.get_best_header.return_value = {'block_height': 513980}
+        self.repository.headers.get_block_header.return_value = self.header
+        self.repository.blockchain.get_block.return_value = None
+        self.p2p.get_block.side_effect = [
+            async_coro(None),
+            async_coro(
+                {
+                'block_hash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
+                'block_bytes': bytes_block,
+                'block_object': Block.parse(io.BytesIO(bytes_block), check_merkle_hash=False)
+                }
+            )
+        ]
+
+        block = self.loop.run_until_complete(
+            self.sut.getblock('000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e', 0)
+        )
+        self.assertEqual(block, hex_block)
+
+    def test_getblock_p2p_non_verbose_network_error(self):
+        self.repository.headers.get_best_header.return_value = {'block_height': 513980}
+        self.repository.headers.get_block_header.return_value = self.header
+        self.repository.blockchain.get_block.return_value = None
+        self.p2p.get_block.side_effect = lambda *a, **kw: async_coro(None)
+        with self.assertRaises(ServiceException):
+            self.loop.run_until_complete(
+                self.sut.getblock('000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e', 0)
+            )
 
     def test_getrawtransaction_non_verbose_not_in_block(self):
         self.repository.blockchain.get_json_transaction.return_value = None
@@ -95,7 +214,6 @@ class TestVOService(unittest.TestCase):
         }
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.electrod.getrawtransaction.return_value = async_coro(tx)
-        self.electrod.getmerkleproof.return_value = async_coro(True)
         res = self.loop.run_until_complete(
             self.sut.getrawtransaction(
                 'dbae729fc6cce1bc922e66f4f12eb2b43ef57406bf5a0818eb2e73696b713b91',
@@ -103,6 +221,104 @@ class TestVOService(unittest.TestCase):
             )
         )
         self.assertEqual(res, tx)
+
+    def test_getrawtransaction_verbose_in_block(self):
+        header_hex = '010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051' \
+                     'fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299'
+        block_json = {
+              "hash": "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048",
+              "height": 1,
+              "version": 1,
+              "versionHex": "Not Implemented Yet",
+              "merkleroot": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+              "time": 1231469665,
+              "mediantime": 1231469665,
+              "nonce": 2573394689,
+              "bits": 486604799,
+              "difficulty": "Not Implemented Yet",
+              "chainwork": "Not Implemented Yet",
+              "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+              "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
+              "tx": [
+                "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
+              ]
+        }
+        self.repository.headers.get_best_header.return_value = {'block_height': 513980}
+        self.repository.headers.get_block_header.return_value = {
+            'block_hash': block_json['hash'],
+            'block_height': block_json['height'],
+            'header_bytes': binascii.unhexlify(header_hex.encode()),
+            'next_block_hash': block_json['nextblockhash']
+        }
+        self.repository.get_block_header.return_value = self.header
+        self.repository.blockchain.get_json_transaction.return_value = None
+        tx = {
+            'hex': '01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff00'
+                   '1d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7'
+                   '947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000',
+
+            'blockhash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
+            'confirmations': 6
+        }
+        self.repository.get_best_header.return_value = {'block_height': 513980}
+        self.electrod.getrawtransaction.return_value = async_coro(tx)
+        self.electrod.get_merkleproof.return_value = async_coro({'block_height': 1, 'merkle': [], 'pos': 0})
+        res = self.loop.run_until_complete(
+            self.sut.getrawtransaction(
+                '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',
+                verbose=True
+            )
+        )
+        self.assertEqual(res, tx)
+
+    def test_getrawtransaction_verbose_in_block_invalid_pow(self):
+        header_hex = '010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051' \
+                     'fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299'
+        block_json = {
+            "hash": "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048",
+            "height": 1,
+            "version": 1,
+            "versionHex": "Not Implemented Yet",
+            "merkleroot": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+            "time": 1231469665,
+            "mediantime": 1231469665,
+            "nonce": 2573394689,
+            "bits": 486604799,
+            "difficulty": "Not Implemented Yet",
+            "chainwork": "Not Implemented Yet",
+            "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+            "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
+            "tx": [
+                "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
+            ]
+        }
+        self.repository.headers.get_best_header.return_value = {'block_height': 513980}
+        self.repository.headers.get_block_header.return_value = {
+            'block_hash': block_json['hash'],
+            'block_height': block_json['height'],
+            'header_bytes': binascii.unhexlify(header_hex.encode()),
+            'next_block_hash': block_json['nextblockhash']
+        }
+        self.repository.get_block_header.return_value = self.header
+        self.repository.blockchain.get_json_transaction.return_value = None
+        tx = {
+            'hex': '01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff00'
+                   '1d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7'
+                   '947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000',
+
+            'blockhash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
+            'confirmations': 6
+        }
+        self.repository.get_best_header.return_value = {'block_height': 513980}
+        self.electrod.getrawtransaction.return_value = async_coro(tx)
+        self.electrod.get_merkleproof.return_value = async_coro({'block_height': 1, 'merkle': ['ff'*32], 'pos': 0})
+        with self.assertRaises(InvalidPOWException):
+            self.loop.run_until_complete(
+                self.sut.getrawtransaction(
+                    '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',
+                    verbose=True
+                )
+            )
 
     def test_getbestblockhash(self):
         self.repository.headers.get_best_header.return_value = {'block_hash': 'cafebabe'}
@@ -133,7 +349,7 @@ class TestVOService(unittest.TestCase):
         self.assertEqual(res, 6)
 
     def test_estimatefee(self):
-        self.electrod.estimatefee.return_value = async_coro('fee estimation')
+        self.electrod.estimatefee.side_effect = [ElectrodMissingResponseException(), async_coro('fee estimation')]
         res = self.loop.run_until_complete(self.sut.estimatefee(6))
         self.assertEqual(res, 'fee estimation')
 
@@ -173,4 +389,41 @@ class TestVOService(unittest.TestCase):
                 'verificationprogress': 0,
                 'pruned': False
              }
+        )
+
+    def test_gettxout(self):
+        tx = '01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff00' \
+             '1d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7' \
+             '947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000'
+        self.repository.get_best_header.return_value = {'block_height': 513980}
+        self.electrod.getrawtransaction.return_value = async_coro(tx)
+        self.repository.blockchain.get_transaction.return_value = None
+        self.electrod.listunspents_by_scripthash.side_effect = [ElectrodMissingResponseException,
+                                                                async_coro(
+            [{'tx_hash': '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',
+              'tx_pos': 0, 'height': 0, 'value': 1}]
+        )]
+        self.repository.headers.get_best_header.return_value = {
+            'block_height': 513980, 'block_hash': '0000000000000000001a0822fbaef92ef048967fa32c68f96e3d57d13183ef2b'
+        }
+        res = self.loop.run_until_complete(
+            self.sut.gettxout(
+                '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098', 0
+            )
+        )
+        self.assertEqual(
+            res,
+            {
+                "bestblock": "0000000000000000001a0822fbaef92ef048967fa32c68f96e3d57d13183ef2b",
+                "confirmations": 513980,
+                "value": "0.00000001",
+                "scriptPubKey": {
+                    "asm": "",
+                    "hex": "410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7"
+                           "589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac",
+                    "reqSigs": 0,
+                    "type": "",
+                    "addresses": []
+                }
+            }
         )

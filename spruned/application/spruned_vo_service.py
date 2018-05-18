@@ -25,6 +25,8 @@ class SprunedVOService(RPCAPIService):
         raise NotImplementedError
 
     async def getblock(self, blockhash: str, mode: int=1):
+        if mode == 2:
+            raise NotImplementedError
         block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
@@ -40,8 +42,6 @@ class SprunedVOService(RPCAPIService):
             serialized['tx'] = [tx.id() for tx in block_object.txs]
             del block
             return serialized
-        elif mode == 2:
-            raise NotImplementedError
         bb = block['block_bytes']
         del block
         return binascii.hexlify(bb).decode()
