@@ -158,6 +158,7 @@ class TestVOService(unittest.TestCase):
         self.repository.headers.get_best_header.return_value = {'block_height': 513980}
         self.repository.headers.get_block_header.return_value = self.header
         self.repository.blockchain.get_block.return_value = None
+        self.repository.blockchain.async_save_block.return_value = async_coro(True)
         self.p2p.get_block.side_effect = [
             async_coro(None),
             async_coro(

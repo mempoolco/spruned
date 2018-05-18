@@ -58,9 +58,9 @@ print('\nIs warmly advised to run spruned into a virtual environment, '
 # Ouch, pip captured this. Find a way to inform the user on what's going on.
 
 setup(
-    cmdclass={
-        'install': InstallGithubDepedenciesCommand,
-    },
+    #cmdclass={
+    #    'install': InstallGithubDepedenciesCommand,
+    #},
     name='spruned',
     version=spruned.__version__,
     url='https://github.com/gdassori/spruned/',
@@ -70,7 +70,7 @@ setup(
     python_requires='>=3.5.2',
     description='Bitcoin Lightweight Pseudonode',
     long_description=read_file('README.rst'),
-    install_requires=read_pip_requirements(),
+    #install_requires=read_pip_requirements(),
     packages=find_packages(exclude=['htmlcov']),
     classifiers=[
         'Development Status :: 3 - Alpha',
