@@ -11,7 +11,7 @@ def builder(ctx: Context):  # pragma: no cover
     from spruned.daemon.electrod import build as electrod_builder
     from spruned.daemon.bitcoin_p2p import build as p2p_builder
 
-    electrod_connectionpool, electrod_interface = electrod_builder(ctx.get_network())
+    electrod_connectionpool, electrod_interface = electrod_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx.get_network())
 
     repository = Repository.instance()

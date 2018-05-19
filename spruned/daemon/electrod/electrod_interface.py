@@ -156,3 +156,4 @@ class ElectrodInterface:
 
     async def sendrawtransaction(self, rawtx: str):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
+

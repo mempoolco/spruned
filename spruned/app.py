@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, './')
 
 if sys.version < '3.5.2':
-    raise ValueError('Python >= 3.5.2 is required')
+    raise ValueError('Python >= 3.5.2 is required (Found: %s)' % sys.version)
 
 import argparse
 import asyncio

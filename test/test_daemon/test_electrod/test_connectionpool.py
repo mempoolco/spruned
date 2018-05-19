@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, call, ANY
 
 import time
 
@@ -31,13 +31,15 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.electrod_loop = Mock()
         self.network_checker = Mock()
         self.connection_factory = Mock()
+        self.servers_storage = Mock()
         self.sut = ElectrodConnectionPool(
             connections=3,
             loop=self.electrod_loop,
             delayer=self.delayer,
             peers=self.servers,
             network_checker=self.network_checker,
-            connection_factory=self.connection_factory
+            connection_factory=self.connection_factory,
+            servers_storage=self.servers_storage
         )
         self.loop = asyncio.get_event_loop()
 
@@ -277,7 +279,13 @@ class TestElectrodConnectionPool(unittest.TestCase):
             self.sut.on_peer_received_header,
             self.sut.on_peer_received_header,
         )
-        Mock.assert_called_once_with(self.electrod_loop.create_task, 'delayerrr')
+        Mock.assert_has_calls(
+            self.electrod_loop.create_task,
+            calls=[
+                call('delayerrr'),
+                call(ANY)
+            ]
+        )
         Mock.assert_called_once_with(self.delayer, 'subscriberrr')
 
     def test_on_headers_callback(self):

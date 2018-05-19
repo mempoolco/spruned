@@ -14,6 +14,7 @@ from spruned.application.tools import async_delayed_task, check_internet_connect
 from spruned.daemon import exceptions
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
+from spruned.daemon.electrod import save_electrum_servers
 
 
 class ElectrodConnection(BaseConnection):
@@ -134,7 +135,8 @@ class ElectrodConnectionPool(BaseConnectionPool):
             use_tor=False,
             connections=3,
             sleep_no_internet=30,
-            rpc_call_timeout=30
+            rpc_call_timeout=30,
+            servers_storage=save_electrum_servers
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,
@@ -143,6 +145,8 @@ class ElectrodConnectionPool(BaseConnectionPool):
         self._connections_keepalive_time = 120
         self._connection_factory = connection_factory
         self.rpc_call_timeout = rpc_call_timeout
+        self.servers_storage = servers_storage
+        self._storage_lock = asyncio.Lock()
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -243,3 +247,17 @@ class ElectrodConnectionPool(BaseConnectionPool):
             self.on_peer_received_header
         )
         self.loop.create_task(self.delayer(future))
+        self.loop.create_task(self.save_peers(peer))
+
+    async def save_peers(self, peer: ElectrodConnection):
+        await self._storage_lock.acquire()
+        try:
+            peers = set()
+            _peers = await peer.rpc_call('server.peers.subscribe', [])
+            Logger.electrum.warning('Peers downloaded: %s', peers)
+            for peer in _peers:
+                if peer[2][0] == 'v1.2':
+                    peers.add(peer[0])
+            self.servers_storage(peers)
+        finally:
+            self._storage_lock.release()
