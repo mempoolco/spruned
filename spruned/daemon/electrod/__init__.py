@@ -3,7 +3,7 @@ import json
 import asyncio
 
 
-def load_electrum_servers(ctx):
+def load_electrum_servers(ctx):  # pragma: no cover
     network = ctx.get_network()
     _local, local_servers = ctx.datadir + '/electrum_servers.json', []
     _current_path = os.path.dirname(os.path.abspath(__file__))
@@ -19,7 +19,7 @@ def load_electrum_servers(ctx):
     return local_servers + electrum_servers
 
 
-def save_electrum_servers(peers: set):
+def save_electrum_servers(peers: set):  # pragma: no cover
     from spruned.application.context import ctx
     _local = ctx.datadir + '/electrum_servers.json'
     if os.path.exists(_local) and os.path.isfile(_local):
