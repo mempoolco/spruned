@@ -50,7 +50,8 @@ class TestStratumClient(unittest.TestCase):
         async def methods(r, w):
             responses = {
                 'server.version': 'mock 1.2 1.2',
-                'blockchain.scripthash.listunspent': 'cafebabe'
+                'blockchain.scripthash.listunspent': 'cafebabe',
+                'something.subscribe': 'babe'
             }
             while 1:
                 data = await r.read(1024)
@@ -58,7 +59,6 @@ class TestStratumClient(unittest.TestCase):
                     w.close()
                     break
                 else:
-                    print(data)
                     d = json.loads(data.strip().decode())
                     command = d['method']
                     response = {'result': responses[command], 'id': d['id']}
@@ -77,6 +77,7 @@ class TestStratumClient(unittest.TestCase):
             server = await self._setup_electrum_server(self.server_info)
             await asyncio.sleep(1)
             await self.sut.connect(self.server_info)
+            self.sut.subscribe('something.subscribe', ['cafe'])
             start = int(time.time())
             while not done:
                 if int(time.time()) - start > 5:
