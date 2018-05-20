@@ -59,7 +59,7 @@ class TestStratumClient(unittest.TestCase):
                     break
                 else:
                     print(data)
-                    d = json.loads(data.strip())
+                    d = json.loads(data.strip().decode())
                     command = d['method']
                     response = {'result': responses[command], 'id': d['id']}
                     res = json.dumps(response) + '\n'
