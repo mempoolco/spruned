@@ -79,23 +79,23 @@ ctx.load_args(args)
 def main():   # pragma: no cover
     args = parser.parse_args()
     ctx.load_args(args)
-
     from spruned import settings
-    from daemonize import Daemonize
     from spruned.application.tools import create_directory
+    create_directory(ctx, settings.STORAGE_ADDRESS)
+
+    from daemonize import Daemonize
     from spruned.main import main_task
 
     def start():  # pragma: no cover
         from spruned.application.logging_factory import Logger
         Logger.root.debug('Arguments: %s', args)
-        create_directory(ctx, settings.STORAGE_ADDRESS)
         main_loop = asyncio.get_event_loop()
         main_loop.create_task(main_task(main_loop))
         main_loop.run_forever()
 
     if args.daemonize:
         from spruned.application.logging_factory import Logger
-        pid = ctx.datadir + 'spruned.pid'
+        pid = ctx.datadir + '/spruned.pid'
         Logger.root.debug('Running spruned daemon')
         daemon = Daemonize(app="spruned", pid=pid, action=start, logger=Logger.root, auto_close_fds=False)
         daemon.start()

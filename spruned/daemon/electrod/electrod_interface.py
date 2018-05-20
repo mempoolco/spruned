@@ -90,7 +90,6 @@ class ElectrodInterface:
         return await self.pool.call('blockchain.address.get_history', scripthash)
 
     async def get_chunk(self, chunks_index: int, get_peer=False):
-        print('get chunk: chunks index %s ' % chunks_index)
         return await self.pool.call('blockchain.block.get_chunk', chunks_index, get_peer=get_peer)
 
     async def get_merkleproof(self, txid: str, block_height: int):
@@ -156,4 +155,3 @@ class ElectrodInterface:
 
     async def sendrawtransaction(self, rawtx: str):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
-

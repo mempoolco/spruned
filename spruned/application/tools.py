@@ -1,6 +1,4 @@
 import asyncio
-import hashlib
-import binascii
 from bitcoin import decode, bin_sha256, encode
 from spruned.application import exceptions
 
@@ -71,7 +69,6 @@ async def async_delayed_task(task, seconds: int=0, disable_log=True):
 
 
 def create_directory(ctx, storage_address):  # pragma: no cover
-    from spruned import settings
     import os
     if not os.path.exists(ctx.datadir):
         os.makedirs(ctx.datadir)
@@ -103,6 +100,10 @@ def script_to_scripthash(script):
     # This code comes from the Electrum codebase.
     h = hashlib.sha256(bytes.fromhex(script)).digest()[0:32]
     return binascii.hexlify(bytes(reversed(h))).decode('ascii')
+
+
+import hashlib
+import binascii
 
 
 class ElectrumMerkleVerify:
