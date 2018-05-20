@@ -1,9 +1,9 @@
 import asyncio
-from typing import Dict, List
-from pycoin.message.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK
+from typing import Dict
 from pycoin.serialize import h2b_rev
-from pycoinnet.networks import MAINNET
 
+from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK
+from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.application import exceptions
 from spruned.daemon.bitcoin_p2p import utils
 from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool

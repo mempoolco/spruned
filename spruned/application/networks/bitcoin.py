@@ -1,4 +1,4 @@
-from pycoinnet.networks import MAINNET, TESTNET, REGTEST
+from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
 
 mainnet = {
     'pycoin': MAINNET,

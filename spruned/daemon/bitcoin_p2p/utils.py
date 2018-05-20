@@ -1,6 +1,6 @@
 import async_timeout
-from pycoinnet.dnsbootstrap import dns_bootstrap_host_port_q
-from pycoinnet.networks import MAINNET, TESTNET
+from spruned.dependencies.pycoinnet.dnsbootstrap import dns_bootstrap_host_port_q
+from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET
 import asyncio
 
 from spruned.application.logging_factory import Logger

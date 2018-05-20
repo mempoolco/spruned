@@ -2,17 +2,17 @@ import asyncio
 import async_timeout
 import time
 
-from pycoin.message import InvItem
-from pycoin.message.InvItem import ITEM_TYPE_TX
-from pycoinnet.Peer import Peer
-from pycoinnet.PeerEvent import PeerEvent
-from pycoinnet.networks import MAINNET
-from pycoinnet.inv_batcher import InvBatcher
-from pycoinnet.version import version_data_for_peer, NODE_WITNESS, NODE_NONE
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
+from spruned.dependencies.pycoinnet.Peer import Peer
+from spruned.dependencies.pycoinnet.PeerEvent import PeerEvent
+from spruned.dependencies.pycoinnet.inv_batcher import InvBatcher
+from spruned.dependencies.pycoinnet.networks import MAINNET
+from spruned.dependencies.pycoinnet.pycoin import InvItem
+from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
+from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_NONE, NODE_WITNESS
 
 
 class P2PConnection(BaseConnection):
