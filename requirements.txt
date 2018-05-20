@@ -1,5 +1,3 @@
-git+https://github.com/gdassori/pybitcointools.git@spruned-support#egg=pybitcointools-1.0.0a1
-git+https://github.com/gdassori/connectrum.git@spruned-support#egg=connectrum-0.5.3a4
 git+https://github.com/gdassori/pycoinnet.git@spruned-support#egg=pycoinnet-0.19a3
 git+https://github.com/gdassori/pycoin.git@spruned-support#egg=pycoin-0.90a4
 

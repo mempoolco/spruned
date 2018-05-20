@@ -1,7 +1,6 @@
 import asyncio
 import io
 import binascii
-from bitcoin import deserialize
 from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
@@ -9,6 +8,7 @@ from spruned.application.tools import deserialize_header, script_to_scripthash, 
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.daemon.exceptions import ElectrodMissingResponseException
+from spruned.dependencies.pybitcointools import deserialize
 
 
 class SprunedVOService(RPCAPIService):
