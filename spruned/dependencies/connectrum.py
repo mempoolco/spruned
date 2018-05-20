@@ -314,7 +314,6 @@ class StratumClient:
 
         # send it via the transport, which serializes it
         self.protocol.send_data(msg)
-
         return fut if not is_subscribe else (fut, waitQ)
 
     def got_response(self, msg):
