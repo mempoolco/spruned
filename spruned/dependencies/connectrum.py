@@ -461,9 +461,7 @@ class ServerInfo(dict):
         Assuming only one port per host.
         """
         assert len(for_protocol) == 1, "expect single letter code"
-
         rv = [i[0] for i in self['ports'] if i[0] == for_protocol]
-
         port = None
         if len(rv) >= 2:
             try:
@@ -471,9 +469,7 @@ class ServerInfo(dict):
             except:
                 pass
         port = port or DEFAULT_PORTS[for_protocol]
-
         use_ssl = for_protocol in ('s', 'g')
-
         return self['hostname'], port, use_ssl
 
     @property
