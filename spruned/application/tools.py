@@ -1,6 +1,8 @@
 import asyncio
-from bitcoin import decode, bin_sha256, encode
+from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
 from spruned.application import exceptions
+import hashlib
+import binascii
 
 
 def blockheader_to_blockhash(header: (bytes, str)) -> (bytes, str):
@@ -100,10 +102,6 @@ def script_to_scripthash(script):
     # This code comes from the Electrum codebase.
     h = hashlib.sha256(bytes.fromhex(script)).digest()[0:32]
     return binascii.hexlify(bytes(reversed(h))).decode('ascii')
-
-
-import hashlib
-import binascii
 
 
 class ElectrumMerkleVerify:

@@ -4,9 +4,9 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
-from connectrum import ElectrumErrorResponse
-from connectrum.client import StratumClient
-from connectrum.svr_info import ServerInfo
+from spruned.dependencies.connectrum import ElectrumErrorResponse
+from spruned.dependencies.connectrum import StratumClient
+from spruned.dependencies.connectrum import ServerInfo
 
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
