@@ -4,6 +4,8 @@
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
 [![rtd](https://readthedocs.org/projects/spruned/badge/?version=latest)](http://spruned.readthedocs.io/en/latest/#)
+[![PyPI version](https://badge.fury.io/py/spruned.svg)](https://badge.fury.io/py/spruned)
+
 #### What's this?
 
 spruned is a bitcoin pseudonode for lightweight systems. <br />
@@ -33,6 +35,18 @@ spruned works with Python >= 3.5.2. Right now it should work only on Linux syste
 It make intensive usage of connectrum, pybitcointools and pycoinnet libraries. Thanks to mantainers & contributors! <br />
 Especially at this stage of development (but it would be better always), it is recommended to use virtualenv to run spruned.
 
+
+#### Installation from pypi
+```console
+$ cd ~/src
+$ sudo apt-get install libleveldb-dev python3-dev git virtualenv gcc g++
+$ git clone https://github.com/gdassori/spruned.git
+$ cd spruned
+$ virtualenv -p python3.5 venv
+$ . venv/bin/activate
+$ pip install spruned
+```
+
 #### Installation from github
 
 ```console
@@ -40,7 +54,7 @@ $ cd ~/src
 $ sudo apt-get install libleveldb-dev python3-dev git virtualenv gcc g++
 $ git clone https://github.com/gdassori/spruned.git
 $ cd spruned
-$ virtualenv -p python3.5 venv
+$ virtualenv -p python3.6 venv
 $ . venv/bin/activate
 $ pip install -r requirements.txt
 $ python setup.py install
