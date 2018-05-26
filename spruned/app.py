@@ -73,7 +73,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--proxy',
-    action='store', dest='proxy', default=None,
+    action='store', dest='proxy', default='',
     help='Proxy server (hostname:port)'
 )
 parser.add_argument(
@@ -84,32 +84,32 @@ parser.add_argument(
 parser.add_argument(
     '--no-dns-seeds',
     action='store_true', dest='no_dns_seed', default=False,
-    help='Don\'t use DNS seeds'
+    help='Disable DNS seeds for P2P peers discovery (peers must be added manually)'
 )
 parser.add_argument(
     '--add-p2p-peer',
-    action='store', dest='p2p_peer', default=None,
+    action='store', dest='p2p_peer', default='',
     help='Add a P2P peer'
 )
 parser.add_argument(
     '--max-p2p-connections',
-    action='store', dest='max_p2p_connections', default=None,
-    help='Number of P2P peers to connect'
+    action='store', dest='max_p2p_connections', default=8,
+    help='How many P2P peers to connect'
 )
 parser.add_argument(
     '--no-electrum-peer-discovery',
     action='store_true', dest='no_electrum_peer_discovery',
-    help='Disable electrum peers discovery'
+    help='Disable Electrum servers discovery'
 )
 parser.add_argument(
     '--add-electrum-server',
-    action='store', dest='electrum_server', default=None,
-    help='Add an electrum server peer'
+    action='store', dest='electrum_server', default='',
+    help='Add an Electrum server'
 )
 parser.add_argument(
     '--max-electrum-connections',
-    action='store', dest='max_electrum_connections', default=None,
-    help='Number of Electrum servers to connect'
+    action='store', dest='max_electrum_connections', default=4,
+    help='How many Electrum servers to connect'
 )
 
 args = parser.parse_args()
