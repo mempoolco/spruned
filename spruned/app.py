@@ -71,6 +71,13 @@ parser.add_argument(
     action='store', dest='cache_size', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
+parser.add_argument(
+    '--proxy',
+    action='store', dest='proxy', default=None, help='Proxy server (hostname:port)'
+)
+parser.add_argument(
+    '--tor', action='store_true', dest='tor', default=False
+)
 
 args = parser.parse_args()
 ctx.load_args(args)

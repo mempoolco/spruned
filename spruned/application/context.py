@@ -23,7 +23,9 @@ class Context(dict):
                     'network': 'bitcoin.mainnet',
                     'debug': False,
                     'cache_size': 50,
-                    'keep_blocks': 200
+                    'keep_blocks': 200,
+                    'proxy': None,
+                    'tor': False
                 }
             }
         )
@@ -93,6 +95,14 @@ class Context(dict):
         return self._get_param('daemonize')
 
     @property
+    def proxy(self):
+        return self._get_param('daemonize')
+
+    @property
+    def tor(self):
+        return self._get_param('daemonize')
+
+    @property
     def cache_size(self):
         return int(self._get_param('cache_size'))
 
@@ -107,7 +117,10 @@ class Context(dict):
             'network': args.network,
             'debug': args.debug,
             'cache_size': int(args.cache_size),
-            'keep_blocks': int(args.keep_blocks)
+            'keep_blocks': int(args.keep_blocks),
+            'proxy': args.proxy,
+            'tor': args.tor
+
         }
         self.apply_context()
 
