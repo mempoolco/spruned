@@ -48,8 +48,8 @@ parser.add_argument(
 )
 parser.add_argument(
     '--keep-blocks',
-    action='store', dest='keep_blocks', default=int(ctx.keep_blocks),
-    help='', type=int
+    action='store', dest='keep_blocks', default=int(ctx.keep_blocks), type=int,
+    help=''
 )
 parser.add_argument(
     '--network',
@@ -73,10 +73,43 @@ parser.add_argument(
 )
 parser.add_argument(
     '--proxy',
-    action='store', dest='proxy', default=None, help='Proxy server (hostname:port)'
+    action='store', dest='proxy', default=None,
+    help='Proxy server (hostname:port)'
 )
 parser.add_argument(
-    '--tor', action='store_true', dest='tor', default=False
+    '--tor',
+    action='store_true', dest='tor', default=False,
+    help='Connect only to hidden services'
+)
+parser.add_argument(
+    '--no-dns-seeds',
+    action='store_true', dest='no_dns_seed', default=False,
+    help='Don\'t use DNS seeds'
+)
+parser.add_argument(
+    '--add-p2p-peer',
+    action='store', dest='p2p_peer', default=None,
+    help='Add a P2P peer'
+)
+parser.add_argument(
+    '--max-p2p-connections',
+    action='store', dest='max_p2p_connections', default=None,
+    help='Number of P2P peers to connect'
+)
+parser.add_argument(
+    '--no-electrum-peer-discovery',
+    action='store_true', dest='no_electrum_peer_discovery',
+    help='Disable electrum peers discovery'
+)
+parser.add_argument(
+    '--add-electrum-server',
+    action='store', dest='electrum_server', default=None,
+    help='Add an electrum server peer'
+)
+parser.add_argument(
+    '--max-electrum-connections',
+    action='store', dest='max_electrum_connections', default=None,
+    help='Number of Electrum servers to connect'
 )
 
 args = parser.parse_args()
