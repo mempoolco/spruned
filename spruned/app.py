@@ -79,12 +79,12 @@ parser.add_argument(
 parser.add_argument(
     '--tor',
     action='store_true', dest='tor', default=False,
-    help='Connect only to hidden services'
+    help='Use proxy on localhost:9050, if nothing else is provided with --proxy'
 )
 parser.add_argument(
     '--no-dns-seeds',
     action='store_true', dest='no_dns_seed', default=False,
-    help='Disable DNS seeds for P2P peers discovery (peers must be added manually)'
+    help='Disable DNS seeds for P2P peers discovery (requires --add-p2p-peers)'
 )
 parser.add_argument(
     '--add-p2p-peer',
@@ -99,7 +99,7 @@ parser.add_argument(
 parser.add_argument(
     '--no-electrum-peer-discovery',
     action='store_true', dest='no_electrum_peer_discovery',
-    help='Disable Electrum servers discovery'
+    help='Disable Electrum servers discovery, disable hardcoded servers usage (requires --add-electrum-server)'
 )
 parser.add_argument(
     '--add-electrum-server',

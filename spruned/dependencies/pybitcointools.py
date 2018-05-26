@@ -1,5 +1,8 @@
+#
 # Original is deprecated by Vitalik Buterin
 # Using fork from Conio - https://github.com/Conio/pybitcointools
+#
+###################################################################################
 #
 # # Pybitcointools, Python library for Bitcoin signatures and transactions
 #
