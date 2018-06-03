@@ -25,7 +25,13 @@ class Context(dict):
                     'cache_size': 50,
                     'keep_blocks': 200,
                     'proxy': None,
-                    'tor': False
+                    'tor': False,
+                    'no_dns_seed': False,
+                    'max_p2p_connections': None,
+                    'add_p2p_peer': [],
+                    'no_electrum_peer_discovery': False,
+                    'max_electrum_connections': None,
+                    'add_electrum_server': [],
                 }
             }
         )
@@ -61,6 +67,14 @@ class Context(dict):
         if self._get_param('network') != 'bitcoin.mainnet':
             return self._get_param('datadir') + '/' + self._get_param('network')
         return self._get_param('datadir')
+
+    @property
+    def max_electrum_connections(self):
+        """
+        pass network default if is not set
+        """
+        exists = self._get_param('max_electrum_connections')
+        return int(exists if exists is not None else self.get_network()['electrum_concurrency'])
 
     @property
     def debug(self):
@@ -119,7 +133,13 @@ class Context(dict):
             'cache_size': int(args.cache_size),
             'keep_blocks': int(args.keep_blocks),
             'proxy': args.proxy,
-            'tor': args.tor
+            'tor': args.tor,
+            'no_dns_seed': args.no_dns_seed,
+            'max_p2p_connections': args.max_p2p_connections,
+            'add_p2p_peer': args.add_p2p_peer,
+            'no_electrum_peer_discovery': args.no_electrum_peer_discovery,
+            'max_electrum_connections': args.max_electrum_connections,
+            'add_electrum_server': args.electrum_server
 
         }
         self.apply_context()

@@ -88,12 +88,12 @@ parser.add_argument(
 )
 parser.add_argument(
     '--add-p2p-peer',
-    action='store', dest='p2p_peer', default='',
+    action='store', dest='add_p2p_peer', default=None,
     help='Add a P2P peer'
 )
 parser.add_argument(
     '--max-p2p-connections',
-    action='store', dest='max_p2p_connections', default=8,
+    action='store', dest='max_p2p_connections', default=None,
     help='How many P2P peers to connect'
 )
 parser.add_argument(
@@ -103,12 +103,12 @@ parser.add_argument(
 )
 parser.add_argument(
     '--add-electrum-server',
-    action='store', dest='electrum_server', default='',
+    action='store', dest='electrum_server', default=None,
     help='Add an Electrum server'
 )
 parser.add_argument(
     '--max-electrum-connections',
-    action='store', dest='max_electrum_connections', default=4,
+    action='store', dest='max_electrum_connections', default=None,
     help='How many Electrum servers to connect'
 )
 
