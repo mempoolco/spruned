@@ -41,7 +41,7 @@ class TestJSONRPCServerGetblock(TestCase):
         res = self.loop.run_until_complete(test())
         self.assertEqual(
             res,
-            {'error': {'code': -5, 'message': 'Block height out of range'},
+            {'error': {'code': -8, 'message': 'Block height out of range'},
              'id': 1,
              'jsonrpc': '2.0',
              'result': None}

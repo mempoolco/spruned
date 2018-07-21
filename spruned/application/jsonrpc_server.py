@@ -192,7 +192,7 @@ class JSONRPCServer:
         response = await self.vo_service.getblockhash(blockheight)
         if not response:
             raise JsonRpcServerException(
-                code=-5,
+                code=-8,
                 message="Block height out of range"
             )
         return response
