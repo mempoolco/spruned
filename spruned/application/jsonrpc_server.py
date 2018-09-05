@@ -22,7 +22,7 @@ spruned %s, emulating bitcoind %s
 
 == Blockchain ==
 getbestblockhash
-getblock "blockhash" ( verbosity ) 
+getblock "blockhash" ( verbosity )
 getblockchaininfo
 getblockcount
 getblockhash height
@@ -73,12 +73,13 @@ class JSONRPCServer:
             "result": None,
             "error": None
         }
+
         response = await methods.dispatch(request)
-        if isinstance(response, ExceptionResponse):
-            response['result'] = response.get('result', None)
-            return web.json_response(response, status=response.http_status)
         result.update(response)
-        return web.json_response(result)
+        if result['error'] and result['error']['code'] < -32:
+            result['error']['code'] = -1
+
+        return web.json_response(result, status=response.http_status)
 
     def run(self, main_loop):
         self.main_loop = main_loop
