@@ -37,6 +37,9 @@ sendrawtransaction "hexstring" ( allowhighfees )
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
 
+== Network ==
+getpeerinfo
+
 """ % (spruned_version, bitcoind_version)
 
 
