@@ -1,6 +1,7 @@
 import asyncio
 import io
 import binascii
+import itertools
 from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
@@ -201,3 +202,17 @@ class SprunedVOService(RPCAPIService):
                 return
             return await self._listunspent_by_scripthash(scripthash, _r=_r+1)
         return unspents
+
+    async def getpeerinfo(self):
+        electrum_peers = self.electrod.get_peers()
+        p2p_peers = self.p2p.get_peers()
+        response = []
+        for peer in itertools.chain(electrum_peers, p2p_peers):
+            response.append(
+                {
+                    "addr": "{}:{}".format(peer.hostname, peer.port),
+                    "subver": peer.subversion,
+                    "conntime": peer.connected_at
+                }
+            )
+        return response

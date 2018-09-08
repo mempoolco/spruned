@@ -76,3 +76,8 @@ class P2PInterface:
     @property
     def bootstrap_status(self):
         return self._bootstrap_status
+
+    def get_peers(self):
+        return [
+            peer for peer in self.pool.established_connections
+        ]

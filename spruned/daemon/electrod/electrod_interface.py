@@ -155,3 +155,8 @@ class ElectrodInterface:
 
     async def sendrawtransaction(self, rawtx: str):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
+
+    def get_peers(self):
+        return [
+            peer for peer in self.pool.established_connections
+        ]

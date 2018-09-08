@@ -26,6 +26,7 @@ class ElectrodConnection(BaseConnection):
     ):
 
         self.protocol = protocol
+        self.port = self.protocol
         self.keepalive = keepalive
         self.client = client()
         self.serverinfo_factory = serverinfo
@@ -37,6 +38,10 @@ class ElectrodConnection(BaseConnection):
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
             expire_errors_after=expire_errors_after
         )
+
+    @property
+    def subversion(self):
+        return self._version and self._version[0]
 
     @property
     def connected(self):
@@ -52,13 +57,16 @@ class ElectrodConnection(BaseConnection):
                     use_tor=self.use_tor
                 )
                 self._version = self.client.server_version
-                Logger.electrum.debug('Connected to %s', self.hostname)
+                Logger.p2p.info(
+                    'Connected to peer %s:%s (%s)', self.hostname, self.port, self.version and self.version[0]
+                )
+                Logger.electrum.debug('Peer raw response: %s', self.version)
                 res = await self.rpc_call(
                     'blockchain.transaction.get', [self.network['tx1'], 1]
                 )
                 if not isinstance(res, dict) or not res['blockhash'] == self.network['checkpoints'][1]:
                     raise ValueError
-                print(res)
+                self.connected_at = int(time.time())
                 await self.on_connect()
         except Exception as e:
             Logger.electrum.debug('Exception connecting to %s (%s)', self.hostname, e)

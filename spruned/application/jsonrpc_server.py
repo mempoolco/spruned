@@ -104,6 +104,7 @@ class JSONRPCServer:
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
+        methods.add(self.getpeerinfo)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         methods.add(self.stop, name="stop")
@@ -116,6 +117,9 @@ class JSONRPCServer:
 
     async def echo(self, *args):
         return ""
+
+    async def getpeerinfo(self):
+        return await self.vo_service.getpeerinfo()
 
     async def getblock(self, blockhash: str, mode: int = 1):
         try:
