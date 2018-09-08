@@ -45,6 +45,10 @@ class P2PConnection(BaseConnection):
         self.connector = connector
 
     @property
+    def subversion(self):
+        return self._version and self._version.get('subversion', b'').decode().strip('/')
+
+    @property
     def connected(self):
         return bool(self.peer)
 
@@ -75,8 +79,14 @@ class P2PConnection(BaseConnection):
                 peer.version = await peer.perform_handshake(**version_data)
                 self._event_handler = PeerEvent(peer)
                 self._version = peer.version
-                Logger.p2p.info('Connected to peer %s', self.version)
+
+                Logger.p2p.info(
+                    'Connected to peer %s:%s (%s)', self.hostname, self.port,
+                    self.version and self.version.get('subversion', b'').decode().strip('/')
+                )
+                Logger.p2p.debug('Peer raw response %s', self.version)
                 self.peer = peer
+                self.connected_at = int(time.time())
                 self._setup_events_handler()
         except Exception as e:
             self.peer = None

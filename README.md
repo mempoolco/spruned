@@ -39,9 +39,7 @@ Especially at this stage of development (but it would be better always), it is r
 #### Installation from pypi
 ```console
 $ cd ~/src
-$ sudo apt-get install libleveldb-dev python3-dev git virtualenv gcc g++
-$ git clone https://github.com/gdassori/spruned.git
-$ cd spruned
+$ sudo apt-get install libleveldb-dev python3-dev virtualenv gcc g++
 $ virtualenv -p python3.5 venv
 $ . venv/bin/activate
 $ pip install spruned
@@ -127,6 +125,9 @@ sendrawtransaction "hexstring" ( allowhighfees )
 == Util ==
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
+
+== Network ==
+getpeerinfo
 
 ```
 

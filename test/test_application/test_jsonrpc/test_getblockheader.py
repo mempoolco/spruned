@@ -114,8 +114,11 @@ class TestJSONRPCServerGetblockheader(TestCase):
                 'result': None
             }
         )
+
+        # Really should be code: -32602, but that'll cause bitcoin-cli not to
+        # error out correctly, so we use -1 instead
         self.assertEqual(
             res2,
-            {'jsonrpc': '2.0', 'error': {'code': -32602, 'message': 'Invalid params'}, 'id': 1, 'result': None}
+            {'jsonrpc': '2.0', 'error': {'code': -1, 'message': 'Invalid params'}, 'id': 1, 'result': None}
         )
         Mock.assert_not_called(self.vo_service.getblockheader)

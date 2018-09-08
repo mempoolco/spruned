@@ -41,7 +41,7 @@ class TestJSONRPCServerGetblock(TestCase):
         res = self.loop.run_until_complete(test())
         self.assertEqual(
             res,
-            {'error': {'code': -5, 'message': 'Block height out of range'},
+            {'error': {'code': -8, 'message': 'Block height out of range'},
              'id': 1,
              'jsonrpc': '2.0',
              'result': None}
@@ -70,8 +70,10 @@ class TestJSONRPCServerGetblock(TestCase):
                 'result': None
             }
         )
+        # Really should be code: -32602, but that'll cause bitcoin-cli not to
+        # error out correctly, so we use -1 instead
         self.assertEqual(
             res2,
-            {'jsonrpc': '2.0', 'error': {'code': -32602, 'message': 'Invalid params'}, 'id': 1, 'result': None}
+            {'jsonrpc': '2.0', 'error': {'code': -1, 'message': 'Invalid params'}, 'id': 1, 'result': None}
         )
         Mock.assert_not_called(self.vo_service.getblock)

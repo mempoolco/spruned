@@ -17,6 +17,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._hostname = hostname
         self.use_tor = use_tor
         self._version = None
+        self.connected_at = None
         self._on_headers_callbacks = []
         self._on_connect_callbacks = []
         self._on_disconnect_callbacks = []
