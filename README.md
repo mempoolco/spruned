@@ -126,6 +126,9 @@ sendrawtransaction "hexstring" ( allowhighfees )
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
 
+== Network ==
+getpeerinfo
+
 ```
 
 or check the status*:
