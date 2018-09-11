@@ -73,7 +73,6 @@ class P2PConnection(BaseConnection):
         if len(self.errors) > 2:
             self.loop.create_task(self.disconnect())
 
-
     async def connect(self):
         try:
             async with async_timeout.timeout(self._timeout):
