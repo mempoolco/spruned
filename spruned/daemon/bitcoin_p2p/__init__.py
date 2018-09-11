@@ -29,6 +29,7 @@ def load_p2p_peers():
 def save_p2p_peers(peers):  # pragma: no cover
     from spruned.application.context import ctx
     from shutil import copyfile
+    peers = peers[:64]  # fixme
     filename = '/p2p_peers.json'
     _local = ctx.datadir + filename
     _templocal = ctx.datadir + filename.replace('/', '/~')
