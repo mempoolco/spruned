@@ -144,11 +144,13 @@ class ElectrodConnectionPool(BaseConnectionPool):
             connections=3,
             sleep_no_internet=30,
             rpc_call_timeout=30,
-            servers_storage=save_electrum_servers
+            servers_storage=save_electrum_servers,
+            ipv6=False
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,
-            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
+            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet,
+            ipv6=ipv6
         )
         self._connections_keepalive_time = 120
         self._connection_factory = connection_factory

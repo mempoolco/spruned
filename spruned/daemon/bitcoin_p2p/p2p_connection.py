@@ -1,9 +1,12 @@
 import asyncio
+import random
+
 import async_timeout
 import time
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
+from spruned.daemon.bitcoin_p2p import save_p2p_peers
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
 from spruned.dependencies.pycoinnet.Peer import Peer
@@ -24,7 +27,7 @@ class P2PConnection(BaseConnection):
             use_tor=None, start_score=3,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
-            call_timeout=30, connector=asyncio.open_connection):
+            call_timeout=5, connector=asyncio.open_connection):
 
         super().__init__(
             hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
@@ -33,7 +36,6 @@ class P2PConnection(BaseConnection):
         )
         self.port = port
         self._peer_factory = peer
-        print('NEW PEER: Network: ', network)
         self._peer_network = network
         self.peer = None
         self._version = None
@@ -42,6 +44,7 @@ class P2PConnection(BaseConnection):
         self._call_timeout = call_timeout
         self._on_block_callbacks = []
         self._on_transaction_callbacks = []
+        self._on_addr_callbacks = []
         self.connector = connector
 
     @property
@@ -58,9 +61,18 @@ class P2PConnection(BaseConnection):
     def add_on_transaction_callback(self, callback):
         self._on_transaction_callbacks.append(callback)
 
+    def add_on_addr_callback(self, callback):
+        self._on_addr_callbacks.append(callback)
+
     @property
     def peer_event_handler(self) -> PeerEvent:
         return self._event_handler
+
+    def add_error(self, *a):
+        super().add_error(*a)
+        if len(self.errors) > 2:
+            self.loop.create_task(self.disconnect())
+
 
     async def connect(self):
         try:
@@ -136,6 +148,13 @@ class P2PConnection(BaseConnection):
     def _on_addr(self, event_handler, name, data):  # pragma: no cover
         try:
             Logger.p2p.debug('Handle addr: %s, %s, %s', event_handler, name, data)
+            peers = []
+            for peer in data['date_address_tuples']:
+                host, port = str(peer[1]).split('/')
+                port = int(port)
+                peers.append([host, port])
+            for callback in self._on_addr_callbacks:
+                self.loop.create_task(callback(peers))
         except:
             Logger.p2p.exception('Exception on addr')
 
@@ -157,6 +176,9 @@ class P2PConnection(BaseConnection):
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
         Logger.p2p.debug('Received %s items, txs: %s', len(data.get('items')), txs)
 
+    async def getaddr(self):
+        self.peer.send_msg("getaddr")
+
 
 class P2PConnectionPool(BaseConnectionPool):
     async def on_peer_received_peers(self, peer, *a):
@@ -173,8 +195,9 @@ class P2PConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             batcher=InvBatcher,
             network=MAINNET,
-            batcher_timeout=30,
-            ipv6=False
+            batcher_timeout=5,
+            ipv6=False,
+            servers_storage=save_p2p_peers
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
@@ -184,6 +207,8 @@ class P2PConnectionPool(BaseConnectionPool):
         self._network = network
         self._batcher_timeout = batcher_timeout
         self._busy_peers = set()
+        self.servers_storage = servers_storage
+        self._storage_lock = asyncio.Lock()
 
     @property
     def required_connections(self):
@@ -254,6 +279,7 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_header_callbacks(self.on_peer_received_header)
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
+        connection.add_on_addr_callback(self.save_peers)
 
     async def get(self, inv_item: InvItem, peers=None, timeout=None):
         batcher = self._batcher_factory()
@@ -263,7 +289,7 @@ class P2PConnectionPool(BaseConnectionPool):
         future = None
         try:
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
-                connections = self._pick_multiple_connections(peers if peers is not None else 1)
+                connections = self._pick_multiple_connections(peers if peers is not None else 2)
                 _ = [self._busy_peers.add(connection.hostname) for connection in connections]
                 for connection in connections:
                     Logger.p2p.debug('Adding connection %s to batcher', connection.hostname)
@@ -273,11 +299,13 @@ class P2PConnectionPool(BaseConnectionPool):
                 Logger.p2p.debug('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
                 return response and response
         except Exception as error:
-            Logger.p2p.debug(
-                'Error in get InvItem %s, error: %s, failed in %ss', inv_item, str(error), round(time.time() - s, 4)
-            )
             for connection in connections:
                 connection.add_error()
+            Logger.p2p.debug(
+                'Error in get InvItem %s, error: %s, failed in %ss from peers %s',
+                inv_item, str(error), round(time.time() - s, 4),
+                ', '.join(['{} ({})'.format(x.hostname, len(x.errors)) for x in connections])
+            )
             future and future.cancel()
         finally:
             try:
@@ -298,3 +326,11 @@ class P2PConnectionPool(BaseConnectionPool):
 
     async def on_peer_connected(self, peer):
         Logger.p2p.debug('on_peer_connected: %s', peer.hostname)
+        await peer.getaddr()
+
+    async def save_peers(self, data):
+        await self._storage_lock.acquire()
+        try:
+            self._peers = self.servers_storage(data)
+        finally:
+            self._storage_lock.release()

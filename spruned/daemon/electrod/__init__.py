@@ -24,7 +24,7 @@ def save_electrum_servers(peers: set):  # pragma: no cover
     _local = ctx.datadir + '/electrum_servers.json'
     if os.path.exists(_local) and os.path.isfile(_local):
         with open(_local, 'r') as fr:
-            servers = list(set(json.load(fr)['electrum_servers']) | peers)
+            servers = list(set([x[0] for x in json.load(fr)['electrum_servers']]) | peers)
     else:
         servers = list(peers)
     with open(_local, 'w') as fw:
@@ -37,7 +37,9 @@ def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
     from spruned.daemon.electrod.electrod_interface import ElectrodInterface
     network = ctx.get_network()
     electrod_pool = ElectrodConnectionPool(
-        connections=network["electrum_concurrency"], peers=load_electrum_servers(ctx)
+        connections=ctx.max_electrum_connections,
+        peers=load_electrum_servers(ctx),
+        ipv6=False
     )
     electrod_interface = ElectrodInterface(electrod_pool, loop)
     return electrod_pool, electrod_interface

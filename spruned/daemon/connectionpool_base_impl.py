@@ -91,6 +91,9 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 connection = random.choice(self.established_connections)
                 if connection.connected and connection.score > 0:
                     return connection
+                if ':' in connection.hostname and not self._ipv6:
+                    i += 1
+                    continue
                 i += 1
                 if i < 100:
                     continue

@@ -1,7 +1,8 @@
 import asyncio
 from unittest import TestCase
 from unittest.mock import Mock, call
-from spruned.daemon.bitcoin_p2p import P2PConnectionPool
+from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
+
 from test.utils import async_coro, coro_call
 
 
