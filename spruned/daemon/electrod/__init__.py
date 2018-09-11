@@ -37,7 +37,7 @@ def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
     from spruned.daemon.electrod.electrod_interface import ElectrodInterface
     network = ctx.get_network()
     electrod_pool = ElectrodConnectionPool(
-        connections=ctx.max_electrum_connections,
+        connections=network['electrum_concurrency'],
         peers=load_electrum_servers(ctx),
         ipv6=False
     )

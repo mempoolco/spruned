@@ -9,7 +9,7 @@ def build(network: Dict):
     assert isinstance(network, dict), network
     from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
     from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
-    pool = P2PConnectionPool(connections=16, batcher_timeout=5, network=network['pycoin'], ipv6=False)
+    pool = P2PConnectionPool(connections=8, batcher_timeout=15, network=network['pycoin'], ipv6=False)
     interface = P2PInterface(pool, network=network['pycoin'])
     return pool, interface
 
