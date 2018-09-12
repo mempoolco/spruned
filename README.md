@@ -244,6 +244,7 @@ _* bitcoin-cli is not included_
 - getrawtransaction [ verbose ]
 - gettxout
 - sendrawtransaction
+- getpeerinfo
 ```
 
 #### RPC Roadmap:
