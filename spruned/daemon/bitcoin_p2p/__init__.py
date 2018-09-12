@@ -1,5 +1,6 @@
 import json
 import os
+import random
 from json import JSONDecodeError
 from typing import Dict, Tuple
 from spruned.daemon.bitcoin_p2p import utils
@@ -26,7 +27,7 @@ def load_p2p_peers():
     return []
 
 
-def save_p2p_peers(peers):  # pragma: no cover
+def save_p2p_peers(peers, max_peers=5120, ipv6=False, shuffle=True):  # pragma: no cover
     from spruned.application.context import ctx
     from shutil import copyfile
     peers = peers[:64]  # fixme
@@ -40,6 +41,8 @@ def save_p2p_peers(peers):  # pragma: no cover
         if peer[0] not in _current_ips:
             changed = True
             current_peers.append(peer)
+    shuffle and random.shuffle(current_peers)
+    current_peers = current_peers[:max_peers] if ipv6 else [p for p in current_peers if ':' not in p[0]][:max_peers]
     if changed:
         with open(_templocal, 'w') as fw:
             json.dump({'p2p_peers': current_peers}, fw, indent=2)
