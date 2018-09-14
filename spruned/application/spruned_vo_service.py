@@ -31,20 +31,27 @@ class SprunedVOService(RPCAPIService):
         block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
-        block = await self._get_block(block_header)
+        block = await self._get_block(block_header, verbose=mode == 1)
         if mode == 1:
-            block_object = Block.parse(io.BytesIO(block['block_bytes']))
+            if block.get('verbose'):
+                res = block['verbose']
+            else:
+                res = self.__make_verbose_block(block, block_header)
             best_header = self.repository.headers.get_best_header()
-            block['confirmations'] = best_header['block_height'] - block_header['block_height']
-            serialized = self._serialize_header(block_header)
-            serialized['tx'] = [tx.id() for tx in block_object.txs]
-            del block
-            return serialized
+            res['confirmations'] = best_header['block_height'] - block_header['block_height']
+            return res
+
         bb = block['block_bytes']
         del block
         return binascii.hexlify(bb).decode()
 
-    async def _get_block(self, blockheader, _r=0):
+    def __make_verbose_block(self, block: dict, block_header) -> dict:
+        block_object = Block.parse(io.BytesIO(block['block_bytes']))
+        serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
+        serialized['tx'] = [tx.id() for tx in block_object.txs]
+        return serialized
+
+    async def _get_block(self, blockheader, _r=0, verbose=False):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
         block = storedblock or await self.p2p.get_block(blockhash)
@@ -52,7 +59,9 @@ class SprunedVOService(RPCAPIService):
             if _r > 10:
                 raise exceptions.ServiceException
             else:
-                return await self._get_block(blockheader, _r + 1)
+                block = await self._get_block(blockheader, _r + 1)
+        if verbose and not block.get('verbose'):
+            block['verbose'] = self.__make_verbose_block(block, blockheader)
         if not storedblock:
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
