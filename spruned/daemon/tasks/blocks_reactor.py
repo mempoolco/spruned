@@ -135,8 +135,8 @@ class BlocksReactor:
     async def bootstrap_blocks(self):
         while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
             Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
-            await asyncio.sleep(5)
-        Logger.p2p.info('Bootstrap: Starting Bootstrap Procedure on %s blocks', self._prune)
+            await asyncio.sleep(30)
+        Logger.p2p.info('Bootstrap: Downloading %s blocks', self._prune)
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()

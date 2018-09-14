@@ -55,7 +55,7 @@ class SprunedVOService(RPCAPIService):
     async def _get_block(self, blockheader, _r=0, verbose=False):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
-        block = storedblock or await self.p2p.get_block(blockhash)
+        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3)
         if not block:
             if _r > 10:
                 raise exceptions.ServiceException

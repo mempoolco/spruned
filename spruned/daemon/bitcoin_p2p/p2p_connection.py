@@ -24,7 +24,7 @@ class P2PConnection(BaseConnection):
 
     def __init__(
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
-            use_tor=None, start_score=3,
+            use_tor=None, start_score=2,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=5, connector=asyncio.open_connection):
@@ -70,8 +70,11 @@ class P2PConnection(BaseConnection):
 
     def add_error(self, *a):
         super().add_error(*a)
-        if len(self.errors) > 2:
+        if self.score <= 0:
             self.loop.create_task(self.disconnect())
+
+    def add_success(self):
+        self._score += 1
 
     async def connect(self):
         try:
@@ -194,7 +197,7 @@ class P2PConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             batcher=InvBatcher,
             network=MAINNET,
-            batcher_timeout=5,
+            batcher_timeout=20,
             ipv6=False,
             servers_storage=save_p2p_peers
     ):
@@ -208,6 +211,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._busy_peers = set()
         self.servers_storage = servers_storage
         self._storage_lock = asyncio.Lock()
+        self._required_connections = 4
 
     @property
     def required_connections(self):
@@ -231,7 +235,7 @@ class P2PConnectionPool(BaseConnectionPool):
         await self._check_internet_connectivity()
         self._keepalive = True
         while not self._peers:
-            Logger.p2p.warning('Peers not loaded. Sleeping.')
+            Logger.p2p.warning('Peers not loaded yet')
             await asyncio.sleep(5)
 
         while self._keepalive:
@@ -260,7 +264,7 @@ class P2PConnectionPool(BaseConnectionPool):
             for connection in self._connections:
                 if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
-            await asyncio.sleep(5)
+            await asyncio.sleep(2)
 
     async def _disconnect_peer(self, peer):
         await peer.disconnect()
@@ -280,7 +284,7 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_error_callback(self.on_peer_error)
         connection.add_on_addr_callback(self.save_peers)
 
-    async def get(self, inv_item: InvItem, peers=None, timeout=None):
+    async def get(self, inv_item: InvItem, peers=None, timeout=None, privileged=False):
         batcher = self._batcher_factory()
         connections = []
         s = time.time()
@@ -288,7 +292,8 @@ class P2PConnectionPool(BaseConnectionPool):
         future = None
         try:
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
-                connections = self._pick_multiple_connections(peers if peers is not None else 2)
+                connections = privileged and self._pick_privileged_connections(peers if peers is not None else 1)
+                connections = connections or self._pick_multiple_connections(peers if peers is not None else 1)
                 _ = [self._busy_peers.add(connection.hostname) for connection in connections]
                 for connection in connections:
                     Logger.p2p.debug('Adding connection %s to batcher', connection.hostname)
@@ -296,8 +301,10 @@ class P2PConnectionPool(BaseConnectionPool):
                 future = await batcher.inv_item_to_future(inv_item)
                 response = await future
                 Logger.p2p.debug('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
+                for connection in connections:
+                    connection.add_success()
                 return response and response
-        except Exception as error:
+        except asyncio.TimeoutError as error:
             for connection in connections:
                 connection.add_error()
             Logger.p2p.debug(
