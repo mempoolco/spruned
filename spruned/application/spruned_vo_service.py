@@ -37,6 +37,7 @@ class SprunedVOService(RPCAPIService):
                 res = block['verbose']
             else:
                 res = self.__make_verbose_block(block, block_header)
+                self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
             best_header = self.repository.headers.get_best_header()
             res['confirmations'] = best_header['block_height'] - block_header['block_height']
         else:
