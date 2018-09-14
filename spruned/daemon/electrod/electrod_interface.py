@@ -63,6 +63,9 @@ class ElectrodInterface:
             raise
         try:
             parsed_header = self._parse_header(header)
+        except KeyError:
+            Logger.p2p.error('Error with header: %s', header)
+            return
         except (exceptions.NetworkHeadersInconsistencyException, InvalidPOWException):
             Logger.electrum.error('Wrong POW for header %s from peer %s. Banning', header, peer)
             self.loop.create_task(peer.disconnect())

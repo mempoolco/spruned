@@ -48,7 +48,7 @@ class SprunedVOService(RPCAPIService):
             res = binascii.hexlify(bb).decode()
         del block
         Logger.p2p.info(
-            'Block {} ({}) served in {:.4f}s'.format(blockhash, block_header['block_height'], time.time() - start)
+            'Block {} ({}) provided in {:.4f}s'.format(blockhash, block_header['block_height'], time.time() - start)
         )
         return res
 
