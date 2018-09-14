@@ -2,6 +2,8 @@ import asyncio
 import io
 import binascii
 import itertools
+
+import time
 from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
@@ -26,6 +28,7 @@ class SprunedVOService(RPCAPIService):
         raise NotImplementedError
 
     async def getblock(self, blockhash: str, mode: int=1):
+        start = time.time()
         if mode == 2:
             raise NotImplementedError
         block_header = self.repository.headers.get_block_header(blockhash)
@@ -44,6 +47,7 @@ class SprunedVOService(RPCAPIService):
             bb = block['block_bytes']
             res = binascii.hexlify(bb).decode()
         del block
+        Logger.p2p.info('Block {} served in {:.4f}s'.format(blockhash, time.time() - start))
         return res
 
     def __make_verbose_block(self, block: dict, block_header) -> dict:
