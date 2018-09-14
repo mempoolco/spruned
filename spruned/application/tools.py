@@ -5,11 +5,11 @@ import hashlib
 import binascii
 
 
-def blockheader_to_blockhash(header: (bytes, str)) -> (bytes, str):
+def blockheader_to_blockhash(header: (bytes, str), fmt=None) -> (bytes, str):
     if isinstance(header, bytes):
-        h, fmt = header, 'bin'
+        h, fmt = header, fmt or 'bin'
     else:
-        h, fmt = binascii.unhexlify(header.encode()), 'hex'
+        h, fmt = binascii.unhexlify(header.encode()), fmt or 'hex'
     blockhash = hashlib.sha256(hashlib.sha256(h).digest())
     bytes_blockhash = blockhash.digest()[::-1]
     return fmt == 'hex' and binascii.hexlify(bytes_blockhash).decode() or bytes_blockhash

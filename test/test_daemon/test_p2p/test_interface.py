@@ -35,29 +35,20 @@ class TestP2PInterface(TestCase):
         self.assertEqual(self.sut.bootstrap_status, 10)
 
     def test_get_block(self):
-        block = Mock(previous_block_hash='ff'*32, timestamp=3)
-        block.hash.return_value = 'aa'*32
-        block.as_blockheader.return_value = block
-        block.as_bin.return_value = b'block'
+        block = b'block'
         self.pool.get.return_value = async_coro(block)
         response = self.loop.run_until_complete(self.sut.get_block('aa'*32))
         self.assertEqual(
             response,
             {
                 "block_hash": "aa"*32,
-                "prev_block_hash": "ff"*32,
-                "timestamp": 3,
-                "block_object": ANY,
                 "header_bytes": b"block",
                 "block_bytes": b"block"
             }
         )
 
     def test_get_blocks(self):
-        block = Mock(previous_block_hash='ff'*32, timestamp=3)
-        block.hash.return_value = 'aa'*32
-        block.as_blockheader.return_value = block
-        block.as_bin.return_value = b'block'
+        block = b'block'
         self.pool.get.return_value = async_coro(block)
         response = self.loop.run_until_complete(self.sut.get_blocks('aa'*32))
         self.assertEqual(
@@ -65,9 +56,6 @@ class TestP2PInterface(TestCase):
                 "aa" * 32:
                     {
                         "block_hash": "aa"*32,
-                        "prev_block_hash": "ff"*32,
-                        "timestamp": 3,
-                        "block_object": ANY,
                         "header_bytes": b"block",
                         "block_bytes": b"block"
                     }

@@ -130,7 +130,8 @@ class TestVOService(unittest.TestCase):
               "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
               "tx": [
                 "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
-              ]
+              ],
+              "confirmations": 513979
         }
         self.assertEqual(block, block_json)
 

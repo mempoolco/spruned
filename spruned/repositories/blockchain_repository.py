@@ -1,10 +1,6 @@
-import io
 import binascii
-import time
 from typing import Dict, List
-from pycoin.block import Block
 from pycoin.tx.Tx import Tx
-from spruned.application import utils, exceptions
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header
@@ -58,8 +54,7 @@ class BlockchainRepository:
 
     @ldb_batch
     def _save_block(self, block: Dict) -> Dict:
-        _block = block['block_object']
-        key = self.get_key(_block.id(), prefix=BLOCK_PREFIX)
+        key = self.get_key(block['block_hash'], prefix=BLOCK_PREFIX)
         self.session.put(self.storage_name + b'.' + key, block['block_bytes'])
         block['key'] = key
         block['size'] = len(block['block_bytes'])
