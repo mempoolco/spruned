@@ -39,11 +39,11 @@ class SprunedVOService(RPCAPIService):
                 res = self.__make_verbose_block(block, block_header)
             best_header = self.repository.headers.get_best_header()
             res['confirmations'] = best_header['block_height'] - block_header['block_height']
-            return res
-
-        bb = block['block_bytes']
+        else:
+            bb = block['block_bytes']
+            res = binascii.hexlify(bb).decode()
         del block
-        return binascii.hexlify(bb).decode()
+        return res
 
     def __make_verbose_block(self, block: dict, block_header) -> dict:
         block_object = Block.parse(io.BytesIO(block['block_bytes']))
