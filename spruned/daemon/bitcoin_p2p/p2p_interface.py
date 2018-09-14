@@ -28,12 +28,9 @@ class P2PInterface:
         inv_item = InvItem(ITEM_TYPE_SEGWIT_BLOCK, h2b_rev(blockhash))
         response = await self.pool.get(inv_item, peers=peers, timeout=timeout)
         return response and {
-            "block_hash": str(response.hash()),
-            "prev_block_hash": str(response.previous_block_hash),
-            "timestamp": int(response.timestamp),
-            "header_bytes": bytes(response.as_blockheader().as_bin()),
-            "block_object": response,
-            "block_bytes": bytes(response.as_bin())
+            "block_hash": str(blockhash),
+            "header_bytes": response[:80],
+            "block_bytes": response
         }
 
     async def get_blocks(self, *blockhash: str) -> Dict:
