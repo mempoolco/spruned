@@ -141,6 +141,8 @@ class SprunedVOService(RPCAPIService):
     async def _estimatefee(self, blocks, _r=1):
         try:
             res = await self.electrod.estimatefee(blocks)
+            if res and int(res) > 10000:
+                raise ElectrodMissingResponseException
         except ElectrodMissingResponseException as e:
             Logger.electrum.error('Error with peer', exc_info=True)
             _r += 1

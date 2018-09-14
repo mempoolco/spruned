@@ -17,7 +17,7 @@ class TestP2PConnectionPool(TestCase):
             loop=self.loopmock, use_tor=False, sleep_no_internet=1, connections=2
         )
         self.loop = asyncio.get_event_loop()
-        self.peers = [['cafe', 123], ['babe', 123]]
+        self.peers = [['cafe', 123], ['babe', 123], ['eta', 123], ['beta', 123]]
 
     def test_connect_ok(self):
         async def parallel():

@@ -264,7 +264,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         try:
             peers = set()
             _peers = await peer.rpc_call('server.peers.subscribe', [])
-            Logger.electrum.warning('Peers downloaded: %s', peers)
+            Logger.electrum.debug('Peers downloaded: %s', peers)
             for peer in _peers:
                 if peer[2][0] == 'v1.2':
                     peers.add(peer[0])

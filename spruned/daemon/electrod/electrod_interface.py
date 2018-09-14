@@ -55,6 +55,8 @@ class ElectrodInterface:
                 'blockchain.block.get_header', height, get_peer=True
             )
             peer, header = response
+            if header['code'] == 1:
+                raise exceptions.ElectrodMissingResponseException
         except exceptions.ElectrodMissingResponseException:
             if fail_silent_out_of_range:
                 return

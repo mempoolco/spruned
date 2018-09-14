@@ -355,7 +355,7 @@ class StratumClient:
         if 'error' in msg:
             err = msg['error']
 
-            logger.info("Error response: '%s'" % err)
+            logger.debug("Error response: '%s'" % err)
             rv.set_exception(ElectrumErrorResponse(err, req, self))
 
         else:

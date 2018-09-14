@@ -351,9 +351,9 @@ class TestVOService(unittest.TestCase):
         self.assertEqual(res, 6)
 
     def test_estimatefee(self):
-        self.electrod.estimatefee.side_effect = [ElectrodMissingResponseException(), async_coro('fee estimation')]
+        self.electrod.estimatefee.side_effect = [ElectrodMissingResponseException(), async_coro(3)]
         res = self.loop.run_until_complete(self.sut.estimatefee(6))
-        self.assertEqual(res, 'fee estimation')
+        self.assertEqual(res, 3)
 
     def test_getbestblockheader(self):
         self.repository.headers.get_best_header.return_value = {
