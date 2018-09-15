@@ -47,7 +47,8 @@ class TestElectrumFeeEstimator(TestCase):
             {
                 'agreement': 80,
                 'points': [1000, 998, 997, 1300, 1090],
-                'value': 1000,
+                'median': 1000,
+                'average': 1021,
                 'timestamp': 123456,
                 'disagree': ['1.2.3.4'],
                 'agree': True
