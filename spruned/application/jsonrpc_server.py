@@ -257,7 +257,7 @@ class JSONRPCServer:
             )
         return {
             "blocks": blocks,
-            "feerate": response,
+            "feerate": round(response, 8),
             "_feerate": "{:.8f}".format(response)
         }
 
