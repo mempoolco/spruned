@@ -58,11 +58,16 @@ class TestElectrumFeeEstimator(TestCase):
         sut.add_peer(peers[2])
         loop = asyncio.get_event_loop()
         loop.run_until_complete(sut.collect(rates=[2], members=3))
-        return sut.get_rates(2)
+        self.assertTrue(sut.rates_available(3))
+        self.assertFalse(sut.rates_available(4))
+        sut.add_rate(3)
+        self.assertFalse(sut.rates_available(3))
+        return sut
 
     def test_projection(self):
         sut = EstimateFeeConsensusProjector()
-        data = self.test_collector()
+        collector = self.test_collector()
+        data = collector.get_rates(2)
         projection = sut.project(data, members=3)
         points = projection.pop('points')
         self.assertEqual(
