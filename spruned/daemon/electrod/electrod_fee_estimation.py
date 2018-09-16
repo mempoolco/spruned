@@ -227,7 +227,7 @@ class EstimateFeeConsensusCollector:
     def rates_available(self, consensus):
         data = []
         for peer, peerdata in self._data.items():
-            data.append(self._is_updated(peerdata, self._rates))
+            data.append(peerdata and self._is_updated(peerdata, self._rates))
         if len([x for x in data if x]) >= consensus:
             return True
 

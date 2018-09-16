@@ -56,8 +56,11 @@ class TestElectrumFeeEstimator(TestCase):
         sut.add_peer(peers[0])
         sut.add_peer(peers[1])
         sut.add_peer(peers[2])
+        sut.add_peer('meh/s')
         loop = asyncio.get_event_loop()
         loop.run_until_complete(sut.collect(rates=[2], members=3))
+        if not sut.rates_available(3):
+            loop.run_until_complete(sut.collect(rates=[2], members=3))
         self.assertTrue(sut.rates_available(3))
         self.assertFalse(sut.rates_available(4))
         sut.add_rate(3)
