@@ -86,3 +86,5 @@ class TestElectrumFeeEstimator(TestCase):
             sorted([20, 20, 9999900000]),
             sorted(points)
         )
+        collector.reset_data()
+        self.assertEqual(collector.get_rates(2), [])

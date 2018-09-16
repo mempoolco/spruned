@@ -108,6 +108,9 @@ class EstimateFeeConsensusCollector:
     def _add_collected_rate_to_data(self, peer, rate, value, timestamp=None):
         self._data[peer]["rates"][rate] = [value, timestamp or int(time.time())]
 
+    def reset_data(self):
+        self._data = {}
+
     async def collect(self, rates=None, members=8):
         await self._collector_lock.acquire()
         try:

@@ -7,7 +7,8 @@ from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
-from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, EstimateFeeConsensusCollector
+from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
+    EstimateFeeConsensusCollector, NoPeersException
 
 
 class ElectrodInterface:
@@ -156,7 +157,10 @@ class ElectrodInterface:
             i += 1
             if i > max_i:
                 raise ValueError
-            await self._fees_collector.collect(rates=[blocks], members=5)
+            try:
+                await self._fees_collector.collect(rates=[blocks], members=5)
+            except NoPeersException:
+                self._fees_collector.reset_data()
 
             if not len(self._fees_collector.get_rates(blocks)) >= 5:
                 continue
