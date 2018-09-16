@@ -29,13 +29,11 @@ class TestMempoolRepository(TestCase):
         transaction2 = self._get_transaction('txid2', 100, ['cafe:2', 'babe:2'])
 
         double_spend_1 = self._get_transaction('txid3', 100, ['cafe:1'])
-
-        self.sut.add_seen('txid1', 'test')
-        self.sut.add_seen('txid2', 'test')
+        if self.sut.add_seen('txid1', 'test'):
+            self.sut.add_transaction('txid1', transaction1)
+        if self.sut.add_seen('txid2', 'test'):
+            self.sut.add_transaction('txid2', transaction2)
         self.sut.add_seen('txid3', 'test')
-
-        self.sut.add_transaction('txid1', transaction1)
-        self.sut.add_transaction('txid2', transaction2)
 
         raw_mempool_1 = self.sut.get_mempool_info()
 
