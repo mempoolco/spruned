@@ -24,16 +24,13 @@ class P2PInterface:
         for callback in self._on_connect_callbacks:
             self.loop.create_task(callback())
 
-    async def get_block(self, blockhash: str, peers=None, timeout=None) -> Dict:
+    async def get_block(self, blockhash: str, peers=None, timeout=None, privileged_peers=False) -> Dict:
         inv_item = InvItem(ITEM_TYPE_SEGWIT_BLOCK, h2b_rev(blockhash))
-        response = await self.pool.get(inv_item, peers=peers, timeout=timeout)
+        response = await self.pool.get(inv_item, peers=peers, timeout=timeout, privileged=privileged_peers)
         return response and {
-            "block_hash": str(response.hash()),
-            "prev_block_hash": str(response.previous_block_hash),
-            "timestamp": int(response.timestamp),
-            "header_bytes": bytes(response.as_blockheader().as_bin()),
-            "block_object": response,
-            "block_bytes": bytes(response.as_bin())
+            "block_hash": str(blockhash),
+            "header_bytes": response[:80],
+            "block_bytes": response
         }
 
     async def get_blocks(self, *blockhash: str) -> Dict:
@@ -76,3 +73,8 @@ class P2PInterface:
     @property
     def bootstrap_status(self):
         return self._bootstrap_status
+
+    def get_peers(self):
+        return [
+            peer for peer in self.pool.established_connections
+        ]

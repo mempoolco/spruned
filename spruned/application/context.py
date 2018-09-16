@@ -22,8 +22,8 @@ class Context(dict):
                     'rpcpassword': 'rpcpassword',
                     'network': 'bitcoin.mainnet',
                     'debug': False,
-                    'cache_size': 50,
-                    'keep_blocks': 200
+                    'cache_size': 100,
+                    'keep_blocks': 50
                 }
             }
         )

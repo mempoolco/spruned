@@ -7,14 +7,41 @@ from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
+from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
+    EstimateFeeConsensusCollector, NoPeersException
 
 
 class ElectrodInterface:
-    def __init__(self, connectionpool: ElectrodConnectionPool, loop=asyncio.get_event_loop()):
+    def __init__(self,
+                 connectionpool: ElectrodConnectionPool,
+                 loop=asyncio.get_event_loop(),
+                 fees_projector: EstimateFeeConsensusProjector = None,
+                 fees_collector: EstimateFeeConsensusCollector = None
+                 ):
         self._network = ctx.get_network()
         self.pool = connectionpool
         self._checkpoints = self._network['checkpoints']
         self.loop = loop
+        self._fees_projector = fees_projector
+        self._fees_collector = fees_collector
+        self._collector_bootstrap = False
+
+    async def bootstrap_collector(self):
+        if not self._collector_bootstrap:
+            self._collector_bootstrap = True
+
+            async def bootstrap():
+                rates = [2, 6, 36, 4, 100]
+                i = 0
+                max_i = 20
+                await self._fees_collector.collect(rates, members=5)
+                while 1:
+                    if i > max_i:
+                        break
+                    if all([len(self._fees_collector.get_rates(rate)) >= 5 for rate in rates]):
+                        break
+                    await self._fees_collector.collect(rates, members=5)
+            self.loop.create_task(bootstrap())
 
     @property
     def is_pool_online(self):  # pragma: no cover
@@ -55,12 +82,17 @@ class ElectrodInterface:
                 'blockchain.block.get_header', height, get_peer=True
             )
             peer, header = response
+            if header and header.get('code') == 1:
+                raise exceptions.ElectrodMissingResponseException
         except exceptions.ElectrodMissingResponseException:
             if fail_silent_out_of_range:
                 return
             raise
         try:
             parsed_header = self._parse_header(header)
+        except KeyError:
+            Logger.p2p.error('Error with header: %s', header)
+            return
         except (exceptions.NetworkHeadersInconsistencyException, InvalidPOWException):
             Logger.electrum.error('Wrong POW for header %s from peer %s. Banning', header, peer)
             self.loop.create_task(peer.disconnect())
@@ -119,7 +151,27 @@ class ElectrodInterface:
         return await asyncio.gather(*futures)
 
     async def estimatefee(self, blocks: int):
-        return await self.pool.call('blockchain.estimatefee', blocks)
+        i = 0
+        max_i = 10
+        while 1:
+            i += 1
+            if i > max_i:
+                raise ValueError
+            try:
+                await self._fees_collector.collect(rates=[blocks], members=5)
+            except NoPeersException:
+                self._fees_collector.reset_data()
+
+            if not len(self._fees_collector.get_rates(blocks)) >= 5:
+                continue
+            rates_data = self._fees_collector.get_rates(blocks)
+            projection = self._fees_projector.project(rates_data, members=5)
+            for d in projection["disagree"]:
+                _ = [self._fees_collector.penalize_peer(d) for _ in range(0, 5)]
+            if projection["agree"]:
+                return projection
+            else:
+                continue
 
     async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
         peer = None
@@ -155,3 +207,8 @@ class ElectrodInterface:
 
     async def sendrawtransaction(self, rawtx: str):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
+
+    def get_peers(self):
+        return [
+            peer for peer in self.pool.established_connections
+        ]

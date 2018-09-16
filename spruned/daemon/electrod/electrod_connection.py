@@ -4,6 +4,7 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
+
 from spruned.dependencies.connectrum import ElectrumErrorResponse
 from spruned.dependencies.connectrum import StratumClient
 from spruned.dependencies.connectrum import ServerInfo
@@ -26,6 +27,7 @@ class ElectrodConnection(BaseConnection):
     ):
 
         self.protocol = protocol
+        self.port = self.protocol
         self.keepalive = keepalive
         self.client = client()
         self.serverinfo_factory = serverinfo
@@ -39,30 +41,42 @@ class ElectrodConnection(BaseConnection):
         )
 
     @property
+    def subversion(self):
+        return self._version and self._version[0]
+
+    @property
     def connected(self):
         return bool(self.client.protocol)
 
-    async def connect(self):
+    async def connect(self, ignore_version=False, disable_callbacks=False, short_term=False):
         try:
             with async_timeout.timeout(self._timeout):
                 await self.client.connect(
                     self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.2"),
-                    disconnect_callback=self.on_connectrum_disconnect,
+                    disconnect_callback=not disable_callbacks and self.on_connectrum_disconnect,
                     disable_cert_verify=True,
-                    use_tor=self.use_tor
+                    use_tor=self.use_tor,
+                    ignore_version=ignore_version,
+                    short_term=short_term
                 )
                 self._version = self.client.server_version
-                Logger.electrum.debug('Connected to %s', self.hostname)
-                res = await self.rpc_call(
-                    'blockchain.transaction.get', [self.network['tx1'], 1]
+                Logger.p2p.info(
+                    'Connected to peer %s:%s (%s)', self.hostname, self.port, self.version and self.version[0]
                 )
-                if not isinstance(res, dict) or not res['blockhash'] == self.network['checkpoints'][1]:
-                    raise ValueError
-                print(res)
-                await self.on_connect()
+                Logger.electrum.debug('Peer raw response: %s', self.version)
+                if not ignore_version:
+                    res = await self.rpc_call(
+                        'blockchain.transaction.get', [self.network['tx1'], 1]
+                    )
+                    if not isinstance(res, dict) or not res['blockhash'] == self.network['checkpoints'][1]:
+                        raise ValueError
+                self.connected_at = int(time.time())
+                if not disable_callbacks:
+                    await self.on_connect()
         except Exception as e:
             Logger.electrum.debug('Exception connecting to %s (%s)', self.hostname, e)
-            await self.on_error('connect')
+            if not disable_callbacks:
+                await self.on_error('connect')
 
     def on_connectrum_disconnect(self, *_, **__):
         for callback in self._on_disconnect_callbacks:
@@ -136,11 +150,13 @@ class ElectrodConnectionPool(BaseConnectionPool):
             connections=3,
             sleep_no_internet=30,
             rpc_call_timeout=30,
-            servers_storage=save_electrum_servers
+            servers_storage=save_electrum_servers,
+            ipv6=False,
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,
-            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
+            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet,
+            ipv6=ipv6
         )
         self._connections_keepalive_time = 120
         self._connection_factory = connection_factory
@@ -254,7 +270,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         try:
             peers = set()
             _peers = await peer.rpc_call('server.peers.subscribe', [])
-            Logger.electrum.warning('Peers downloaded: %s', peers)
+            Logger.electrum.debug('Peers downloaded: %s', peers)
             for peer in _peers:
                 if peer[2][0] == 'v1.2':
                     peers.add(peer[0])

@@ -22,7 +22,7 @@ spruned %s, emulating bitcoind %s
 
 == Blockchain ==
 getbestblockhash
-getblock "blockhash" ( verbosity ) 
+getblock "blockhash" ( verbosity )
 getblockchaininfo
 getblockcount
 getblockhash height
@@ -36,6 +36,9 @@ sendrawtransaction "hexstring" ( allowhighfees )
 == Util ==
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
+
+== Network ==
+getpeerinfo
 
 """ % (spruned_version, bitcoind_version)
 
@@ -73,12 +76,13 @@ class JSONRPCServer:
             "result": None,
             "error": None
         }
+
         response = await methods.dispatch(request)
-        if isinstance(response, ExceptionResponse):
-            response['result'] = response.get('result', None)
-            return web.json_response(response, status=response.http_status)
         result.update(response)
-        return web.json_response(result)
+        if result['error'] and result['error']['code'] < -32:
+            result['error']['code'] = -1
+
+        return web.json_response(result, status=response.http_status)
 
     def run(self, main_loop):
         self.main_loop = main_loop
@@ -103,6 +107,7 @@ class JSONRPCServer:
         methods.add(self.getblockcount)
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
+        methods.add(self.getpeerinfo)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         methods.add(self.stop, name="stop")
@@ -115,6 +120,9 @@ class JSONRPCServer:
 
     async def echo(self, *args):
         return ""
+
+    async def getpeerinfo(self):
+        return await self.vo_service.getpeerinfo()
 
     async def getblock(self, blockhash: str, mode: int = 1):
         try:
@@ -192,7 +200,7 @@ class JSONRPCServer:
         response = await self.vo_service.getblockhash(blockheight)
         if not response:
             raise JsonRpcServerException(
-                code=-5,
+                code=-8,
                 message="Block height out of range"
             )
         return response
@@ -226,7 +234,7 @@ class JSONRPCServer:
         response = await self.vo_service.estimatefee(blocks)
         if response is None:
             return "-1"
-        return response
+        return response["average_satoshi_per_kb"]
 
     async def estimatesmartfee(self, blocks: int, estimate_mode=None):
         try:
@@ -249,8 +257,8 @@ class JSONRPCServer:
             )
         return {
             "blocks": blocks,
-            "feerate": response,
-            "_feerate": "{:.8f}".format(response)
+            "feerate": response["average_satoshi_per_kb"],
+            "_origin": response
         }
 
     async def getblockchaininfo(self):

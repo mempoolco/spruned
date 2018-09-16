@@ -16,8 +16,7 @@ CHECK_NETWORK_HOST = [
     'j.root-servers.net',
     'k.root-servers.net',
     'l.root-servers.net',
-    'm.root-servers.net',
-    'www.bitcoin.org'
+    'm.root-servers.net'
 ]
 SQLITE_DBNAME = ''
 LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/{}-test.ldb'.format(binascii.hexlify(os.urandom(8)))

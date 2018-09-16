@@ -1,6 +1,9 @@
 import asyncio
 import io
 import binascii
+import itertools
+
+import time
 from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
@@ -25,33 +28,47 @@ class SprunedVOService(RPCAPIService):
         raise NotImplementedError
 
     async def getblock(self, blockhash: str, mode: int=1):
+        start = time.time()
         if mode == 2:
             raise NotImplementedError
         block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
-        block = await self._get_block(block_header)
+        block = await self._get_block(block_header, verbose=mode == 1)
         if mode == 1:
-            block_object = block.get('block_object', Block.parse(io.BytesIO(block['block_bytes'])))
+            if block.get('verbose'):
+                res = block['verbose']
+            else:
+                res = self.__make_verbose_block(block, block_header)
+                self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
             best_header = self.repository.headers.get_best_header()
-            block['confirmations'] = best_header['block_height'] - block_header['block_height']
-            serialized = self._serialize_header(block_header)
-            serialized['tx'] = [tx.id() for tx in block_object.txs]
-            del block
-            return serialized
-        bb = block['block_bytes']
+            res['confirmations'] = best_header['block_height'] - block_header['block_height']
+        else:
+            bb = block['block_bytes']
+            res = binascii.hexlify(bb).decode()
         del block
-        return binascii.hexlify(bb).decode()
+        Logger.p2p.info(
+            'Block {} ({}) provided in {:.4f}s)'.format(block_header['block_height'], blockhash, time.time() - start)
+        )
+        return res
 
-    async def _get_block(self, blockheader, _r=0):
+    def __make_verbose_block(self, block: dict, block_header) -> dict:
+        block_object = Block.parse(io.BytesIO(block['block_bytes']))
+        serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
+        serialized['tx'] = [tx.id() for tx in block_object.txs]
+        return serialized
+
+    async def _get_block(self, blockheader, _r=0, verbose=False):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
-        block = storedblock or await self.p2p.get_block(blockhash, timeout=10)
+        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3)
         if not block:
             if _r > 10:
                 raise exceptions.ServiceException
             else:
-                return await self._get_block(blockheader, _r + 1)
+                block = await self._get_block(blockheader, _r + 1)
+        if verbose and not block.get('verbose'):
+            block['verbose'] = self.__make_verbose_block(block, blockheader)
         if not storedblock:
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
@@ -201,3 +218,17 @@ class SprunedVOService(RPCAPIService):
                 return
             return await self._listunspent_by_scripthash(scripthash, _r=_r+1)
         return unspents
+
+    async def getpeerinfo(self):
+        electrum_peers = self.electrod.get_peers()
+        p2p_peers = self.p2p.get_peers()
+        response = []
+        for peer in itertools.chain(electrum_peers, p2p_peers):
+            response.append(
+                {
+                    "addr": "{}:{}".format(peer.hostname, peer.port),
+                    "subver": peer.subversion,
+                    "conntime": peer.connected_at
+                }
+            )
+        return response

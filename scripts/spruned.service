@@ -1,0 +1,17 @@
+# sPRUNED: systemd unit
+# /etc/systemd/system/spruned.service
+
+[Unit]
+Description=sPRUNED Bitcoin node
+After=network.target
+
+[Service]
+# adjust path 
+ExecStart=/home/bitcoin/src/venv/bin/spruned
+Type=simple
+User=bitcoin
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

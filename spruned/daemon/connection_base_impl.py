@@ -17,6 +17,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._hostname = hostname
         self.use_tor = use_tor
         self._version = None
+        self.connected_at = None
         self._on_headers_callbacks = []
         self._on_connect_callbacks = []
         self._on_disconnect_callbacks = []
@@ -24,6 +25,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._on_peers_callbacks = []
         self.loop = loop or asyncio.get_event_loop()
         self._start_score = start_score
+        self._score = 0
         self._last_header = None
         self._subscriptions = []
         self._timeout = timeout
@@ -42,6 +44,9 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
             self._errors.append(a[0])
         else:
             self._errors.append(int(time.time()))
+
+    def add_success(self):
+        self._score += 1
 
     def is_online(self):
         if self._is_online_checker is not None:
