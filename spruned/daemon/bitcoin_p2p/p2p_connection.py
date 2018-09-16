@@ -44,6 +44,7 @@ class P2PConnection(BaseConnection):
         self._call_timeout = call_timeout
         self._on_block_callbacks = []
         self._on_transaction_callbacks = []
+        self._on_transaction_hash_callbacks = []
         self._on_addr_callbacks = []
         self.connector = connector
 
@@ -57,6 +58,9 @@ class P2PConnection(BaseConnection):
 
     def add_on_blocks_callback(self, callback):
         self._on_block_callbacks.append(callback)
+
+    def add_on_transaction_hash_callback(self, callback):
+        self._on_transaction_hash_callbacks.append(callback)
 
     def add_on_transaction_callback(self, callback):
         self._on_transaction_callbacks.append(callback)
@@ -131,9 +135,14 @@ class P2PConnection(BaseConnection):
         self.peer_event_handler.set_request_callback('sendheaders', self._dummy_handler)
         self.peer_event_handler.set_request_callback('feefilter', self._dummy_handler)
         self.peer_event_handler.set_request_callback('sendcmpct', self._dummy_handler)
+        self.peer_event_handler.set_request_callback('tx', self._on_tx_inv)
 
     def _dummy_handler(self, *a, **kw):
         pass
+
+    def _on_tx_inv(self, event_handler, name, data):
+        for callback in self._on_transaction_callbacks:
+            self.loop.create_task(callback(self, data))
 
     def _on_inv(self, event_handler, name, data):
         try:
@@ -172,7 +181,7 @@ class P2PConnection(BaseConnection):
         for item in data.get('items'):
             if item.item_type == ITEM_TYPE_TX:
                 txs += 1
-                for callback in self._on_transaction_callbacks:
+                for callback in self._on_transaction_hash_callbacks:
                     self.loop.create_task(callback(self, item))
             else:
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
@@ -212,6 +221,8 @@ class P2PConnectionPool(BaseConnectionPool):
         self.servers_storage = servers_storage
         self._storage_lock = asyncio.Lock()
         self._required_connections = 4
+        self._on_transaction_callback = []
+        self._on_transaction_hash_callback = []
 
     @property
     def required_connections(self):
@@ -223,6 +234,12 @@ class P2PConnectionPool(BaseConnectionPool):
 
     def add_peer(self, peer):
         self._peers.append(peer)
+
+    def add_on_transaction_hash_callback(self, callback):
+        self._on_transaction_hash_callback.append(callback)
+
+    def add_on_transaction_callback(self, callback):
+        self._on_transaction_callback.append(callback)
 
     @property
     def connections(self):
@@ -283,6 +300,10 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
         connection.add_on_addr_callback(self.save_peers)
+        for callback in self._on_transaction_hash_callback:
+            connection.add_on_transaction_hash_callback(callback)
+        for callback in self._on_transaction_callback:
+            connection.add_on_transaction_callback(callback)
 
     async def get(self, inv_item: InvItem, peers=None, timeout=None, privileged=False):
         batcher = self._batcher_factory()
@@ -340,3 +361,10 @@ class P2PConnectionPool(BaseConnectionPool):
             self._peers = self.servers_storage(data)
         finally:
             self._storage_lock.release()
+
+    async def get_from_connection(self, connection, inv_item):
+        batcher = self._batcher_factory()
+        await batcher.add_peer(connection.peer_event_handler)
+        future = await batcher.inv_item_to_future(inv_item)
+        response = await future
+        return response

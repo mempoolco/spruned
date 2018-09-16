@@ -1,5 +1,7 @@
 import asyncio
 from typing import Dict
+
+import time
 from pycoin.serialize import h2b_rev
 
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK
@@ -12,13 +14,15 @@ from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
 class P2PInterface:
     def __init__(self,
                  connection_pool: P2PConnectionPool, loop=asyncio.get_event_loop(),
-                 network=MAINNET, peers_bootstrapper=utils.dns_bootstrap_servers):
+                 network=MAINNET, peers_bootstrapper=utils.dns_bootstrap_servers,
+                 mempool_repository=None):
         self.pool = connection_pool
         self._on_connect_callbacks = []
         self.loop = loop
         self.network = network
         self._bootstrap_status = 0
         self.peers_bootstrapper = peers_bootstrapper
+        self.mempool = mempool_repository
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:
@@ -78,3 +82,18 @@ class P2PInterface:
         return [
             peer for peer in self.pool.established_connections
         ]
+
+    async def on_transaction_hash(self, connection, item):
+        if self.mempool.add_seen(item.data, '{}/{}'.format(connection.hostname, connection.port)):
+            await self.pool.get_from_connection(connection, item)
+
+    async def on_transaction(self, connection, item):
+        if self.mempool.add_seen(item['tx'].id(), '{}/{}'.format(connection.hostname, connection.port)):
+            transaction = {
+                "timestamp": int(time.time()),
+                "txid": item["tx"].id(),
+                "outpoints": ["{}:{}".format(x.previous_hash, x.previous_index) for x in item["tx"].txs_in],
+                "bytes": item['tx'].as_bin()
+            }
+            transaction["size"] = len(transaction["bytes"])
+            self.mempool.add_transaction(transaction["txid"], transaction)

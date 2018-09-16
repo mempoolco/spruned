@@ -5,12 +5,14 @@ from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
 from spruned.repositories.blockchain_repository import BlockchainRepository, BLOCK_PREFIX, TRANSACTION_PREFIX
+from spruned.repositories.mempool_repository import MempoolRepository
 
 
 class Repository:
-    def __init__(self, headers, blocks, keep_blocks=200):
+    def __init__(self, headers, blocks, mempool, keep_blocks=200):
         self._headers_repository = headers
         self._blockchain_repository = blocks
+        self._mempool_repository = mempool
         self.ldb = None
         self.sqlite = None
         self.cache = None
@@ -25,6 +27,10 @@ class Repository:
     def blockchain(self) -> BlockchainRepository:
         return self._blockchain_repository
 
+    @property
+    def mempool(self) -> MempoolRepository:
+        return self._mempool_repository
+
     @classmethod
     def instance(cls):  # pragma: no cover
         from spruned.application import database
@@ -35,9 +41,11 @@ class Repository:
             settings.LEVELDB_BLOCKCHAIN_SLUG,
             settings.LEVELDB_BLOCKCHAIN_ADDRESS
         )
+        mempool_repository = MempoolRepository()
         i = cls(
             headers=headers_repository,
             blocks=blocks_repository,
+            mempool=mempool_repository,
             keep_blocks=ctx.keep_blocks
         )
         i.sqlite = database.sqlite

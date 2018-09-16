@@ -23,21 +23,24 @@ class MempoolRepository:
         pass
 
     def add_seen(self, txid, seen_by) -> bool:
-        if txid in self._transactions and self._transactions['received_at'] \
+        if txid in self._transactions and self._transactions[txid]['received_at'] \
                 or txid in self._double_spends or txid in self._forget_pool:
             return False
 
-        self._transactions[txid] = {
-            "txid": txid,
-            "seen_by": self._transactions.get(txid, {}).get('seen_by', set()).add(seen_by),
-            "seen_at_height": None,
-            "seen_at": int(time.time()),
-            "received_at": None,
-            "received_at_height": None,
-            "bytes": None,
-            "outpoints": None,
-            "size": None
-        }
+        if txid not in self._transactions:
+            self._transactions[txid] = {
+                "txid": txid,
+                "seen_by": {seen_by},
+                "seen_at_height": None,
+                "seen_at": int(time.time()),
+                "received_at": None,
+                "received_at_height": None,
+                "bytes": None,
+                "outpoints": None,
+                "size": None
+            }
+        else:
+            self._transactions[txid]['seen_by'].add(seen_by)
         return True
 
     @staticmethod

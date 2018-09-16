@@ -77,7 +77,7 @@ class TestP2PConnection(TestCase):
 
         item = Mock(item_type=ITEM_TYPE_TX)
         self.sut.loop = self.loop
-        self.sut.add_on_transaction_callback(txs_callback)
+        self.sut.add_on_transaction_hash_callback(txs_callback)
         self.loop.run_until_complete(asyncio.gather(
             wait(), start()
         ))

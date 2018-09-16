@@ -28,6 +28,11 @@ def builder(ctx: Context):  # pragma: no cover
     jsonrpc_server.set_vo_service(service)
     headers_reactor = HeadersReactor(repository.headers, electrod_interface)
     blocks_reactor = BlocksReactor(repository, p2p_interface, prune=int(ctx.keep_blocks))
+
+    p2p_interface.mempool = repository.mempool
+    p2p_connectionpool.add_on_transaction_callback(p2p_interface.on_transaction)
+    p2p_connectionpool.add_on_transaction_hash_callback(p2p_interface.on_transaction_hash)
+
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache
 
 

@@ -69,6 +69,10 @@ class Context(dict):
         return int(self._get_param('keep_blocks'))
 
     @property
+    def mempool(self):
+        return True ## FIXME TODO
+
+    @property
     def network(self):
         return self._get_param('network')
 
