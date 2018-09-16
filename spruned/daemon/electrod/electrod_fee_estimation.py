@@ -191,7 +191,7 @@ class EstimateFeeConsensusCollector:
         futures = []
 
         async def estimatefee(peer, conn, target):
-            res = await conn.client.RPC("blockchain.estimatefee", str(target))
+            res = await conn.client.RPC("blockchain.estimatefee", target)
             if not res:
                 return
             return {
