@@ -4,6 +4,7 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
+
 from spruned.dependencies.connectrum import ElectrumErrorResponse
 from spruned.dependencies.connectrum import StratumClient
 from spruned.dependencies.connectrum import ServerInfo
@@ -47,30 +48,35 @@ class ElectrodConnection(BaseConnection):
     def connected(self):
         return bool(self.client.protocol)
 
-    async def connect(self):
+    async def connect(self, ignore_version=False, disable_callbacks=False, short_term=False):
         try:
             with async_timeout.timeout(self._timeout):
                 await self.client.connect(
                     self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.2"),
-                    disconnect_callback=self.on_connectrum_disconnect,
+                    disconnect_callback=not disable_callbacks and self.on_connectrum_disconnect,
                     disable_cert_verify=True,
-                    use_tor=self.use_tor
+                    use_tor=self.use_tor,
+                    ignore_version=ignore_version,
+                    short_term=short_term
                 )
                 self._version = self.client.server_version
                 Logger.p2p.info(
                     'Connected to peer %s:%s (%s)', self.hostname, self.port, self.version and self.version[0]
                 )
                 Logger.electrum.debug('Peer raw response: %s', self.version)
-                res = await self.rpc_call(
-                    'blockchain.transaction.get', [self.network['tx1'], 1]
-                )
-                if not isinstance(res, dict) or not res['blockhash'] == self.network['checkpoints'][1]:
-                    raise ValueError
+                if not ignore_version:
+                    res = await self.rpc_call(
+                        'blockchain.transaction.get', [self.network['tx1'], 1]
+                    )
+                    if not isinstance(res, dict) or not res['blockhash'] == self.network['checkpoints'][1]:
+                        raise ValueError
                 self.connected_at = int(time.time())
-                await self.on_connect()
+                if not disable_callbacks:
+                    await self.on_connect()
         except Exception as e:
             Logger.electrum.debug('Exception connecting to %s (%s)', self.hostname, e)
-            await self.on_error('connect')
+            if not disable_callbacks:
+                await self.on_error('connect')
 
     def on_connectrum_disconnect(self, *_, **__):
         for callback in self._on_disconnect_callbacks:
@@ -145,7 +151,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             rpc_call_timeout=30,
             servers_storage=save_electrum_servers,
-            ipv6=False
+            ipv6=False,
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,

@@ -35,11 +35,22 @@ def save_electrum_servers(peers: set):  # pragma: no cover
 def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
     from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
     from spruned.daemon.electrod.electrod_interface import ElectrodInterface
+    from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
+        EstimateFeeConsensusCollector
     network = ctx.get_network()
+    peers = load_electrum_servers(ctx)
+    fees_collector = EstimateFeeConsensusCollector()
+    _ = [fees_collector.add_peer(peer) for peer in [x[0] + '/' + x[1] for x in peers]]
     electrod_pool = ElectrodConnectionPool(
         connections=network['electrum_concurrency'],
-        peers=load_electrum_servers(ctx),
+        peers=peers,
         ipv6=False
     )
-    electrod_interface = ElectrodInterface(electrod_pool, loop)
+    electrod_interface = ElectrodInterface(
+        electrod_pool,
+        loop,
+        fees_projector=EstimateFeeConsensusProjector(),
+        fees_collector=fees_collector
+    )
+    electrod_interface.add_on_connected_callback(electrod_interface.bootstrap_collector)
     return electrod_pool, electrod_interface

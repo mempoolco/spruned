@@ -139,7 +139,6 @@ class TestElectrodInterface(unittest.TestCase):
         self.loop.run_until_complete(self.sut.get_chunk(1))
         self.loop.run_until_complete(self.sut.listunspents_by_address('address'))
         self.loop.run_until_complete(self.sut.getaddresshistory('scripthash'))
-        self.loop.run_until_complete(self.sut.estimatefee(6))
         self.loop.run_until_complete(self.sut.handle_peer_error(peer))
         Mock.assert_has_calls(
             self.connectionpool.call,
@@ -149,7 +148,6 @@ class TestElectrodInterface(unittest.TestCase):
                 call('blockchain.block.get_chunk', 1, get_peer=False),
                 call('blockchain.address.listunspent', 'address'),
                 call('blockchain.address.get_history', 'scripthash'),
-                call('blockchain.estimatefee', 6)
             ]
         )
         Mock.assert_called_with(self.connectionpool.on_peer_error, peer)
