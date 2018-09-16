@@ -1,5 +1,7 @@
 import asyncio
 
+import time
+
 
 class MempoolRepository:
     def __init__(self, max_size_bytes=50000):
@@ -20,9 +22,20 @@ class MempoolRepository:
     def load(self, filepointer):
         pass
 
-    def add_seen(self, txid) -> bool:
+    def add_seen(self, txid, seen_by) -> bool:
         tx = self._transactions.get(txid, None)
-        self._transactions[txid] = tx
+        if not tx:
+            self._transactions[txid] = {
+                "txid": txid,
+                "seen_by": seen_by,
+                "seen_at_height": None,
+                "seen_at": int(time.time()),
+                "received_at": None,
+                "received_at_height": None,
+                "bytes": None,
+                "outpoints": None,
+                "size": None
+            }
         return bool(not tx)
 
     @staticmethod
@@ -31,13 +44,21 @@ class MempoolRepository:
 
     def add_transaction(self, txid, data) -> bool:
         double_spend = False
-        for outpoint in data:
+        for outpoint in data["outpoints"]:
             double_spend = double_spend or self._outpoints.get(outpoint)
             if double_spend:
                 break
         if not double_spend:
             self._add_outpoints(data)
-            self._transactions[txid] = data
+            self._transactions[txid].update(
+                {
+                    "received_at": data["timestamp"],
+                    "received_at_height": None,
+                    "bytes": data["bytes"],
+                    "outpoints": data["outpoints"],
+                    "size": data["size"]
+                }
+            )
             self._project_transaction(data, '+')
         elif self._is_rbf(data):
             raise NotImplementedError()
