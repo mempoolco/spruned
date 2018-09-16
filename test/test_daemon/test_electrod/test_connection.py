@@ -61,7 +61,9 @@ class TestElectrodConnection(unittest.TestCase):
             'server info',
             disconnect_callback=self.sut.on_connectrum_disconnect,
             disable_cert_verify=True,
-            use_tor=self.sut.use_tor
+            use_tor=self.sut.use_tor,
+            ignore_version=False,
+            short_term=False
         )
         Mock.assert_called_once_with(
             self.serverinfo,
