@@ -14,7 +14,7 @@ class MempoolRepository:
             "maxmempool": self._max_mempool_size_bytes,
             "last_update": None
         }
-        self.forget_pool = {}
+        self._forget_pool = {}
 
     def dump(self, filepointer):
         pass
@@ -23,20 +23,22 @@ class MempoolRepository:
         pass
 
     def add_seen(self, txid, seen_by) -> bool:
-        tx = self._transactions.get(txid, None)
-        if not tx:
-            self._transactions[txid] = {
-                "txid": txid,
-                "seen_by": seen_by,
-                "seen_at_height": None,
-                "seen_at": int(time.time()),
-                "received_at": None,
-                "received_at_height": None,
-                "bytes": None,
-                "outpoints": None,
-                "size": None
-            }
-        return bool(not tx)
+        if txid in self._transactions and self._transactions['received_at'] \
+                or txid in self._double_spends or txid in self._forget_pool:
+            return False
+
+        self._transactions[txid] = {
+            "txid": txid,
+            "seen_by": self._transactions.get(txid, {}).get('seen_by', set()).add(seen_by),
+            "seen_at_height": None,
+            "seen_at": int(time.time()),
+            "received_at": None,
+            "received_at_height": None,
+            "bytes": None,
+            "outpoints": None,
+            "size": None
+        }
+        return True
 
     @staticmethod
     def _is_rbf(data):
@@ -117,7 +119,7 @@ class MempoolRepository:
         self._add_txids_to_forget_pool(txid)
 
     def _add_txids_to_forget_pool(self, *txid):
-        self.forget_pool.update({tx: int(time.time()) for tx in txid})
+        self._forget_pool.update({tx: int(time.time()) for tx in txid})
 
     def _project_transaction(self, data, action='add'):
         if action == '+':
