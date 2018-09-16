@@ -48,7 +48,7 @@ class SprunedVOService(RPCAPIService):
             res = binascii.hexlify(bb).decode()
         del block
         Logger.p2p.info(
-            'Block {} ({}) provided in {:.4f}s'.format(blockhash, block_header['block_height'], time.time() - start)
+            'Block {} ({}) provided in {:.4f}s)'.format(block_header['block_height'], blockhash, time.time() - start)
         )
         return res
 
@@ -147,8 +147,6 @@ class SprunedVOService(RPCAPIService):
     async def _estimatefee(self, blocks, _r=1):
         try:
             res = await self.electrod.estimatefee(blocks)
-            if res and int(res) > 10000:
-                raise ElectrodMissingResponseException
         except ElectrodMissingResponseException as e:
             Logger.electrum.error('Error with peer', exc_info=True)
             _r += 1

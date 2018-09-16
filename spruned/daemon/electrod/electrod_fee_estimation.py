@@ -1,6 +1,5 @@
 import asyncio
 import json
-import random
 import time
 from statistics import median
 from spruned.daemon.electrod.electrod_connection import ElectrodConnection
@@ -27,7 +26,7 @@ class EstimateFeeConsensusProjector:
             "median": 0,
             "average": 0,
             "timestamp": median([entry["timestamp"] for entry in data]),
-            "disagree": [],
+            "disagree": []
         }
         med = response["median"] = median(response["points"])
 
@@ -44,12 +43,12 @@ class EstimateFeeConsensusProjector:
                 response["disagree"].append(entry["peer"])
         response["agree"] = (response["agreement"] >= agreement)
         response["average"] = int(sum(agreed) / len(agreed))
+        response["average_satoshi_per_kb"] = round((response["average"]*1000)/10**8, 8)
         return response
 
     def project(self, data, members, agreement=80):
         evaluate = []
         now = int(time.time())
-        print('Projecting data: %s (%s)' % (data, len(data)))
         for d in data:
             if self._max_age + d["timestamp"] > now:
                 evaluate.append(d)
@@ -67,6 +66,7 @@ class EstimateFeeConsensusCollector:
         self._connectionclass = connectionclass
         self._peers = set()
         self._max_age = max_age
+        self._collector_lock = asyncio.Lock()
 
     def add_peer(self, peer):
         self._peers.add(peer)
@@ -109,32 +109,36 @@ class EstimateFeeConsensusCollector:
         self._data[peer]["rates"][rate] = [value, timestamp or int(time.time())]
 
     async def collect(self, rates=None, members=8):
-        _ = rates and [self.add_rate(rate) for rate in rates if rate not in self._rates]
-        if not self.is_consensus_pool_established(members):
-            self._establish_consensus_pool(members)
-        expired_peers = self.get_expired_consensus_members()
-        print('Expird peers: %s' % expired_peers)
-        if expired_peers:
-            futures = []
-            connections = []
-            for peer in expired_peers:
-                hostname, protocol = peer.split('/')
-                connection = self._connectionclass(hostname, protocol, keepalive=False, timeout=5)
-                if self._is_active(self._data[peer]) and not self._is_updated(self._data[peer], rates):
-                    futures.append(self._update(peer, connection, rates))
-                    if futures:
-                        try:
-                            print('Connecting to %s' % hostname)
-                            await connection.connect()
-                            connections.append(connection)
-                        except:
-                            self.penalize_peer(peer)
-            await asyncio.gather(*futures, return_exceptions=True)
-            for connection in connections:
-                try:
-                    await connection.disconnect()
-                except:
-                    pass
+        await self._collector_lock.acquire()
+        try:
+            _ = rates and [self.add_rate(rate) for rate in rates if rate not in self._rates]
+            if not self.is_consensus_pool_established(members):
+                self._establish_consensus_pool(members)
+            expired_peers = self.get_expired_consensus_members()
+            if expired_peers:
+                futures = []
+                connections = []
+                for peer in expired_peers:
+                    hostname, protocol = peer.split('/')
+                    connection = self._connectionclass(hostname, protocol, keepalive=False, timeout=5)
+                    if self._is_active(self._data[peer]) and not self._is_updated(self._data[peer], rates):
+                        futures.append(self._update(peer, connection, rates))
+                        if futures:
+                            try:
+                                await connection.connect(
+                                    ignore_version=True, disable_callbacks=True, short_term=True
+                                )
+                                connections.append(connection)
+                            except:
+                                self.penalize_peer(peer)
+                await asyncio.gather(*futures, return_exceptions=True)
+                for connection in connections:
+                    try:
+                        await connection.disconnect()
+                    except:
+                        pass
+        finally:
+            self._collector_lock.release()
 
     def _establish_consensus_pool(self, members):
         while not self.is_consensus_pool_established(members):
@@ -169,7 +173,6 @@ class EstimateFeeConsensusCollector:
 
     def _is_updated(self, peer, rates):
         if rates is not None:
-            print(peer)
             container = {k: v for k, v in peer["rates"].items() if k in rates}.items()
         else:
             container = peer["rates"].items()
@@ -205,25 +208,18 @@ class EstimateFeeConsensusCollector:
                 futures.append(estimatefee(peer, connection, rate))
 
         if connection:
-            try:
-                results = await asyncio.gather(*futures, return_exceptions=True)
-                for result in results:
-                    if result and not isinstance(result, Exception):
-                        print('Received result: %s' % result)
-                        self._data[result["peer"]]["rates"][result["target"]] = {
-                            "value": result["value"],
-                            "timestamp": int(time.time()),
-                            "peer": result["peer"],
-                            "target": result["target"]
-                        }
-                        print('Result saved: %s' % self._data[result["peer"]]["rates"][result["target"]])
-                        self.reward_peer(peer)
-                    else:
-                        self.penalize_peer(peer)
-            except Exception as e:
-                self.penalize_peer(peer)
-                print('DIOMERDA: %s' % e)
-                raise e
+            results = await asyncio.gather(*futures, return_exceptions=True)
+            for result in results:
+                if result and not isinstance(result, Exception):
+                    self._data[result["peer"]]["rates"][result["target"]] = {
+                        "value": result["value"],
+                        "timestamp": int(time.time()),
+                        "peer": result["peer"],
+                        "target": result["target"]
+                    }
+                    self.reward_peer(peer)
+                else:
+                    self.penalize_peer(peer)
 
     def rates_available(self, consensus):
         data = []
@@ -244,116 +240,3 @@ class EstimateFeeConsensusCollector:
             assert v in self._rates
             data.extend([x["rates"][v] for x in self.get_data([v])])
         return data
-
-
-if __name__ == '__main__':
-    p = [
-
-        ["btc.cihar.com", "s"],
-        ["btc.pr0xima.de", "s"],
-        ["cryptohead.de", "s"],
-        ["daedalus.bauerj.eu", "s"],
-        ["e-1.claudioboxx.com", "s"],
-        ["e-2.claudioboxx.com", "s"],
-        ["e-3.claudioboxx.com", "s"],
-        ["e.keff.org", "s"],
-        ["ele.lightningnetwork.xyz", "s"],
-        ["ele.nummi.it", "s"],
-        ["elec.luggs.co", "s"],
-        ["electrum-server.ninja", "s"],
-        ["electrum.achow101.com", "s"],
-        ["electrum.akinbo.org", "s"],
-        ["electrum.anduck.net", "s"],
-        ["electrum.antumbra.se", "s"],
-        ["electrum.backplanedns.org", "s"],
-        ["electrum.be", "s"],
-        ["electrum.coinucopia.io", "s"],
-        ["electrum.cutie.ga", "s"],
-        ["electrum.festivaldelhumor.org", "s"],
-        ["electrum.hsmiths.com", "s"],
-        ["electrum.infinitum-nihil.com", "s"],
-        ["electrum.leblancnet.us", "s"],
-        ["electrum.mindspot.org", "s"],
-        ["electrum.nute.net", "s"],
-        ["electrum.petrkr.net", "s"],
-        ["electrum.poorcoding.com", "s"],
-        ["electrum.qtornado.com", "s"],
-        ["electrum.taborsky.cz", "s"],
-        ["electrum.villocq.com", "s"],
-        ["electrum.vom-stausee.de", "s"],
-        ["electrum0.snel.it", "s"],
-        ["electrum2.everynothing.net", "s"],
-        ["electrum2.villocq.com", "s"],
-        ["electrum3.hachre.de", "s"],
-        ["electrumx-core.1209k.com", "s"],
-        ["electrumx.adminsehow.com", "s"],
-        ["electrumx.bot.nu", "s"],
-        ["electrumx.donsomhong.net", "s"],
-        ["electrumx.gigelf.eu", "s"],
-        ["electrumx.kekku.li", "s"],
-        ["electrumx.nmdps.net", "s"],
-        ["electrumx.schneemensch.net", "s"],
-        ["electrumx.soon.it", "s"],
-        ["electrumx.westeurope.cloudapp.azure.com", "s"],
-        ["elx01.knas.systems", "s"],
-        ["elx2018.mooo.com", "s"],
-        ["enode.duckdns.org", "s"],
-        ["erbium1.sytes.net", "s"],
-        ["helicarrier.bauerj.eu", "s"],
-        ["icarus.tetradrachm.net", "s"],
-        ["ip101.ip-54-37-91.eu", "s"],
-        ["ip119.ip-54-37-91.eu", "s"],
-        ["ip120.ip-54-37-91.eu", "s"],
-        ["ip239.ip-54-36-234.eu", "s"],
-        ["kirsche.emzy.de", "s"],
-        ["mdw.ddns.net", "s"],
-        ["mooo.not.fyi", "s"],
-        ["ndnd.selfhost.eu", "s"],
-        ["node.ispol.sk", "s"],
-        ["node.xbt.eu", "s"],
-        ["noserver4u.de", "s"],
-        ["orannis.com", "s"],
-        ["qmebr.spdns.org", "s"],
-        ["rbx.curalle.ovh", "s"],
-        ["shogoth.no-ip.info", "s"],
-        ["songbird.bauerj.eu", "s"],
-        ["spv.48.org", "s"],
-        ["such.ninja", "s"],
-        ["sumBTC.mooo.com", "s"],
-        ["tardis.bauerj.eu", "s"],
-        ["technetium.network", "s"],
-        ["us01.hamster.science", "s"],
-        ["v25437.1blu.de", "s"],
-        ["vps-m-01.donsomhong.net", "s"],
-        ["walle.dedyn.io", "s"],
-        ["ecdsa.net", "s"],
-        ["erbium1.sytes.net", "s"],
-        ["gh05.geekhosters.com", "s"],
-        ["electrum-1.mempool.co", "s"]
-
-    ]
-    l = asyncio.get_event_loop()
-    e = EstimateFeeConsensusCollector()
-    peers = [x[0] + '/' + x[1] for x in p]
-    random.shuffle(peers)
-    for _p in peers:
-        e.add_peer(_p)
-    p = EstimateFeeConsensusProjector()
-    RATES = [1]
-    CONSENSUS_MEMBERS = 3
-    start = int(time.time())
-    print('Requesting data')
-    while 1:
-        l.run_until_complete(e.collect(rates=RATES, members=CONSENSUS_MEMBERS))
-        if not len(e.get_rates(*RATES)) >= CONSENSUS_MEMBERS:
-            continue
-        rates_data = e.get_rates(*RATES)
-        projection = p.project(rates_data, members=CONSENSUS_MEMBERS)
-        for d in projection["disagree"]:
-            _ = [e.penalize_peer(d) for _ in range(0, 5)]
-        if projection["agree"]:
-            print(projection)
-            print('Data obtained in %s' % (int(time.time()) - start))
-            break
-        else:
-            continue
