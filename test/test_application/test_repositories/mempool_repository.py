@@ -12,6 +12,7 @@ class MempoolRepository:
         }
         self._max_mempool_size_bytes = max_size_bytes
         self.project_lock = asyncio.Lock()
+        self._outpoints = {}
 
     def dump(self, filepointer):
         pass
@@ -24,16 +25,44 @@ class MempoolRepository:
         self._transactions[txid] = tx
         return bool(not tx)
 
+    @staticmethod
+    def _is_rbf(data):
+        return False  # TODO
+
     def add_transaction(self, txid, data) -> bool:
-        prev = self._transactions.get(txid, None)
-        self._transactions[txid] = data
-        if not prev:
+        double_spend = False
+        for outpoint in data:
+            double_spend = double_spend or self._outpoints.get(outpoint)
+            if double_spend:
+                break
+        if not double_spend:
+            self._add_outpoints(data)
+            self._transactions[txid] = data
             self._project_transaction(data, '+')
-        return bool(not prev)
+        elif self._is_rbf(data):
+            raise NotImplementedError()
+        else:
+            pass
+        return bool(not double_spend)
+
+    def _add_outpoints(self, data):
+        for outpoint in data["outpoints"]:
+            if self._outpoints.get(outpoint):
+                self._outpoints[outpoint].add(data["txid"])
+            else:
+                self._outpoints[outpoint] = {data["txid"], }
+
+    def _delete_outpoint(self, data: dict):
+        for outpoint in data["outpoints"]:
+            if len(self._outpoints[outpoint]) == 1:
+                del self._outpoints[outpoint]
+            else:
+                del self._outpoints[outpoint][data["txid"]]
 
     def remove_transaction(self, txid):
         data = self._transactions.pop(txid)
         self._project_transaction(data, '-')
+        self._delete_outpoint(data)
 
     async def _project_transaction(self, data, action='add'):
         await self.project_lock.acquire()
@@ -72,7 +101,9 @@ class MempoolRepository:
         txbytes = 0
         i = 0
         for txid in in_mempool:
-            txbytes += self._transactions.pop(txid)["bytes"]
+            data = self._transactions.pop(txid)["bytes"]
+            txbytes += data
+            self._delete_outpoint(data)
             i += 1
         await self.project_lock.acquire()
         try:
