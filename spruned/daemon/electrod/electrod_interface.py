@@ -15,6 +15,8 @@ class ElectrodInterface:
         self.pool = connectionpool
         self._checkpoints = self._network['checkpoints']
         self.loop = loop
+        self.fee_estimator = None
+        self.fee_projector = None
 
     @property
     def is_pool_online(self):  # pragma: no cover
@@ -124,6 +126,9 @@ class ElectrodInterface:
         return await asyncio.gather(*futures)
 
     async def estimatefee(self, blocks: int):
+        estimator = self.fee_estimator()
+        estimator.add_rate(blocks)
+
         return await self.pool.call('blockchain.estimatefee', blocks)
 
     async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
