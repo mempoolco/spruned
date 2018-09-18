@@ -2,7 +2,10 @@ import asyncio
 import base64
 import binascii
 import gc
+
+import re
 from aiohttp import web
+import json
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config, status
 from jsonrpcserver.exceptions import JsonRpcServerError
@@ -67,6 +70,15 @@ class JSONRPCServer:
     def _authenticate(self, request):
         return bool(request.headers.get('Authorization') == self._auth)
 
+    @staticmethod
+    def _json_dumps_with_fixed_float_precision(value, precision = 8):
+        def encode_fun(x):
+            return (
+                    '%.*f' % (precision, float(x.group()))
+            ).rstrip('0')
+        res = json.dumps(value)
+        return re.sub('\d+e-?\d+', encode_fun, res)
+
     async def _handle(self, jsonrequest):
         if not self._authenticate(jsonrequest):
             return web.json_response({}, status=401)
@@ -82,7 +94,7 @@ class JSONRPCServer:
         if result['error'] and result['error']['code'] < -32:
             result['error']['code'] = -1
 
-        return web.json_response(result, status=response.http_status)
+        return web.json_response(result, status=response.http_status, dumps=self._json_dumps_with_fixed_float_precision)
 
     def run(self, main_loop):
         self.main_loop = main_loop
