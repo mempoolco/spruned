@@ -28,7 +28,7 @@ class Repository:
         return self._blockchain_repository
 
     @property
-    def mempool(self) -> MempoolRepository:
+    def mempool(self) -> (MempoolRepository, None):
         return self._mempool_repository
 
     @classmethod
@@ -41,7 +41,14 @@ class Repository:
             settings.LEVELDB_BLOCKCHAIN_SLUG,
             settings.LEVELDB_BLOCKCHAIN_ADDRESS
         )
-        mempool_repository = MempoolRepository()
+        if ctx.mempool_size > 500:
+            Logger.mempool.error(
+                'Initializing mempool, are you sure you need a %s megabytes mempool?',
+                ctx.mempool_size*1024000
+            )
+            raise ValueError('Max mempool size: 500mb')
+        mempool_repository = ctx.mempool_size and MempoolRepository(max_size_bytes=ctx.mempool_size*1024000) or None
+
         i = cls(
             headers=headers_repository,
             blocks=blocks_repository,

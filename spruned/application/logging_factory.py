@@ -38,6 +38,10 @@ class LoggingFactory:
         return logging.getLogger('electrum')
 
     @property
+    def mempool(self):
+        return logging.getLogger('mempool')
+
+    @property
     def p2p(self):
         return logging.getLogger('p2p')
 
@@ -73,6 +77,7 @@ elif ctx.debug:
     logging.getLogger('p2p').setLevel(logging.DEBUG)
     logging.getLogger('connectrum').setLevel(logging.DEBUG)
     logging.getLogger('electrum').setLevel(logging.DEBUG)
+    logging.getLogger('mempool').setLevel(logging.DEBUG)
     logging.getLogger('cache').setLevel(logging.DEBUG)
     logging.getLogger('leveldb').setLevel(logging.DEBUG)
     logging.getLogger('asyncio').setLevel(logging.INFO)
@@ -90,6 +95,7 @@ else:
     logging.getLogger('p2p').setLevel(logging.INFO)
     logging.getLogger('connectrum').setLevel(logging.ERROR)
     logging.getLogger('electrum').setLevel(logging.INFO)
+    logging.getLogger('mempool').setLevel(logging.INFO)
     logging.getLogger('cache').setLevel(logging.INFO)
     logging.getLogger('leveldb').setLevel(logging.INFO)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)

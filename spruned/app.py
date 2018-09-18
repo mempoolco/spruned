@@ -71,6 +71,11 @@ parser.add_argument(
     action='store', dest='cache_size', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
+parser.add_argument(
+    '--mempool-size',
+    action='store', dest='mempool_size', default=0,
+    help='Mempool size (in megabytes)'
+)
 
 args = parser.parse_args()
 ctx.load_args(args)

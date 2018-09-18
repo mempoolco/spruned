@@ -28,7 +28,7 @@ async def dns_bootstrap_servers(network=TESTNET, howmany=50):  # pragma: no cove
 
 
 class AsyncBlockFactory:
-    def __init__(self, min_size):
+    def __init__(self, min_size=100000):
         self.min_size = min_size
 
     @staticmethod
@@ -40,8 +40,8 @@ class AsyncBlockFactory:
             return Block.from_bin(block_bytes)
         else:
             q = queue.Queue()
-            process = threading.Thread(target=self.getblock, args=(block_bytes, q))
-            process.start()
+            thread = threading.Thread(target=self.getblock, args=(block_bytes, q))
+            thread.start()
             try:
                 while 1:
                     try:
@@ -51,9 +51,8 @@ class AsyncBlockFactory:
                         pass
                     await asyncio.sleep(0.1)
             finally:
-                del process
+                del thread
 
 
 def get_block_factory():
-    from spruned.application.context import ctx
-    return AsyncBlockFactory(ctx.block_size_for_multiprocessing)
+    return AsyncBlockFactory()

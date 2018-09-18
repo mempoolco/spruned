@@ -137,12 +137,14 @@ class MempoolRepository:
                 "size": self._projection["size"] + 1,
                 "bytes": self._projection["bytes"] + data["size"],
                 "maxmempool": self._max_mempool_size_bytes,
+                "last_update": int(time.time())
             }
         elif action == '-':
             self._projection = {
                 "size": self._projection["size"] - 1,
                 "bytes": self._projection["bytes"] - data["size"],
                 "maxmempool": self._max_mempool_size_bytes,
+                "last_update": int(time.time())
             }
         else:
             raise ValueError
@@ -153,6 +155,9 @@ class MempoolRepository:
 
     def get_mempool_info(self):
         return self._projection and self._projection
+
+    def get_raw_mempool(self):
+        return (k for k, v in self._transactions.items())
 
     def get_txids(self):
         return (x for x in self._transactions.keys())

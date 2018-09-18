@@ -9,7 +9,7 @@ import json
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config, status
 from jsonrpcserver.exceptions import JsonRpcServerError
-from jsonrpcserver.response import ExceptionResponse
+from spruned.application import exceptions
 
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
@@ -116,12 +116,12 @@ class JSONRPCServer:
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
         methods.add(self.getpeerinfo)
-        methods.add(self.dev_memorysummary, name="dev-gc-stats")
-        methods.add(self.dev_collect, name="dev-gc-collect")
-        methods.add(self.stop, name="stop")
         methods.add(self.sendrawtransaction)
         methods.add(self.getmempoolinfo)
-
+        methods.add(self.getrawmempool)
+        methods.add(self.stop)
+        methods.add(self.dev_memorysummary, name="dev-gc-stats")
+        methods.add(self.dev_collect, name="dev-gc-collect")
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
     async def help(self, *args):
@@ -312,6 +312,29 @@ class JSONRPCServer:
         return None
 
     async def getmempoolinfo(self):
-        return await self.vo_service.getmempoolinfo()
+        try:
+            return await self.vo_service.getmempoolinfo()
+        except exceptions.MempoolDisabledException:
+            raise JsonRpcServerException(
+                code=-1,
+                message="mempool disabled"
+            )
+        except:
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )
 
-
+    async def getrawmempool(self):
+        try:
+            return await self.vo_service.getrawmempool()
+        except exceptions.MempoolDisabledException:
+            raise JsonRpcServerException(
+                code=-1,
+                message="mempool disabled"
+            )
+        except:
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )

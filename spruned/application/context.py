@@ -23,7 +23,8 @@ class Context(dict):
                     'network': 'bitcoin.mainnet',
                     'debug': False,
                     'cache_size': 100,
-                    'keep_blocks': 50
+                    'keep_blocks': 50,
+                    'mempool_size': 0
                 }
             }
         )
@@ -45,6 +46,7 @@ class Context(dict):
             if not line:
                 continue
             k, v = line.split('=')
+            k = k.replace('-', '_')
             if k not in self['default']:
                 raise ValueError('Configuration file error: parameter not admitted: %s (%s:%s)' % (line, filename, i))
             if k in values['i']:
@@ -69,12 +71,12 @@ class Context(dict):
         return int(self._get_param('keep_blocks'))
 
     @property
-    def mempool(self):
-        return True ## FIXME TODO
+    def mempool_size(self):
+        return self._get_param('mempool_size')
 
     @property
     def block_size_for_multiprocessing(self):
-        return 0  ## FIXME TODO
+        return 0
 
     @property
     def network(self):
@@ -115,7 +117,8 @@ class Context(dict):
             'network': args.network,
             'debug': args.debug,
             'cache_size': int(args.cache_size),
-            'keep_blocks': int(args.keep_blocks)
+            'keep_blocks': int(args.keep_blocks),
+            'mempool_size': int(args.mempool_size)
         }
         self.apply_context()
 
