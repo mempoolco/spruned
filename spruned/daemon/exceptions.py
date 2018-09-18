@@ -29,6 +29,10 @@ class ElectrodMissingResponseException(SprunedException):
     pass
 
 
+class MissingResponseException(SprunedException):
+    pass
+
+
 class NoServersException(SprunedException):
     pass
 

@@ -1,5 +1,7 @@
 import time
 
+from pycoin.block import Block
+
 
 class MempoolRepository:
     def __init__(self, max_size_bytes=50000):
@@ -122,13 +124,14 @@ class MempoolRepository:
             if outpoint in self._outpoints:
                 for _txid in self._outpoints[outpoint]:
                     self.remove_transaction(_txid)
+
         self._double_spends.pop(txid, None)
         self._add_txids_to_forget_pool(txid)
 
     def _add_txids_to_forget_pool(self, *txid):
         self._forget_pool.update({tx: int(time.time()) for tx in txid})
 
-    def _project_transaction(self, data, action='add'):
+    def _project_transaction(self, data, action='+'):
         if action == '+':
             self._projection = {
                 "size": self._projection["size"] + 1,
@@ -154,10 +157,12 @@ class MempoolRepository:
     def get_txids(self):
         return (x for x in self._transactions.keys())
 
-    def on_new_block(self, verbose_block: dict):
-        self._add_txids_to_forget_pool(*verbose_block["tx"])
-        for txid in verbose_block["tx"]:
+    def on_new_block(self, block_object: Block):
+        txs = [str(x.hash()) for x in block_object.txs]
+        self._add_txids_to_forget_pool(*txs)
+        for txid in txs:
             if txid in self._transactions:
                 self.remove_transaction(txid)
             elif txid in self._double_spends:
                 self._remove_double_spend(txid)
+        return txs

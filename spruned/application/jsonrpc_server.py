@@ -72,12 +72,8 @@ class JSONRPCServer:
 
     @staticmethod
     def _json_dumps_with_fixed_float_precision(value, precision = 8):
-        def encode_fun(x):
-            return (
-                    '%.*f' % (precision, float(x.group()))
-            )
         res = json.dumps(value)
-        return re.sub('\d+e-?\d+', encode_fun, res)
+        return re.sub('\d+e-07?\d+', lambda x: '%.*f' % (precision, float(x.group())), res)
 
     async def _handle(self, jsonrequest):
         if not self._authenticate(jsonrequest):
@@ -244,7 +240,7 @@ class JSONRPCServer:
                 code=-5,
                 message="Error parsing JSON:%s" % blocks
             )
-        response = await self.vo_service.estimatefee(blocks)
+        response = await round(self.vo_service.estimatefee(blocks), 8)
         if response is None:
             return "-1"
         return response["average_satoshi_per_kb"]
@@ -270,7 +266,7 @@ class JSONRPCServer:
             )
         return {
             "blocks": blocks,
-            "feerate": response["average_satoshi_per_kb"],
+            "feerate": round(response["average_satoshi_per_kb"], 8),
             "_origin": response
         }
 
