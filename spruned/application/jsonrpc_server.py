@@ -75,7 +75,7 @@ class JSONRPCServer:
         def encode_fun(x):
             return (
                     '%.*f' % (precision, float(x.group()))
-            ).rstrip('0')
+            )
         res = json.dumps(value)
         return re.sub('\d+e-?\d+', encode_fun, res)
 
