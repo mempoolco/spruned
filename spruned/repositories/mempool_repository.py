@@ -163,6 +163,7 @@ class MempoolRepository:
         return (x for x in self._transactions.keys())
 
     def on_new_block(self, block_object: Block):
+        # fixme
         txs = [str(x.hash()) for x in block_object.txs]
         self._add_txids_to_forget_pool(*txs)
         for txid in txs:
