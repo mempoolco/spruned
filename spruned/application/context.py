@@ -22,9 +22,9 @@ class Context(dict):
                     'rpcpassword': 'rpcpassword',
                     'network': 'bitcoin.mainnet',
                     'debug': False,
-                    'cache_size': 100,
-                    'keep_blocks': 50,
-                    'mempool_size': 0
+                    'cachesize': 100,
+                    'keepblocks': 50,
+                    'mempoolsize': 0
                 }
             }
         )
@@ -68,11 +68,11 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return int(self._get_param('keep_blocks'))
+        return int(self._get_param('keepblocks'))
 
     @property
     def mempool_size(self):
-        return self._get_param('mempool_size')
+        return self._get_param('mempoolsize')
 
     @property
     def block_size_for_multiprocessing(self):
@@ -104,7 +104,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return int(self._get_param('cache_size'))
+        return int(self._get_param('cachesize'))
 
     def load_args(self, args: Namespace):
         self['args'] = {
@@ -116,9 +116,9 @@ class Context(dict):
             'rpcuser': args.rpcuser,
             'network': args.network,
             'debug': args.debug,
-            'cache_size': int(args.cache_size),
-            'keep_blocks': int(args.keep_blocks),
-            'mempool_size': int(args.mempool_size)
+            'cachesize': int(args.cachesize),
+            'keepblocks': int(args.keepblocks),
+            'mempoolsize': int(args.mempoolsize)
         }
         self.apply_context()
 

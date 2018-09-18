@@ -47,8 +47,8 @@ parser.add_argument(
     help='Run in the background as a daemon and accept commands'
 )
 parser.add_argument(
-    '--keep-blocks',
-    action='store', dest='keep_blocks', default=int(ctx.keep_blocks),
+    '--keepblocks',
+    action='store', dest='keepblocks', default=int(ctx.keep_blocks),
     help='', type=int
 )
 parser.add_argument(
@@ -67,14 +67,14 @@ parser.add_argument(
     help='Enable debug mode'
 )
 parser.add_argument(
-    '--cache-size',
-    action='store', dest='cache_size', default=int(ctx.cache_size),
+    '--cachesize',
+    action='store', dest='cachesize', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
 parser.add_argument(
-    '--mempool-size',
-    action='store', dest='mempool_size', default=0,
-    help='Mempool size (in megabytes)'
+    '--mempoolsize',
+    action='store', dest='mempoolsize', default=0,
+    help='Mempool size (in megabytes) - 0 '
 )
 
 args = parser.parse_args()
