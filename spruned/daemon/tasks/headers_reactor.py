@@ -39,6 +39,10 @@ class HeadersReactor:
         self.sleep_time_on_inconsistency = sleep_time_on_inconsistency
         self.orphans_headers = []
         self.on_best_height_hit_callbacks = []
+        self._on_new_best_header_callbacks = []
+
+    def add_on_new_header_callback(self, callback):
+        self._on_new_best_header_callbacks.append(callback)
 
     def add_on_best_height_hit_callbacks(self, callback):
         self.on_best_height_hit_callbacks.append(callback)
@@ -166,6 +170,8 @@ class HeadersReactor:
                     return
             self.set_last_processed_header(network_best_header)
             self.synced = True
+            for callback in self._on_new_best_header_callbacks:
+                self.loop.create_task(callback(self._last_processed_header))
         except (
                 exceptions.NoQuorumOnResponsesException,
                 exceptions.NoPeersException,
@@ -177,10 +183,8 @@ class HeadersReactor:
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
         finally:
             if self.synced and self.on_best_height_hit_callbacks:
-                while 1:
-                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
-                    if not callback:
-                        break
+                while self.on_best_height_hit_callbacks:
+                    callback = self.on_best_height_hit_callbacks.pop(0)
                     self.loop.create_task(callback)
             not _r and self.lock.release()
 
@@ -301,11 +305,13 @@ class HeadersReactor:
                 self.synced = True
                 return
             res = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
-            peer, headers = res if res else (None, None)
+            peer, headers = res if res else (None, [])
             if not headers:
                 raise exceptions.NoHeadersException
-            saving_headers = [h for h in headers if h['block_height'] > local_best_height] if local_best_height \
-                else headers
+            if local_best_height:
+                saving_headers = [h for h in headers if h['block_height'] > local_best_height]
+            else:
+                saving_headers = headers
             try:
                 saved_headers = headers and self.repo.save_headers(saving_headers)
             except exceptions.HeadersInconsistencyException:

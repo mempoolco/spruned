@@ -16,6 +16,10 @@ class MempoolRepository:
         }
         self._forget_pool = {}
 
+    @property
+    def transactions(self):
+        return self._transactions
+
     def dump(self, filepointer):
         pass
 

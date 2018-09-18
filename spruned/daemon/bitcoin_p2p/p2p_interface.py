@@ -82,18 +82,3 @@ class P2PInterface:
         return [
             peer for peer in self.pool.established_connections
         ]
-
-    async def on_transaction_hash(self, connection, item):
-        if self.mempool.add_seen(item.data, '{}/{}'.format(connection.hostname, connection.port)):
-            await self.pool.get_from_connection(connection, item)
-
-    async def on_transaction(self, connection, item):
-        if self.mempool.add_seen(item['tx'].id(), '{}/{}'.format(connection.hostname, connection.port)):
-            transaction = {
-                "timestamp": int(time.time()),
-                "txid": item["tx"].id(),
-                "outpoints": ["{}:{}".format(x.previous_hash, x.previous_index) for x in item["tx"].txs_in],
-                "bytes": item['tx'].as_bin()
-            }
-            transaction["size"] = len(transaction["bytes"])
-            self.mempool.add_transaction(transaction["txid"], transaction)

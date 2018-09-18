@@ -59,7 +59,7 @@ class JSONRPCServer:
         self.port = port
         self.vo_service = None
         self._auth = 'Basic %s' % base64.b64encode(self.username + b':' + self.password).decode()
-        self.main_loop = None
+        self.main_loop = asyncio.get_event_loop()
 
     def set_vo_service(self, vo_service):
         self.vo_service = vo_service
@@ -112,6 +112,7 @@ class JSONRPCServer:
         methods.add(self.dev_collect, name="dev-gc-collect")
         methods.add(self.stop, name="stop")
         methods.add(self.sendrawtransaction)
+        methods.add(self.getmempoolinfo)
 
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
@@ -301,3 +302,8 @@ class JSONRPCServer:
             loop.stop()
         loop.create_task(async_delayed_task(stop(), 0))
         return None
+
+    async def getmempoolinfo(self):
+        return await self.vo_service.getmempoolinfo()
+
+

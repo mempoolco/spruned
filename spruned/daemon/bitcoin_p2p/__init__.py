@@ -6,7 +6,8 @@ from typing import Dict, Tuple
 from spruned.daemon.bitcoin_p2p import utils
 
 
-def build(network: Dict):
+def build(ctx):
+    network = ctx.get_network()
     assert isinstance(network, dict), network
     from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
     from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface

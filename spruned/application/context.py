@@ -73,6 +73,10 @@ class Context(dict):
         return True ## FIXME TODO
 
     @property
+    def block_size_for_multiprocessing(self):
+        return 0  ## FIXME TODO
+
+    @property
     def network(self):
         return self._get_param('network')
 

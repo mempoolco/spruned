@@ -49,7 +49,6 @@ class InvItem(object):
         TX = "Tx"
         INV_TYPES = {0: "?", 1: TX, 2: BLOCK, 3: "Merkle", 1073741825: TX, 1073741826: BLOCK}
         idx = self.item_type
-        print(idx, idx)
         if idx not in INV_TYPES.keys():
             idx = 0
         return "InvItem %s [%s]" % (INV_TYPES[idx], b2h_rev(self.data))
