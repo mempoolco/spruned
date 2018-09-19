@@ -15,6 +15,7 @@ from spruned.dependencies.pycoinnet.inv_batcher import InvBatcher
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.dependencies.pycoinnet.pycoin import InvItem
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
+from spruned.dependencies.pycoinnet.pycoin.bloom import BloomFilter, filter_size_required, hash_function_count_required
 from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_NONE, NODE_WITNESS
 
 
@@ -27,13 +28,15 @@ class P2PConnection(BaseConnection):
             use_tor=None, start_score=2,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
-            call_timeout=5, connector=asyncio.open_connection):
+            call_timeout=5, connector=asyncio.open_connection,
+            bloom_filter=None):
 
         super().__init__(
             hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
             expire_errors_after=expire_errors_after
         )
+        self._bloom_filter = bloom_filter
         self.port = port
         self._peer_factory = peer
         self._peer_network = network
@@ -91,6 +94,14 @@ class P2PConnection(BaseConnection):
                     peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS
                 )
                 peer.version = await peer.perform_handshake(**version_data)
+                if self._bloom_filter:
+                    filter_bytes, hash_function_count, tweak = self._bloom_filter.filter_load_params()
+                    flags = 0
+                    peer.send_msg(
+                        "filterload", filter=filter_bytes, hash_function_count=hash_function_count,
+                        tweak=tweak, flags=flags
+                    )
+
                 self._event_handler = PeerEvent(peer)
                 self._version = peer.version
 
@@ -205,6 +216,8 @@ class P2PConnectionPool(BaseConnectionPool):
             peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
             loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
         )
+
+        self._pool_filter = None
         self._batcher_factory = batcher
         self._network = network
         self._batcher_timeout = batcher_timeout
@@ -212,6 +225,15 @@ class P2PConnectionPool(BaseConnectionPool):
         self.servers_storage = servers_storage
         self._storage_lock = asyncio.Lock()
         self._required_connections = 4
+        self._create_bloom_filter()
+
+    def _create_bloom_filter(self):
+        element_count = 1
+        false_positive_probability = 0.00001
+        filter_size = filter_size_required(element_count, false_positive_probability)
+        hash_function_count = hash_function_count_required(filter_size, element_count)
+        self._pool_filter = BloomFilter(filter_size, hash_function_count=hash_function_count, tweak=1)
+        self._pool_filter.add_address('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
 
     @property
     def required_connections(self):
@@ -271,7 +293,7 @@ class P2PConnectionPool(BaseConnectionPool):
 
     async def _connect_peer(self, host: str, port: int):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
-        connection = P2PConnection(host, port, loop=self.loop, network=self._network)
+        connection = P2PConnection(host, port, loop=self.loop, network=self._network, bloom_filter=self._pool_filter)
         if not await connection.connect():
             Logger.p2p.debug(
                 'Connection to %s - %s failed. Connected to %s peers', host, port, len(self.established_connections)
