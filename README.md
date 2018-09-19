@@ -250,8 +250,8 @@ _* bitcoin-cli is not included_
 #### RPC Roadmap:
 
 ```
-- getmempoolinfo
-- getrawmempool
+- importaddress (watch only mode)
+-  
 ```
 
 

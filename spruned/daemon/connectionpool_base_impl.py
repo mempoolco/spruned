@@ -36,6 +36,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._sleep_on_no_internet_connectivity = sleep_no_internet
         self._keepalive = True
         self._ipv6 = ipv6
+        self.starting_height = None
 
     @property
     def peers(self):

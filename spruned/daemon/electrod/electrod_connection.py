@@ -39,6 +39,7 @@ class ElectrodConnection(BaseConnection):
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
             expire_errors_after=expire_errors_after
         )
+        self.starting_height = None
 
     @property
     def subversion(self):
@@ -112,6 +113,7 @@ class ElectrodConnection(BaseConnection):
                 future, q = self.client.subscribe(channel)
             self.subscriptions.append({channel: q})
             header = await future
+            self.starting_height = header['block_height']
             self._last_header = header
             on_subscription and self.loop.create_task(on_subscription(self))
             self.loop.create_task(self._poll_queue(q, on_traffic))
