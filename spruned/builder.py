@@ -13,7 +13,6 @@ def builder(ctx: Context):  # pragma: no cover
 
     electrod_connectionpool, electrod_interface = electrod_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx.get_network())
-
     repository = Repository.instance()
     cache = CacheAgent(repository, int(ctx.cache_size))
     repository.set_cache(cache)
@@ -28,6 +27,9 @@ def builder(ctx: Context):  # pragma: no cover
     jsonrpc_server.set_vo_service(service)
     headers_reactor = HeadersReactor(repository.headers, electrod_interface)
     blocks_reactor = BlocksReactor(repository, p2p_interface, prune=int(ctx.keep_blocks))
+
+    headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
+
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache
 
 

@@ -39,3 +39,7 @@ class BlocksInconsistencyException(SprunedException):
 
 class GenesisTransactionRequestedException(SprunedException):
     pass
+
+
+class PeerBlockchainBehindException(SprunedException):
+    pass

@@ -6,6 +6,7 @@ import time
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
+from spruned.daemon import exceptions
 from spruned.daemon.bitcoin_p2p import save_p2p_peers
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
@@ -29,7 +30,7 @@ class P2PConnection(BaseConnection):
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=5, connector=asyncio.open_connection,
-            bloom_filter=None):
+            bloom_filter=None, best_header=None):
 
         super().__init__(
             hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
@@ -49,6 +50,8 @@ class P2PConnection(BaseConnection):
         self._on_transaction_callbacks = []
         self._on_addr_callbacks = []
         self.connector = connector
+        self.best_header = best_header
+        self.starting_height = None
 
     @property
     def subversion(self):
@@ -94,6 +97,8 @@ class P2PConnection(BaseConnection):
                     peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS
                 )
                 peer.version = await peer.perform_handshake(**version_data)
+                await self._verify_peer(peer)
+                self.starting_height = peer.version['last_block_index']
                 if self._bloom_filter:
                     filter_bytes, hash_function_count, tweak = self._bloom_filter.filter_load_params()
                     flags = 0
@@ -121,6 +126,11 @@ class P2PConnection(BaseConnection):
 
         self.loop.create_task(self.on_connect())
         return self
+
+    async def _verify_peer(self, peer):
+        if peer.version['last_block_index'] < self.best_header['block_height']:
+            await self.disconnect()
+            raise exceptions.PeerBlockchainBehindException
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:
@@ -224,8 +234,12 @@ class P2PConnectionPool(BaseConnectionPool):
         self._busy_peers = set()
         self.servers_storage = servers_storage
         self._storage_lock = asyncio.Lock()
-        self._required_connections = 4
+        self._required_connections = connections
         self._create_bloom_filter()
+        self.best_header = None
+
+    async def set_best_header(self, value):
+        self.best_header = value
 
     def _create_bloom_filter(self):
         element_count = 1
@@ -293,7 +307,10 @@ class P2PConnectionPool(BaseConnectionPool):
 
     async def _connect_peer(self, host: str, port: int):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
-        connection = P2PConnection(host, port, loop=self.loop, network=self._network, bloom_filter=self._pool_filter)
+        connection = P2PConnection(
+            host, port, loop=self.loop, network=self._network,
+            bloom_filter=self._pool_filter, best_header=self.best_header
+        )
         if not await connection.connect():
             Logger.p2p.debug(
                 'Connection to %s - %s failed. Connected to %s peers', host, port, len(self.established_connections)

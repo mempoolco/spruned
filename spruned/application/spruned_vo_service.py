@@ -228,7 +228,9 @@ class SprunedVOService(RPCAPIService):
                 {
                     "addr": "{}:{}".format(peer.hostname, peer.port),
                     "subver": peer.subversion,
-                    "conntime": peer.connected_at
+                    "conntime": peer.connected_at,
+                    "startingheight": peer.starting_height and int(peer.starting_height)
                 }
             )
+            print(response)
         return response
