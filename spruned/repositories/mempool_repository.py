@@ -2,6 +2,8 @@ import time
 
 from pycoin.block import Block
 
+from spruned.application.logging_factory import Logger
+
 
 class MempoolRepository:
     def __init__(self, max_size_bytes=50000):
@@ -29,24 +31,19 @@ class MempoolRepository:
         pass
 
     def add_seen(self, txid, seen_by) -> bool:
-        if txid in self._transactions and self._transactions[txid]['received_at'] \
-                or txid in self._double_spends or txid in self._forget_pool:
+        if txid in self._transactions or txid in self._double_spends or txid in self._forget_pool:
             return False
-
-        if txid not in self._transactions:
-            self._transactions[txid] = {
-                "txid": txid,
-                "seen_by": {seen_by},
-                "seen_at_height": None,
-                "seen_at": int(time.time()),
-                "received_at": None,
-                "received_at_height": None,
-                "bytes": None,
-                "outpoints": None,
-                "size": None
-            }
-        else:
-            self._transactions[txid]['seen_by'].add(seen_by)
+        self._transactions[txid] = {
+            "txid": txid,
+            "seen_by": {seen_by},
+            "seen_at_height": None,
+            "seen_at": int(time.time()),
+            "received_at": None,
+            "received_at_height": None,
+            "bytes": None,
+            "outpoints": None,
+            "size": None
+        }
         return True
 
     @staticmethod
@@ -65,7 +62,6 @@ class MempoolRepository:
                 {
                     "received_at": data["timestamp"],
                     "received_at_height": None,
-                    "bytes": data["bytes"],
                     "outpoints": data["outpoints"],
                     "size": data["size"]
                 }
@@ -164,11 +160,14 @@ class MempoolRepository:
 
     def on_new_block(self, block_object: Block):
         # fixme
-        txs = [str(x.hash()) for x in block_object.txs]
+        txs = [str(x.w_hash()) for x in block_object.txs]
+        removed = []
         self._add_txids_to_forget_pool(*txs)
         for txid in txs:
             if txid in self._transactions:
                 self.remove_transaction(txid)
+                removed.append(txid)
             elif txid in self._double_spends:
                 self._remove_double_spend(txid)
-        return txs
+                removed.append(txid)
+        return txs, removed

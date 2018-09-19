@@ -55,6 +55,8 @@ class HeadersReactor:
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
             )
+            for callback in self._on_new_best_header_callbacks:
+                self.loop.create_task(callback(self._last_processed_header))
 
     async def on_connected(self):
         if self.store_headers:
@@ -170,8 +172,6 @@ class HeadersReactor:
                     return
             self.set_last_processed_header(network_best_header)
             self.synced = True
-            for callback in self._on_new_best_header_callbacks:
-                self.loop.create_task(callback(self._last_processed_header))
         except (
                 exceptions.NoQuorumOnResponsesException,
                 exceptions.NoPeersException,

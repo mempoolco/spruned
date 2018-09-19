@@ -95,12 +95,12 @@ else:
     logging.getLogger('p2p').setLevel(logging.INFO)
     logging.getLogger('connectrum').setLevel(logging.ERROR)
     logging.getLogger('electrum').setLevel(logging.INFO)
-    logging.getLogger('mempool').setLevel(logging.INFO)
+    logging.getLogger('mempool').setLevel(logging.DEBUG)
     logging.getLogger('cache').setLevel(logging.INFO)
     logging.getLogger('leveldb').setLevel(logging.INFO)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
-        loglevel=logging.INFO,
-        stdout=False
+        #loglevel=logging.INFO,
+        #stdout=False
     )  # type: LoggingFactory

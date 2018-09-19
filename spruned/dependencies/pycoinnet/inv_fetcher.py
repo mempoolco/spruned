@@ -46,7 +46,7 @@ class InvFetcher:
         """
         self._peer = peer
         self._request_q = asyncio.Queue()
-        self._futures = weakref.WeakValueDictionary()
+        self._futures = dict() #weakref.WeakValueDictionary()
         self._batch_size = batch_size
         self._send_getdata_lock = asyncio.Lock()
         self._is_closed = False

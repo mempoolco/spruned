@@ -44,11 +44,10 @@ class SprunedVOService(RPCAPIService):
                 res = self.__make_verbose_block(block, block_header)
                 self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
             best_header = self.repository.headers.get_best_header()
-            res['confirmations'] = best_header['block_height'] - block_header['block_height']
+            res['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
         else:
             bb = block['block_bytes']
             res = binascii.hexlify(bb).decode()
-        del block
         Logger.p2p.info(
             'Block {} ({}) provided in {:.4f}s)'.format(block_header['block_height'], blockhash, time.time() - start)
         )

@@ -364,6 +364,10 @@ class P2PConnectionPool(BaseConnectionPool):
     async def get_from_connection(self, connection, inv_item):
         batcher = self._batcher_factory()
         await batcher.add_peer(connection.peer_event_handler)
-        future = await batcher.inv_item_to_future(inv_item)
-        response = await future
-        return response
+        future = None
+        try:
+            future = await batcher.inv_item_to_future(inv_item)
+            response = await future
+            return response
+        finally:
+            future and future.cancel()
