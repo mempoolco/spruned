@@ -160,7 +160,7 @@ class P2PConnection(BaseConnection):
 
     def _on_addr(self, event_handler, name, data):  # pragma: no cover
         try:
-            Logger.p2p.debug('Handle addr: %s, %s, %s', event_handler, name, data)
+            #Logger.p2p.debug('Handle addr: %s, %s,', event_handler, name, data)
             peers = []
             for peer in data['date_address_tuples']:
                 host, port = str(peer[1]).split('/')
@@ -280,9 +280,9 @@ class P2PConnectionPool(BaseConnectionPool):
                 Logger.p2p.warning('Too many connections')
                 connection = self._pick_connection()
                 self.loop.create_task(connection.disconnect())
-            Logger.p2p.debug(
-                'P2PConnectionPool: Sleeping %ss, connected to %s peers', 10, len(self.established_connections)
-            )
+            #Logger.p2p.debug(
+            #    'P2PConnectionPool: Sleeping %ss, connected to %s peers', 10, len(self.established_connections)
+            #)
             for connection in self._connections:
                 if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
