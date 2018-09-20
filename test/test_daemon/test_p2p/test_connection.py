@@ -33,12 +33,19 @@ class TestP2PConnection(TestCase):
         callback_blocks = Mock()
         self.sut.add_on_blocks_callback(callback_blocks)
         self.sut.add_on_connect_callback(callback)
+
+        self.sut.best_header = {'block_height': 1}
         reader, writer = Mock(), Mock()
-        self.peer_factory().perform_handshake.return_value = async_coro({'subversion': b'the peer version answer'})
+        self.peer_factory().perform_handshake.return_value = async_coro(
+            {
+                'subversion': b'the peer version answer',
+                'last_block_index': 1
+            }
+        )
         self.connector.return_value = async_coro((reader, writer))
         self.peer_factory().next_message.return_value = async_coro(None)
         self.loop.run_until_complete(self.sut.connect())
-        self.assertEqual(self.sut._version, {'subversion': b'the peer version answer'})
+        self.assertEqual(self.sut._version, {'subversion': b'the peer version answer', 'last_block_index': 1})
         self.assertEqual(len(self.loopmock.method_calls), 1)
         Mock.assert_not_called(callback_blocks)
         self.assertTrue(self.sut.connected)

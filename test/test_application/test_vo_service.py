@@ -131,7 +131,7 @@ class TestVOService(unittest.TestCase):
               "tx": [
                 "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
               ],
-              "confirmations": 513979
+              "confirmations": 513980
         }
         self.assertEqual(block, block_json)
 

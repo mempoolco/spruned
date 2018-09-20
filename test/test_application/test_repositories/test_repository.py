@@ -10,8 +10,9 @@ class TestRepository(TestCase):
     def setUp(self):
         self.headers = Mock()
         self.blocks = Mock()
+        self.mempool = Mock()
         self.cache = Mock(cache_name=b'cache_prefix')
-        self.sut = Repository(self.headers, self.blocks, keep_blocks=5)
+        self.sut = Repository(self.headers, self.blocks, self.mempool, keep_blocks=5)
         self.sut.set_cache(self.cache)
         self.sut.ldb = Mock()
         self.loop = asyncio.get_event_loop()
