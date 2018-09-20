@@ -75,6 +75,10 @@ class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
     def add_error(self, *a):
         pass
 
+    @abc.abstractmethod
+    def add_success(self):
+        pass
+
 
 class ConnectionPoolAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
     @property

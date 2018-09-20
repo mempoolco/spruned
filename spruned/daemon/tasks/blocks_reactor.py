@@ -128,15 +128,15 @@ class BlocksReactor:
         self._available = True
         self.loop.create_task(self.check())
 
-    async def start(self):
+    async def start(self, *a, **kw):
         self.interface.add_on_connect_callback(self.on_connected)
         self.loop.create_task(self.interface.start())
 
-    async def bootstrap_blocks(self):
+    async def bootstrap_blocks(self, *a, **kw):
         while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
             Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
-            await asyncio.sleep(5)
-        Logger.p2p.info('Bootstrap: Starting Bootstrap Procedure on %s blocks', self._prune)
+            await asyncio.sleep(30)
+        Logger.p2p.info('Bootstrap: Downloading %s blocks', self._prune)
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()

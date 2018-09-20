@@ -36,6 +36,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._sleep_on_no_internet_connectivity = sleep_no_internet
         self._keepalive = True
         self._ipv6 = ipv6
+        self.starting_height = None
 
     @property
     def peers(self):
@@ -74,15 +75,16 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         servers = []
         while 1:
             if self.peers:
+                if i > 100:
+                    raise exceptions.NoServersException
                 server = self._pick_peer()
                 if server in servers:
                     continue
                 servers.append(server)
                 if len(servers) == howmany:
                     return servers
-                if i < 100:
-                    continue
-            raise exceptions.NoServersException
+            else:
+                raise exceptions.NoServersException
 
     def _pick_connection(self, fail_silent=False):
         i = 0
@@ -91,6 +93,9 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 connection = random.choice(self.established_connections)
                 if connection.connected and connection.score > 0:
                     return connection
+                if ':' in connection.hostname and not self._ipv6:
+                    i += 1
+                    continue
                 i += 1
                 if i < 100:
                     continue
@@ -98,7 +103,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 raise exceptions.NoPeersException
             return
 
-    def _pick_multiple_connections(self, howmany: int) -> List[ConnectionAbstract]:
+    def _pick_multiple_connections(self, howmany: int, accept=2) -> List[ConnectionAbstract]:
         assert howmany >= 1
         i = 0
         connections = []
@@ -108,6 +113,8 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 if connection in connections:
                     i += 1
                     if i > 100:
+                        if len(connections) >= accept:
+                            return connection
                         raise exceptions.NoPeersException
                     continue
                 connections.append(connection)
@@ -117,6 +124,12 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
             if i < 100:
                 continue
             raise exceptions.NoPeersException
+
+    def _pick_privileged_connections(self, howmany, accept=1) -> List[ConnectionAbstract]:
+        connection = sorted([x for x in self.established_connections], key=lambda x: getattr(x, 'score'))
+        if len(connection) >= accept:
+            return connection[:howmany]
+        raise exceptions.NoPeersException
 
     def is_online(self):
         return self._is_online

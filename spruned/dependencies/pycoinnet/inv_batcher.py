@@ -25,6 +25,7 @@
 
 import asyncio
 
+from spruned.application.tools import blockheader_to_blockhash
 from spruned.dependencies.pycoinnet.pycoin.InvItem import \
     InvItem, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from spruned.dependencies.pycoinnet.MappingQueue import MappingQueue
@@ -113,20 +114,22 @@ class InvBatcher:
         return f
 
     def handle_block_event(self, peer, name, data):
-        block = data["block" if name == "block" else "header"]
-        block_hash = block.hash()
+        block_fp = data["block" if name == "block" else "header"]
+        block_bytes = block_fp.read()
+        block_hash = blockheader_to_blockhash(block_bytes[:80])
+
         if name == "block":
-            inv_item = InvItem(ITEM_TYPE_BLOCK, block_hash)
+            inv_item = InvItem(ITEM_TYPE_BLOCK, block_hash[::-1])
         elif name == "header":
-            inv_item = InvItem(ITEM_TYPE_MERKLEBLOCK, block_hash)
+            inv_item = InvItem(ITEM_TYPE_MERKLEBLOCK, block_hash[::-1])
         else:
             raise ValueError(peer, name, data)
         if str(inv_item) in self._inv_item_hash_to_future:
             f = self._inv_item_hash_to_future[str(inv_item)]
             if not f.done():
-                f.set_result(block)
+                f.set_result(block_bytes)
         else:
-            logger.warning("missing future for block %s", block.id())
+            logger.warning("missing future for block %s", block_hash)
 
     def stop(self):
         self._peer_batch_queue.stop()

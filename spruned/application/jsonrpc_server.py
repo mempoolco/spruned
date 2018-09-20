@@ -2,7 +2,10 @@ import asyncio
 import base64
 import binascii
 import gc
+
+import re
 from aiohttp import web
+import json
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config, status
 from jsonrpcserver.exceptions import JsonRpcServerError
@@ -67,6 +70,11 @@ class JSONRPCServer:
     def _authenticate(self, request):
         return bool(request.headers.get('Authorization') == self._auth)
 
+    @staticmethod
+    def _json_dumps_with_fixed_float_precision(value, precision = 8):
+        res = json.dumps(value)
+        return re.sub('\d+e-07?\d+', lambda x: '%.*f' % (precision, float(x.group())), res)
+
     async def _handle(self, jsonrequest):
         if not self._authenticate(jsonrequest):
             return web.json_response({}, status=401)
@@ -82,7 +90,7 @@ class JSONRPCServer:
         if result['error'] and result['error']['code'] < -32:
             result['error']['code'] = -1
 
-        return web.json_response(result, status=response.http_status)
+        return web.json_response(result, status=response.http_status, dumps=self._json_dumps_with_fixed_float_precision)
 
     def run(self, main_loop):
         self.main_loop = main_loop
@@ -234,7 +242,7 @@ class JSONRPCServer:
         response = await self.vo_service.estimatefee(blocks)
         if response is None:
             return "-1"
-        return response
+        return response["average_satoshi_per_kb"]
 
     async def estimatesmartfee(self, blocks: int, estimate_mode=None):
         try:
@@ -257,8 +265,8 @@ class JSONRPCServer:
             )
         return {
             "blocks": blocks,
-            "feerate": response,
-            "_feerate": "{:.8f}".format(response)
+            "feerate": response["average_satoshi_per_kb"],
+            "_origin": response
         }
 
     async def getblockchaininfo(self):

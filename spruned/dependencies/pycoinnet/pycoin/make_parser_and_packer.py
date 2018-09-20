@@ -30,6 +30,7 @@ from pycoin.serialize import b2h_rev, bitcoin_streamer
 from pycoin.message.PeerAddress import PeerAddress
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem
 from pycoin.encoding import double_sha256
+import binascii
 
 
 # definitions of message structures and types
@@ -43,6 +44,7 @@ from pycoin.encoding import double_sha256
 # B: Block object
 # T: Tx object
 # O: optional boolean
+
 
 
 STANDARD_P2P_MESSAGES = {
@@ -59,8 +61,8 @@ STANDARD_P2P_MESSAGES = {
     'getheaders': "version:L hashes:[#] hash_stop:#",
     'tx': "tx:T",
     'segwit_tx': "segwit_tx:T",
-    'block': "block:B",
-    'segwit_block': "segwit_block:B",
+    'block': "block:H",
+    'segwit_block': "segwit_block:H",
     'headers': "headers:[zI]",
     'getaddr': "",
     'mempool': "",
@@ -203,11 +205,18 @@ def standard_parsing_functions(Block, Tx):
         assert isinstance(tx, Tx)
         tx.stream(f)
 
+    def stream_blockbytes(*a):
+        raise NotImplementedError
+
+    def read_blockbytes(data):
+        return data
+
     more_parsing = [
         ("A", (PeerAddress.parse, lambda f, peer_addr: peer_addr.stream(f))),
         ("v", (InvItem.parse, lambda f, inv_item: inv_item.stream(f))),
         ("T", (Tx.parse, stream_tx)),
         ("B", (lambda f: Block.parse(f), stream_block)),
+        ("H", (read_blockbytes, stream_blockbytes)),
         ("z", (Block.parse_as_header, stream_blockheader)),
         ("1", (lambda f: struct.unpack("B", f.read(1))[0], lambda f, b: f.write(struct.pack("B", b)))),
         ("O", (lambda f: True if f.read(1) else False, lambda f, b: f.write(b'\1' if b else b''))),

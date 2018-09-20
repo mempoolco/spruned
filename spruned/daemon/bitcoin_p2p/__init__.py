@@ -1,12 +1,51 @@
-from typing import Dict
-
+import json
+import os
+import random
+from json import JSONDecodeError
+from typing import Dict, Tuple
 from spruned.daemon.bitcoin_p2p import utils
-from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
-from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
 
 
 def build(network: Dict):
     assert isinstance(network, dict), network
-    pool = P2PConnectionPool(connections=8, batcher_timeout=30, network=network['pycoin'])
+    from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
+    from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
+    pool = P2PConnectionPool(connections=8, batcher_timeout=15, network=network['pycoin'], ipv6=False)
     interface = P2PInterface(pool, network=network['pycoin'])
     return pool, interface
+
+
+def load_p2p_peers():
+    from spruned.application.context import ctx
+    _local = ctx.datadir + '/p2p_peers.json'
+    if os.path.exists(_local) and os.path.isfile(_local):
+        with open(_local, 'r') as fr:
+            try:
+                return json.load(fr)['p2p_peers']
+            except JSONDecodeError:
+                os.remove(_local)
+    return []
+
+
+def save_p2p_peers(peers, max_peers=5120, ipv6=False, shuffle=True):  # pragma: no cover
+    from spruned.application.context import ctx
+    from shutil import copyfile
+    peers = peers[:64]  # fixme
+    filename = '/p2p_peers.json'
+    _local = ctx.datadir + filename
+    _templocal = ctx.datadir + filename.replace('/', '/~')
+    current_peers = load_p2p_peers()
+    _current_ips = [x[0] for x in current_peers]
+    changed = False
+    for peer in peers:
+        if peer[0] not in _current_ips:
+            changed = True
+            current_peers.append(peer)
+    shuffle and random.shuffle(current_peers)
+    current_peers = current_peers[:max_peers] if ipv6 else [p for p in current_peers if ':' not in p[0]][:max_peers]
+    if changed:
+        with open(_templocal, 'w') as fw:
+            json.dump({'p2p_peers': current_peers}, fw, indent=2)
+        copyfile(_templocal, _local)
+        os.remove(_templocal)
+    return current_peers

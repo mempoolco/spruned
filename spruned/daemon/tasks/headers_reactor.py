@@ -38,10 +38,14 @@ class HeadersReactor:
         self.synced = False
         self.sleep_time_on_inconsistency = sleep_time_on_inconsistency
         self.orphans_headers = []
-        self.on_best_height_hit_callbacks = []
+        self.on_best_height_hit_volatile_callbacks = []
+        self.on_best_height_hit_persistent_callbacks = []
 
-    def add_on_best_height_hit_callbacks(self, callback):
-        self.on_best_height_hit_callbacks.append(callback)
+    def add_on_best_height_hit_volatile_callbacks(self, callback):
+        self.on_best_height_hit_volatile_callbacks.append(callback)
+
+    def add_on_best_height_hit_persistent_callbacks(self, callback):
+        self.on_best_height_hit_persistent_callbacks.append(callback)
 
     def set_last_processed_header(self, last):
         if last != self._last_processed_header:
@@ -176,12 +180,16 @@ class HeadersReactor:
                 return await self.on_new_header(peer, network_best_header, _r + 1)
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
         finally:
-            if self.synced and self.on_best_height_hit_callbacks:
-                while 1:
-                    callback = self.on_best_height_hit_callbacks and self.on_best_height_hit_callbacks.pop(0) or None
-                    if not callback:
-                        break
-                    self.loop.create_task(callback)
+            if self.synced:
+                if self.on_best_height_hit_volatile_callbacks:
+                    while 1:
+                        if not self.on_best_height_hit_volatile_callbacks:
+                            break
+                        callback = self.on_best_height_hit_volatile_callbacks.pop(0) or None
+                        self.loop.create_task(callback(self._last_processed_header))
+                for callback in self.on_best_height_hit_persistent_callbacks:
+                    self.loop.create_task(callback(self._last_processed_header))
+
             not _r and self.lock.release()
 
     @database.atomic

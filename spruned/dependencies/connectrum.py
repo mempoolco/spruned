@@ -201,7 +201,8 @@ class StratumClient:
 
     async def connect(self, server_info, proto_code=None, *,
                       use_tor=False, disable_cert_verify=False,
-                      proxy=None, short_term=False, disconnect_callback=None):
+                      proxy=None, short_term=False, disconnect_callback=None,
+                      ignore_version=True):
         """
         Start connection process.
         Destination must be specified in a ServerInfo() record (first arg).
@@ -263,9 +264,10 @@ class StratumClient:
         try:
             payload = '%s %s' % (self.server_info['nickname'], self.server_info['local_version'])
             self.server_version = await self.RPC('server.version', payload, self.server_info['local_version'])
-            res = await self.RPC('blockchain.scripthash.listunspent', '0' * 64)
-            if isinstance(res, Exception):
-                raise res
+            if not ignore_version:
+                res = await self.RPC('blockchain.scripthash.listunspent', '0' * 64)
+                if isinstance(res, Exception):
+                    raise res
         except Exception:
             logger.debug('Unsupported protocol version: %s', self.server_info['local_version'])
             try:
@@ -355,7 +357,7 @@ class StratumClient:
         if 'error' in msg:
             err = msg['error']
 
-            logger.info("Error response: '%s'" % err)
+            logger.debug("Error response: '%s'" % err)
             rv.set_exception(ElectrumErrorResponse(err, req, self))
 
         else:

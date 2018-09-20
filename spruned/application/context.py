@@ -14,7 +14,7 @@ class Context(dict):
                 'configfile': {},
                 'args': {},
                 'default': {
-                    'daemonize': False,
+                    'daemon': False,
                     'datadir': str(Path.home()) + '/.spruned',
                     'rpcbind': '127.0.0.1',
                     'rpcport': None,
@@ -26,11 +26,12 @@ class Context(dict):
                     'keep_blocks': 200,
                     'proxy': None,
                     'tor': False,
-                    'no_dns_seed': False,
-                    'max_p2p_connections': None,
+                    'dns_seed': True,
+                    'p2p_peer_discovery': True,
+                    'max_p2p_connections': 8,
                     'add_p2p_peer': [],
-                    'no_electrum_peer_discovery': False,
-                    'max_electrum_connections': None,
+                    'electrum_peer_discovery': True,
+                    'max_electrum_connections': 4,
                     'add_electrum_server': [],
                 }
             }
@@ -122,7 +123,7 @@ class Context(dict):
 
     def load_args(self, args: Namespace):
         self['args'] = {
-            'daemonize': args.daemonize,
+            'daemon': args.daemon,
             'datadir': args.datadir,
             'rpcbind': args.rpcbind,
             'rpcpassword': args.rpcpassword,
@@ -134,10 +135,11 @@ class Context(dict):
             'keep_blocks': int(args.keep_blocks),
             'proxy': args.proxy,
             'tor': args.tor,
-            'no_dns_seed': args.no_dns_seed,
+            'dns_seed': args.dns_seed,
+            'p2p_peer_discovery': args.p2p_peer_discovery,
             'max_p2p_connections': args.max_p2p_connections,
             'add_p2p_peer': args.add_p2p_peer,
-            'no_electrum_peer_discovery': args.no_electrum_peer_discovery,
+            'electrum_peer_discovery': args.electrum_peer_discovery,
             'max_electrum_connections': args.max_electrum_connections,
             'add_electrum_server': args.electrum_server
 

@@ -130,7 +130,8 @@ class TestVOService(unittest.TestCase):
               "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
               "tx": [
                 "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098"
-              ]
+              ],
+              "confirmations": 513979
         }
         self.assertEqual(block, block_json)
 
@@ -350,9 +351,9 @@ class TestVOService(unittest.TestCase):
         self.assertEqual(res, 6)
 
     def test_estimatefee(self):
-        self.electrod.estimatefee.side_effect = [ElectrodMissingResponseException(), async_coro('fee estimation')]
+        self.electrod.estimatefee.side_effect = [ElectrodMissingResponseException(), async_coro(3)]
         res = self.loop.run_until_complete(self.sut.estimatefee(6))
-        self.assertEqual(res, 'fee estimation')
+        self.assertEqual(res, 3)
 
     def test_getbestblockheader(self):
         self.repository.headers.get_best_header.return_value = {
