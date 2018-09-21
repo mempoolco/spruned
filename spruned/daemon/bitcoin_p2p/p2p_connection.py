@@ -1,8 +1,11 @@
 import asyncio
 import random
 
+import aiosocks
 import async_timeout
 import time
+
+from aiosocks import Socks5Addr
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
@@ -20,6 +23,12 @@ from spruned.dependencies.pycoinnet.pycoin.bloom import BloomFilter, filter_size
 from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_NONE, NODE_WITNESS
 
 
+def connector_f(host=None, port=None, proxy=None):
+    if proxy:
+        return aiosocks.open_connection(proxy, proxy_auth=None, dst=(host, port))
+    return asyncio.open_connection(host=host, port=port)
+
+
 class P2PConnection(BaseConnection):
     def ping(self, timeout=None):
         self.peer.send_msg('ping', int(time.time()))
@@ -29,7 +38,7 @@ class P2PConnection(BaseConnection):
             proxy=None, start_score=2,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
-            call_timeout=5, connector=asyncio.open_connection,
+            call_timeout=5, connector=connector_f,
             bloom_filter=None, best_header=None):
 
         super().__init__(
@@ -52,6 +61,11 @@ class P2PConnection(BaseConnection):
         self.connector = connector
         self.best_header = best_header
         self.starting_height = None
+
+    @property
+    def proxy(self):
+        proxy = self._proxy and self._proxy.split(':')
+        return proxy and Socks5Addr(host=proxy[0], port=proxy[1])
 
     @property
     def subversion(self):
@@ -85,7 +99,7 @@ class P2PConnection(BaseConnection):
     async def connect(self):
         try:
             async with async_timeout.timeout(self._timeout):
-                reader, writer = await self.connector(host=self.hostname, port=self.port)
+                reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
                 peer = self._peer_factory(
                     reader,
                     writer,
@@ -238,6 +252,10 @@ class P2PConnectionPool(BaseConnectionPool):
         self._create_bloom_filter()
         self.best_header = None
 
+    @property
+    def proxy(self):
+        return self._proxy
+
     async def set_best_header(self, value):
         self.best_header = value
 
@@ -309,7 +327,7 @@ class P2PConnectionPool(BaseConnectionPool):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
         connection = P2PConnection(
             host, port, loop=self.loop, network=self._network,
-            bloom_filter=self._pool_filter, best_header=self.best_header
+            bloom_filter=self._pool_filter, best_header=self.best_header, proxy=self.proxy
         )
         if not await connection.connect():
             Logger.p2p.debug(

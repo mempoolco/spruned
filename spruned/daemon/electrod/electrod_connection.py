@@ -44,8 +44,10 @@ class ElectrodConnection(BaseConnection):
 
     @property
     def proxy(self):
+        if not self._proxy:
+            return self._proxy
         host, port = self._proxy.split(':')
-        return self._proxy and Socks5Addr(host=host, port=port) or ()
+        return Socks5Addr(host=host, port=port) or ()
 
     @property
     def subversion(self):
@@ -67,7 +69,7 @@ class ElectrodConnection(BaseConnection):
                     short_term=short_term
                 )
                 self._version = self.client.server_version
-                Logger.p2p.info(
+                Logger.electrum.info(
                     'Connected to peer %s:%s (%s)', self.hostname, self.port, self.version and self.version[0]
                 )
                 Logger.electrum.debug('Peer raw response: %s', self.version)
@@ -283,7 +285,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         await self._storage_lock.acquire()
         try:
             peers = set()
-            _peers = await peer.rpc_call('server.peers.subscribe', [])
+            _peers = await peer.rpc_call('server.peers.subscribe', []) or []
             Logger.electrum.debug('Peers downloaded: %s', peers)
             for peer in _peers:
                 if peer[2][0] == 'v1.2':

@@ -1,6 +1,7 @@
 import asyncio
 from typing import Dict
 from pycoin.serialize import h2b_rev
+from spruned.application.context import ctx
 
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK
 from spruned.dependencies.pycoinnet.networks import MAINNET
@@ -64,7 +65,10 @@ class P2PInterface:
                 raise exceptions.SprunedException
             peers = await self.peers_bootstrapper(self.network)
             i += 1
-        _ = [self.pool.add_peer(peer) for peer in peers]
+        if ctx.tor:
+            _ = [self.pool.add_peer(peer) for peer in peers if '.onion' in peer]
+        else:
+            _ = [self.pool.add_peer(peer) for peer in peers if '.onion' not in peer]
         self.loop.create_task(self.pool.connect())
 
     def set_bootstrap_status(self, value: float):

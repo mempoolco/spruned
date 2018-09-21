@@ -12,7 +12,7 @@ def builder(ctx: Context):  # pragma: no cover
     from spruned.daemon.bitcoin_p2p import build as p2p_builder
 
     electrod_connectionpool, electrod_interface = electrod_builder(ctx)
-    p2p_connectionpool, p2p_interface = p2p_builder(ctx.get_network())
+    p2p_connectionpool, p2p_interface = p2p_builder(ctx)
     repository = Repository.instance()
     cache = CacheAgent(repository, int(ctx.cache_size))
     repository.set_cache(cache)

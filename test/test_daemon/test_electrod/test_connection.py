@@ -25,6 +25,7 @@ class TestElectrodConnection(unittest.TestCase):
             is_online_checker=self.checker, serverinfo=self.serverinfo, loop=self.electrod_loop,
             delayer=self.delayer
         )
+        print(self.sut.proxy)
         self.assertEqual(self.sut.start_score, self.sut._start_score)
         self.loop = asyncio.get_event_loop()
 

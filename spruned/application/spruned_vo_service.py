@@ -232,5 +232,4 @@ class SprunedVOService(RPCAPIService):
                     "startingheight": peer.starting_height and int(peer.starting_height)
                 }
             )
-            print(response)
         return response

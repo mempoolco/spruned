@@ -9,10 +9,10 @@ def load_electrum_servers(ctx):  # pragma: no cover
     _current_path = os.path.dirname(os.path.abspath(__file__))
     if os.path.exists(_local) and os.path.isfile(_local):
         with open(_local, 'r') as f:
-            local_servers = json.load(f)
+            local_servers = json.load(f)['electrum_servers']
     with open(_current_path + '/electrum_servers.json', 'r') as f:
         hardcoded_servers = json.load(f)
-        electrum_servers = hardcoded_servers[network['electrum_servers']]
+        electrum_servers = hardcoded_servers[network['alias']]
         _s = [s[0] for s in electrum_servers]
     harcoded_servers_set = set(_s)
     local_servers = [local_server for local_server in local_servers if local_server[0] not in harcoded_servers_set]
