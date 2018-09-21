@@ -106,16 +106,16 @@ class Context(dict):
         return self._get_param('rpcpassword')
 
     @property
-    def daemonize(self):
-        return self._get_param('daemonize')
+    def daemon(self):
+        return self._get_param('daemon')
 
     @property
     def proxy(self):
-        return self._get_param('daemonize')
+        return self._get_param('proxy')
 
     @property
     def tor(self):
-        return self._get_param('daemonize')
+        return self._get_param('tor')
 
     @property
     def cache_size(self):
