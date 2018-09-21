@@ -26,11 +26,11 @@ class Context(dict):
                     'keep_blocks': 200,
                     'proxy': None,
                     'tor': False,
-                    'dns_seed': True,
-                    'p2p_peer_discovery': True,
+                    'no_dns_seed': False,
+                    'disable_p2p_peer_discovery': True,
                     'max_p2p_connections': 8,
                     'add_p2p_peer': [],
-                    'electrum_peer_discovery': True,
+                    'disable_electrum_peer_discovery': True,
                     'max_electrum_connections': 4,
                     'add_electrum_server': [],
                 }
@@ -135,11 +135,11 @@ class Context(dict):
             'keep_blocks': int(args.keep_blocks),
             'proxy': args.proxy,
             'tor': args.tor,
-            'dns_seed': args.dns_seed,
-            'p2p_peer_discovery': args.p2p_peer_discovery,
+            'no_dns_seed': args.no_dns_seed,
+            'disable_p2p_peer_discovery': args.disable_p2p_peer_discovery,
             'max_p2p_connections': args.max_p2p_connections,
             'add_p2p_peer': args.add_p2p_peer,
-            'electrum_peer_discovery': args.electrum_peer_discovery,
+            'disable_electrum_peer_discovery': args.disable_electrum_peer_discovery,
             'max_electrum_connections': args.max_electrum_connections,
             'add_electrum_server': args.electrum_server
 
@@ -152,7 +152,9 @@ class Context(dict):
                self['default'].get(key, None)
 
     def apply_context(self):
-        pass
+        if self.tor:
+            if not self.proxy:
+                self['default'].update({'proxy': 'localhost:9050'})
 
     def get_network(self) -> Dict:
         net, work = self._get_param('network').split('.')

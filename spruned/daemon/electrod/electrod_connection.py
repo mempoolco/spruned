@@ -4,6 +4,7 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
+from aiosocks import Socks5Addr
 
 from spruned.dependencies.connectrum import ElectrumErrorResponse
 from spruned.dependencies.connectrum import StratumClient
@@ -21,7 +22,7 @@ from spruned.daemon.electrod import save_electrum_servers
 class ElectrodConnection(BaseConnection):
     def __init__(
             self, hostname: str, protocol: str, keepalive=180,
-            client=StratumClient, serverinfo=ServerInfo, nickname=None, use_tor=False, loop=None,
+            client=StratumClient, serverinfo=ServerInfo, nickname=None, proxy=False, loop=None,
             start_score=10, timeout=10, expire_errors_after=180,
             is_online_checker: callable=None, delayer=async_delayed_task, network=ctx.get_network()
     ):
@@ -35,11 +36,16 @@ class ElectrodConnection(BaseConnection):
         self.nickname = nickname or binascii.hexlify(os.urandom(8)).decode()
         self.network = network
         super().__init__(
-            hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
+            hostname=hostname, proxy=proxy, loop=loop, start_score=start_score,
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
             expire_errors_after=expire_errors_after
         )
         self.starting_height = None
+
+    @property
+    def proxy(self):
+        host, port = self._proxy.split(':')
+        return self._proxy and Socks5Addr(host=host, port=port) or ()
 
     @property
     def subversion(self):
@@ -56,7 +62,7 @@ class ElectrodConnection(BaseConnection):
                     self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.2"),
                     disconnect_callback=not disable_callbacks and self.on_connectrum_disconnect,
                     disable_cert_verify=True,
-                    use_tor=self.use_tor,
+                    proxy=self.proxy,
                     ignore_version=ignore_version,
                     short_term=short_term
                 )
@@ -148,16 +154,17 @@ class ElectrodConnectionPool(BaseConnectionPool):
             network_checker=check_internet_connection,
             delayer=async_delayed_task,
             loop=asyncio.get_event_loop(),
-            use_tor=False,
+            proxy=False,
             connections=3,
             sleep_no_internet=30,
             rpc_call_timeout=30,
             servers_storage=save_electrum_servers,
             ipv6=False,
+            tor=False
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer,
-            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet,
+            loop=loop, proxy=proxy, connections=connections, sleep_no_internet=sleep_no_internet,
             ipv6=ipv6
         )
         self._connections_keepalive_time = 120
@@ -165,6 +172,11 @@ class ElectrodConnectionPool(BaseConnectionPool):
         self.rpc_call_timeout = rpc_call_timeout
         self.servers_storage = servers_storage
         self._storage_lock = asyncio.Lock()
+        self.tor = tor
+
+    @property
+    def proxy(self):
+        return self._proxy
 
     async def connect(self):
         await self._check_internet_connectivity()
@@ -201,7 +213,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 hostname=peer[0],
                 protocol=peer[1],
                 keepalive=self._connections_keepalive_time,
-                use_tor=self._use_tor,
+                proxy=self.proxy,
                 loop=self.loop,
                 is_online_checker=self.is_online,
                 timeout=self.rpc_call_timeout

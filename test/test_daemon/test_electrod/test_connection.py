@@ -61,7 +61,7 @@ class TestElectrodConnection(unittest.TestCase):
             'server info',
             disconnect_callback=self.sut.on_connectrum_disconnect,
             disable_cert_verify=True,
-            use_tor=self.sut.use_tor,
+            proxy=self.sut.proxy,
             ignore_version=False,
             short_term=False
         )

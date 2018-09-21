@@ -26,14 +26,14 @@ class P2PConnection(BaseConnection):
 
     def __init__(
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
-            use_tor=None, start_score=2,
+            proxy=None, start_score=2,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=5, connector=asyncio.open_connection,
             bloom_filter=None, best_header=None):
 
         super().__init__(
-            hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
+            hostname=hostname, proxy=proxy, loop=loop, start_score=start_score,
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
             expire_errors_after=expire_errors_after
         )
@@ -213,7 +213,7 @@ class P2PConnectionPool(BaseConnectionPool):
             network_checker=check_internet_connection,
             delayer=async_delayed_task,
             loop=asyncio.get_event_loop(),
-            use_tor=False,
+            proxy=False,
             connections=3,
             sleep_no_internet=30,
             batcher=InvBatcher,
@@ -224,7 +224,7 @@ class P2PConnectionPool(BaseConnectionPool):
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
-            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
+            loop=loop, proxy=proxy, connections=connections, sleep_no_internet=sleep_no_internet
         )
 
         self._pool_filter = None

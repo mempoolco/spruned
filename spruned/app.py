@@ -43,7 +43,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--daemon',
-    action='store_true', dest='daemon', default=bool(ctx.daemon),
+    action='store_const', const=True, dest='daemon', default=bool(ctx.daemon),
     help='Run in the background as a daemon and accept commands'
 )
 parser.add_argument(
@@ -73,18 +73,18 @@ parser.add_argument(
 )
 parser.add_argument(
     '--proxy',
-    action='store', dest='proxy', default='',
+    action='store', dest='proxy', default=None,
     help='Proxy server (hostname:port)'
 )
 parser.add_argument(
     '--tor',
-    action='store_true', dest='tor', default=False,
-    help='Use proxy on localhost:9050, if nothing else is provided with --proxy'
+    action='store_const', const=True, dest='tor', default=False,
+    help='Connect only to hidden services. \nUse proxy on localhost:9050, if nothing else is provided with --proxy\n'
 )
 parser.add_argument(
     '--no-dns-seeds',
     action='store_true', dest='no_dns_seed', default=False,
-    help='Disable DNS seeds for P2P peers discovery (requires --add-p2p-peers)'
+    help='Disable DNS seeds for P2P peers discovery'
 )
 parser.add_argument(
     '--add-p2p-peer',
@@ -97,11 +97,6 @@ parser.add_argument(
     help='How many P2P peers to connect'
 )
 parser.add_argument(
-    '--no-electrum-peer-discovery',
-    action='store_true', dest='no_electrum_peer_discovery',
-    help='Disable Electrum servers discovery, disable hardcoded servers usage (requires --add-electrum-server)'
-)
-parser.add_argument(
     '--add-electrum-server',
     action='store', dest='electrum_server', default=None,
     help='Add an Electrum server'
@@ -110,6 +105,16 @@ parser.add_argument(
     '--max-electrum-connections',
     action='store', dest='max_electrum_connections', default=None,
     help='How many Electrum servers to connect'
+)
+parser.add_argument(
+    '--disable-p2p-peer-discovery',
+    action='store_false', dest='disable_p2p_peer_discovery', default=False,
+    help='Control P2P peers discovery (getaddr)'
+)
+parser.add_argument(
+    '--disable-electrum-peer-discovery',
+    action='store_false', dest='disable_electrum_peer_discovery', default=False,
+    help='Control electrum peers discovery (peer subscribe)'
 )
 
 args = parser.parse_args()

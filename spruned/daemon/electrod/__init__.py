@@ -16,7 +16,11 @@ def load_electrum_servers(ctx):  # pragma: no cover
         _s = [s[0] for s in electrum_servers]
     harcoded_servers_set = set(_s)
     local_servers = [local_server for local_server in local_servers if local_server[0] not in harcoded_servers_set]
-    return local_servers + electrum_servers
+    servers = local_servers + electrum_servers
+    if ctx.tor:
+        return [s for s in servers if '.onion' in s[0]]
+    else:
+        return [s for s in servers if '.onion' not in s[0]]
 
 
 def save_electrum_servers(peers: set):  # pragma: no cover
@@ -39,12 +43,14 @@ def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
         EstimateFeeConsensusCollector
     network = ctx.get_network()
     peers = load_electrum_servers(ctx)
-    fees_collector = EstimateFeeConsensusCollector()
+    fees_collector = EstimateFeeConsensusCollector(proxy=ctx.proxy)
     _ = [fees_collector.add_peer(peer) for peer in [x[0] + '/' + x[1] for x in peers]]
     electrod_pool = ElectrodConnectionPool(
         connections=network['electrum_concurrency'],
         peers=peers,
-        ipv6=False
+        ipv6=False,
+        proxy=ctx.proxy,
+        tor=ctx.tor
     )
     electrod_interface = ElectrodInterface(
         electrod_pool,
