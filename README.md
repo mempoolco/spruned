@@ -8,13 +8,8 @@
 
 #### What's this?
 
-<<<<<<< HEAD
 spruned is a bitcoin client for lightweight systems. <br />
 __128mb ram & 500mb hdd__ should be fairly enough to keep it up & running.
-=======
-spruned is a bitcoin pseudonode for lightweight systems. <br />
-__<128mb ram & ~300mb storage__ should be fairly enough to keep it up & running.
->>>>>>> master
 <br />
 
 Supports both Bitcoin Mainnet and Testnet<br />
