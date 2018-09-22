@@ -16,6 +16,10 @@ def build(ctx: Context):
     for peer in peers:
         pool.add_peer(peer)
     interface = P2PInterface(pool, network=network['pycoin'])
+    if ctx.tor:
+        async def _no_dns_bootstrap(*_, **__):
+            return load_p2p_peers()
+        interface.peers_bootstrapper = _no_dns_bootstrap
     return pool, interface
 
 
