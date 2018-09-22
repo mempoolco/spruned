@@ -166,7 +166,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         if self._network_checker is None:  # pragma: no cover
             self._is_online = True
             return
-        self._is_online = self._network_checker()
+        self._is_online = await self._network_checker()
         return self._is_online
 
     async def _handle_peer_error(self, peer: ConnectionAbstract):
