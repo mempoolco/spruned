@@ -97,8 +97,9 @@ import time
 import json
 
 # Check if aiosocks is present, and load it if it is.
+
 if importutil.find_spec("aiosocks") is not None:
-    import aiosocks
+    import aiohttp_socks
     have_aiosocks = True
 else:
     have_aiosocks = False
@@ -200,7 +201,7 @@ class StratumClient:
             self.ka_task = None
 
     async def connect(self, server_info, proto_code=None, *,
-                      use_tor=False, disable_cert_verify=False,
+                      disable_cert_verify=False,
                       proxy=None, short_term=False, disconnect_callback=None,
                       ignore_version=True):
         """
@@ -216,23 +217,6 @@ class StratumClient:
         logger.debug("Connecting to: %r" % server_info)
         hostname, port, use_ssl = server_info.get_port(proto_code)
 
-        if use_tor:
-            if have_aiosocks:
-                # Connect via Tor proxy proxy, assumed to be on localhost:9050
-                # unless a tuple is given with another host/port combo.
-                try:
-                    socks_host, socks_port = use_tor
-                except TypeError:
-                    socks_host, socks_port = 'localhost', 9050
-
-                # basically no-one has .onion SSL certificates, and
-                # pointless anyway.
-                disable_cert_verify = True
-                assert not proxy, "Sorry not yet supporting proxy->tor->dest"
-                proxy = aiosocks.Socks5Addr(socks_host, int(socks_port))
-            else:
-                logger.debug("Error: want to use tor, but no aiosocks module.")
-
         if use_ssl and disable_cert_verify:
             # Create a more liberal SSL context that won't
             # object to self-signed certicates. This is
@@ -244,11 +228,10 @@ class StratumClient:
 
         if proxy:
             if have_aiosocks:
-                transport, protocol = await aiosocks.create_connection(
-                    StratumProtocol, proxy=proxy,
-                    proxy_auth=None,
-                    remote_resolve=True, ssl=use_ssl,
-                    dst=(hostname, port))
+                transport, protocol = await aiohttp_socks.create_connection(
+                    protocol_factory=StratumProtocol, socks_url=proxy,
+                    rdns=True, ssl=use_ssl,
+                    host=hostname, port=port, server_hostname=hostname)
             else:
                 logger.debug("Error: want to use proxy, but no aiosocks module.")
         else:

@@ -1,11 +1,9 @@
 import asyncio
 import random
 
-import aiosocks
+import aiohttp_socks
 import async_timeout
 import time
-
-from aiosocks import Socks5Addr
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
@@ -25,7 +23,7 @@ from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_N
 
 def connector_f(host=None, port=None, proxy=None):
     if proxy:
-        return aiosocks.open_connection(proxy, proxy_auth=None, dst=(host, port))
+        return aiohttp_socks.open_connection(socks_url=proxy, host=host, port=port)
     return asyncio.open_connection(host=host, port=port)
 
 
@@ -65,7 +63,7 @@ class P2PConnection(BaseConnection):
     @property
     def proxy(self):
         proxy = self._proxy and self._proxy.split(':')
-        return proxy and Socks5Addr(host=proxy[0], port=proxy[1])
+        return proxy and 'socks5://{}:{}'.format(proxy[0], proxy[1])
 
     @property
     def subversion(self):
@@ -318,7 +316,7 @@ class P2PConnectionPool(BaseConnectionPool):
             for connection in self._connections:
                 if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
-            await asyncio.sleep(2)
+            await asyncio.sleep(10)
 
     async def _disconnect_peer(self, peer):
         await peer.disconnect()

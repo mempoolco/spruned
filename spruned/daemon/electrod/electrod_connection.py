@@ -4,7 +4,6 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
-from aiosocks import Socks5Addr
 
 from spruned.dependencies.connectrum import ElectrumErrorResponse
 from spruned.dependencies.connectrum import StratumClient
@@ -44,10 +43,7 @@ class ElectrodConnection(BaseConnection):
 
     @property
     def proxy(self):
-        if not self._proxy:
-            return self._proxy
-        host, port = self._proxy.split(':')
-        return Socks5Addr(host=host, port=port) or ()
+        return self._proxy and 'socks5://{}'.format(self._proxy)
 
     @property
     def subversion(self):
