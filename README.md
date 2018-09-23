@@ -9,7 +9,7 @@
 #### What's this?
 
 spruned is a bitcoin pseudonode for lightweight systems. <br />
-__256mb ram & 500mb hdd__ should be fairly enough to keep it up & running.
+__<128mb ram & ~300mb storage__ should be fairly enough to keep it up & running.
 <br />
 
 Supports both Bitcoin Mainnet and Testnet<br />
