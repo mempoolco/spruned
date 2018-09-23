@@ -62,7 +62,6 @@ class JSONRPCServer:
         self.port = port
         self.vo_service = None
         self._auth = 'Basic %s' % base64.b64encode(self.username + b':' + self.password).decode()
-        self.main_loop = None
 
     def set_vo_service(self, vo_service):
         self.vo_service = vo_service
@@ -304,8 +303,7 @@ class JSONRPCServer:
     async def stop(self):
         loop = asyncio.get_event_loop()
 
-        async def stop():
-            self.main_loop.stop()
-            loop.stop()
-        loop.create_task(async_delayed_task(stop(), 0))
+        async def stop(l):
+            l.stop()
+        loop.create_task(async_delayed_task(stop(loop), 2))
         return None
