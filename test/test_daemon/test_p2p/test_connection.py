@@ -31,6 +31,7 @@ class TestP2PConnection(TestCase):
     def test_connect_ok(self):
         callback = Mock()
         callback_blocks = Mock()
+        self.sut.best_header = {'block_height': 1}
         self.sut.add_on_blocks_callback(callback_blocks)
         self.sut.add_on_connect_callback(callback)
 
