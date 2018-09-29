@@ -326,7 +326,6 @@ class P2PConnectionPool(BaseConnectionPool):
             #)
             for connection in self._connections:
                 if connection.score <= 0:
-                if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
             await asyncio.sleep(10)
 
