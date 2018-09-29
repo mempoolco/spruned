@@ -41,15 +41,18 @@ sendrawtransaction "hexstring" ( allowhighfees )
 == Util ==
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
+uptime
 
 == Network ==
 getpeerinfo
+getnetworkinfo
 
 == Partially emulated for compatibility ==
 getmempoolinfo
 getchaintxstats
 getmininginfo
 getrawmempool
+getnettotals
 
 
 """ % (spruned_version, bitcoind_version)
@@ -146,6 +149,9 @@ class JSONRPCServer:
         methods.add(self.getchaintxstats)
         methods.add(self.getmininginfo)
         methods.add(self.getrawmempool)
+        methods.add(self.getnetworkinfo)
+        methods.add(self.uptime)
+        methods.add(self.getnettotals)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         methods.add(self.stop, name="stop")
@@ -377,3 +383,70 @@ class JSONRPCServer:
             "errors": "spruned, emulating bitcoind, incomplete data"
         }
 
+    async def getnetworkinfo(self, *a, **kw):
+        proxy = False #self.vo_service.p2p.pool.proxy or ""
+        tor = False #self.vo_service.p2p.pool.context.tor
+        local_host = self.vo_service.p2p.pool.context.rpcbind
+        local_port = self.vo_service.p2p.pool.context.rpcport
+        return {
+            "version": 150100,
+            "subversion": "/spruned {}/".format(spruned_version),
+            "protocolversion": 70015,
+            "localservices": "000000000000000d",
+            "localrelay": False,
+            "timeoffset": 0,
+            "networkactive": False,
+            "connections": len(self.vo_service.p2p.pool.established_connections) +
+                           len(self.vo_service.electrod.pool.established_connections),
+            "networks": [
+                {
+                    "name": "ipv4",
+                    "limited": True,
+                    "reachable": False,
+                    "proxy": proxy,
+                    "proxy_randomize_credentials": False
+                },
+                {
+                    "name": "ipv6",
+                    "limited": False,
+                    "reachable": False,
+                    "proxy": "",
+                    "proxy_randomize_credentials": False
+                },
+                {
+                    "name": "onion",
+                    "limited": True,
+                    "reachable": False,
+                    "proxy": proxy if tor else "",
+                    "proxy_randomize_credentials": False
+                }
+            ],
+            "relayfee": 0,
+            "incrementalfee": 0,
+            "localaddresses": [
+                {
+                    "address": local_host,
+                    "port": local_port,
+                    "score": 29
+                },
+            ],
+            "warnings": "spruned, emulating bitcoind"
+        }
+
+    async def uptime(self):
+        return self.vo_service.p2p.pool.context.uptime
+
+    async def getnettotals(self):
+        return {
+            "totalbytesrecv": 0,
+            "totalbytessent": 0,
+            "timemillis": 0,
+            "uploadtarget": {
+                "timeframe": 86400,
+                "target": 0,
+                "target_reached": False,
+                "serve_historical_blocks": False,
+                "bytes_left_in_cycle": 0,
+                "time_left_in_cycle": 0
+            }
+        }
