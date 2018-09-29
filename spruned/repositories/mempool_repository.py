@@ -152,8 +152,28 @@ class MempoolRepository:
     def get_mempool_info(self):
         return self._projection and self._projection
 
-    def get_raw_mempool(self):
-        return (k for k, v in self._transactions.items())
+    def get_raw_mempool(self, verbose):
+        txitems = self._transactions.items()
+        if verbose:
+            return (
+                {
+                    "size": v['size'],
+                    "fee": 0,
+                    "modifiedfee": 0,
+                    "time": v['received_at'],
+                    "height": v['received_at_height'] or 0,
+                    "descendantcount": 0,
+                    "descendantsize": 0,
+                    "descendantfees": 0,
+                    "ancestorcount": 0,
+                    "ancestorsize": 0,
+                    "ancestorfees": 0,
+                    "depends": [
+                    ]
+                } for k, v in txitems
+            )
+        else:
+            return (k for k, v in txitems)
 
     def get_txids(self):
         return (x for x in self._transactions.keys())

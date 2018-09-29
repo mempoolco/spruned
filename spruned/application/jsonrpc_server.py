@@ -4,6 +4,8 @@ import binascii
 import gc
 
 import re
+
+import time
 from aiohttp import web
 import json
 from jsonrpcserver.aio import methods
@@ -41,9 +43,19 @@ sendrawtransaction "hexstring" ( allowhighfees )
 == Util ==
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
+uptime
 
 == Network ==
 getpeerinfo
+getnetworkinfo
+
+== Partially emulated for compatibility ==
+getmempoolinfo
+getchaintxstats
+getmininginfo
+getrawmempool
+getnettotals
+
 
 """ % (spruned_version, bitcoind_version)
 
@@ -80,18 +92,36 @@ class JSONRPCServer:
         if not self._authenticate(jsonrequest):
             return web.json_response({}, status=401)
         request = await jsonrequest.json()
+        if isinstance(request, dict):
+            response, http_status = await self._handle_request(request)
+            return web.json_response(
+                response,
+                status=http_status,
+                dumps=self._json_dumps_with_fixed_float_precision
+            )
+        elif isinstance(request, list):
+            futures = []
+            for r in request:
+                futures.append(self._handle_request(r))
+            responses = await asyncio.gather(*futures)
+            data = [x[0] for x in responses]
+            print('response: %s' % data)
+            return web.Response(
+                body=json.dumps(data),
+                status=200,
+            )
+
+    async def _handle_request(self, request):
         result = {
-            "id": request.get("id"),
+            "id": request.get("id", 0),
             "result": None,
             "error": None
         }
-
         response = await methods.dispatch(request)
         result.update(response)
         if result['error'] and result['error']['code'] < -32:
             result['error']['code'] = -1
-
-        return web.json_response(result, status=response.http_status, dumps=self._json_dumps_with_fixed_float_precision)
+        return result, response.http_status
 
     def run(self, main_loop):
         self.main_loop = main_loop
@@ -118,9 +148,14 @@ class JSONRPCServer:
         methods.add(self.gettxout)
         methods.add(self.getpeerinfo)
         methods.add(self.sendrawtransaction)
-        methods.add(self.getmempoolinfo)
-        methods.add(self.getrawmempool)
         methods.add(self.stop)
+        methods.add(self.getmempoolinfo)
+        methods.add(self.getchaintxstats)
+        methods.add(self.getmininginfo)
+        methods.add(self.getrawmempool)
+        methods.add(self.getnetworkinfo)
+        methods.add(self.uptime)
+        methods.add(self.getnettotals)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
@@ -315,26 +350,121 @@ class JSONRPCServer:
         try:
             return await self.vo_service.getmempoolinfo()
         except exceptions.MempoolDisabledException:
-            raise JsonRpcServerException(
-                code=-1,
-                message="mempool disabled"
-            )
+            return {
+                "size": 0,
+                "bytes": 0,
+                "usage": 0,
+                "maxmempool": 0,
+                "mempoolminfee": 0,
+                "errors": "spruned, emulating bitcoind, incomplete data"
+            }
+
         except:
             raise JsonRpcServerException(
                 code=-8,
                 message="server error: try again"
             )
 
-    async def getrawmempool(self):
+    async def getrawmempool(self, verbose):
         try:
-            return await self.vo_service.getrawmempool()
+            return await self.vo_service.getrawmempool(verbose)
         except exceptions.MempoolDisabledException:
-            raise JsonRpcServerException(
-                code=-1,
-                message="mempool disabled"
-            )
+            return []
         except:
             raise JsonRpcServerException(
                 code=-8,
                 message="server error: try again"
             )
+
+    async def getmininginfo(self, *a, **kw):
+        blocks = await self.vo_service.getblockcount()
+        chain = self.vo_service.p2p.pool.context.get_network()['chain']
+        return {
+            "blocks": blocks,
+            "chain": chain,
+            "currentblocktx": 0,
+            "currentblockweight": 0,
+            "difficulty": 0,
+            "networkhashps": 0,
+            "pooledtx": 0,
+            "errors": "spruned, emulating bitcoind, incomplete data"
+        }
+
+    async def getchaintxstats(self, *a, **kw):
+        return {
+            "time": int(time.time()),
+            "txcount": 0,
+            "window_block_count": 0,
+            "window_tx_count": 0,
+            "window_interval": 0,
+            "txrate": 0,
+            "errors": "spruned, emulating bitcoind, incomplete data"
+        }
+
+    async def getnetworkinfo(self, *a, **kw):
+        proxy = False #self.vo_service.p2p.pool.proxy or ""
+        tor = False #self.vo_service.p2p.pool.context.tor
+        local_host = self.vo_service.p2p.pool.context.rpcbind
+        local_port = self.vo_service.p2p.pool.context.rpcport
+        return {
+            "version": 150100,
+            "subversion": "/spruned {}/".format(spruned_version),
+            "protocolversion": 70015,
+            "localservices": "000000000000000d",
+            "localrelay": False,
+            "timeoffset": 0,
+            "networkactive": False,
+            "connections": len(self.vo_service.p2p.pool.established_connections) +
+                           len(self.vo_service.electrod.pool.established_connections),
+            "networks": [
+                {
+                    "name": "ipv4",
+                    "limited": True,
+                    "reachable": False,
+                    "proxy": proxy,
+                    "proxy_randomize_credentials": False
+                },
+                {
+                    "name": "ipv6",
+                    "limited": False,
+                    "reachable": False,
+                    "proxy": "",
+                    "proxy_randomize_credentials": False
+                },
+                {
+                    "name": "onion",
+                    "limited": True,
+                    "reachable": False,
+                    "proxy": proxy if tor else "",
+                    "proxy_randomize_credentials": False
+                }
+            ],
+            "relayfee": 0,
+            "incrementalfee": 0,
+            "localaddresses": [
+                {
+                    "address": local_host,
+                    "port": local_port,
+                    "score": 29
+                },
+            ],
+            "warnings": "spruned, emulating bitcoind"
+        }
+
+    async def uptime(self):
+        return self.vo_service.p2p.pool.context.uptime
+
+    async def getnettotals(self):
+        return {
+            "totalbytesrecv": 0,
+            "totalbytessent": 0,
+            "timemillis": 0,
+            "uploadtarget": {
+                "timeframe": 86400,
+                "target": 0,
+                "target_reached": False,
+                "serve_historical_blocks": False,
+                "bytes_left_in_cycle": 0,
+                "time_left_in_cycle": 0
+            }
+        }

@@ -2,11 +2,15 @@ from argparse import Namespace
 import threading
 from pathlib import Path
 from typing import Dict
+
+import time
+
 from spruned.application import networks
 
 
 class Context(dict):
     def __init__(self, *a, **kw):
+        self.started_at = int(time.time())
         super().__init__(*a, **kw)
         self.configfile = kw.get('configfile', 'spruned.conf')
         self.update(
@@ -101,6 +105,10 @@ class Context(dict):
     @property
     def daemonize(self):
         return self._get_param('daemonize')
+
+    @property
+    def uptime(self):
+        return int(time.time()) - self.started_at
 
     @property
     def cache_size(self):
