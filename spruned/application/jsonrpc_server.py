@@ -384,8 +384,8 @@ class JSONRPCServer:
         }
 
     async def getnetworkinfo(self, *a, **kw):
-        proxy = False #self.vo_service.p2p.pool.proxy or ""
-        tor = False #self.vo_service.p2p.pool.context.tor
+        proxy = self.vo_service.p2p.pool.proxy or ""
+        tor = self.vo_service.p2p.pool.context.tor
         local_host = self.vo_service.p2p.pool.context.rpcbind
         local_port = self.vo_service.p2p.pool.context.rpcport
         return {
