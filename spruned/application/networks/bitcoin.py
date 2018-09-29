@@ -3,7 +3,11 @@ from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
 mainnet = {
     'pycoin': MAINNET,
     'alias': 'bc_mainnet',
+    'chain': 'main',
     'electrum_concurrency': 4,
+    'admitted_versions': [
+        b'Satoshi:0.16.3'
+    ],
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',
     'checkpoints': {
@@ -30,7 +34,11 @@ mainnet = {
 testnet = {
     'pycoin': TESTNET,
     'alias': 'bc_testnet',
+    'chain': 'test',
     'electrum_concurrency': 1,
+    'admitted_versions': [
+        b'/Satoshi:0.16.3'
+    ],
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': 'f0315ffc38709d70ad5647e22048358dd3745f3ce3874223c80a7c92fab0c8ba',
     'checkpoints': {

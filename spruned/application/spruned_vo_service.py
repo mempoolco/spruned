@@ -56,6 +56,7 @@ class SprunedVOService(RPCAPIService):
         block_object = Block.parse(io.BytesIO(block['block_bytes']))
         serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
         serialized['tx'] = [tx.id() for tx in block_object.txs]
+        serialized['size'] = len(block['block_bytes'])
         return serialized
 
     async def _get_block(self, blockheader, _r=0, verbose=False):
@@ -122,14 +123,14 @@ class SprunedVOService(RPCAPIService):
             "hash": _deserialized_header['hash'],
             "height": header['block_height'],
             "version": _deserialized_header['version'],
-            "versionHex": "Not Implemented Yet",
+            "versionHex": "",
             "merkleroot": _deserialized_header['merkle_root'],
             "time": _deserialized_header['timestamp'],
             "mediantime": _deserialized_header['timestamp'],
             "nonce": _deserialized_header['nonce'],
             "bits": _deserialized_header['bits'],
-            "difficulty": "Not Implemented Yet",
-            "chainwork": "Not Implemented Yet",
+            "difficulty": "",
+            "chainwork": "",
             "previousblockhash": _deserialized_header['prev_block_hash'],
             "nextblockhash": header.get('next_block_hash')
         }
@@ -170,11 +171,12 @@ class SprunedVOService(RPCAPIService):
             "blocks": best_header["block_height"],
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],
-            "difficulty": None,
-            "chainwork": None,
+            "difficulty": "",
+            "chainwork": "",
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,
+
         }
 
     async def gettxout(self, txid: str, index: int):

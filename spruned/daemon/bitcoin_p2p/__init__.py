@@ -12,7 +12,10 @@ def build(ctx: Context):
     from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
     from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
     peers = load_p2p_peers()
-    pool = P2PConnectionPool(connections=8, batcher_timeout=15, network=network['pycoin'], ipv6=False, proxy=ctx.proxy)
+    print(ctx.proxy)
+    pool = P2PConnectionPool(
+        connections=8, batcher_timeout=15, network=network['pycoin'], ipv6=False, proxy=str(ctx.proxy), context=ctx
+    )
     for peer in peers:
         pool.add_peer(peer)
     interface = P2PInterface(pool, network=network['pycoin'])

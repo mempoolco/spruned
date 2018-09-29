@@ -4,6 +4,8 @@ import binascii
 import gc
 
 import re
+
+import time
 from aiohttp import web
 import json
 from jsonrpcserver.aio import methods
@@ -43,6 +45,13 @@ estimatesmartfee conf_target ("estimate_mode")
 == Network ==
 getpeerinfo
 
+== Partially emulated for compatibility ==
+getmempoolinfo
+getchaintxstats
+getmininginfo
+getrawmempool
+
+
 """ % (spruned_version, bitcoind_version)
 
 
@@ -78,18 +87,36 @@ class JSONRPCServer:
         if not self._authenticate(jsonrequest):
             return web.json_response({}, status=401)
         request = await jsonrequest.json()
+        if isinstance(request, dict):
+            response, http_status = await self._handle_request(request)
+            return web.json_response(
+                response,
+                status=http_status,
+                dumps=self._json_dumps_with_fixed_float_precision
+            )
+        elif isinstance(request, list):
+            futures = []
+            for r in request:
+                futures.append(self._handle_request(r))
+            responses = await asyncio.gather(*futures)
+            data = [x[0] for x in responses]
+            print('response: %s' % data)
+            return web.Response(
+                body=json.dumps(data),
+                status=200,
+            )
+
+    async def _handle_request(self, request):
         result = {
-            "id": request.get("id"),
+            "id": request.get("id", 0),
             "result": None,
             "error": None
         }
-
         response = await methods.dispatch(request)
         result.update(response)
         if result['error'] and result['error']['code'] < -32:
             result['error']['code'] = -1
-
-        return web.json_response(result, status=response.http_status, dumps=self._json_dumps_with_fixed_float_precision)
+        return result, response.http_status
 
     def run(self, main_loop):
         self.main_loop = main_loop
@@ -115,6 +142,10 @@ class JSONRPCServer:
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
         methods.add(self.getpeerinfo)
+        methods.add(self.getmempoolinfo)
+        methods.add(self.getchaintxstats)
+        methods.add(self.getmininginfo)
+        methods.add(self.getrawmempool)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         methods.add(self.stop, name="stop")
@@ -307,3 +338,42 @@ class JSONRPCServer:
             l.stop()
         loop.create_task(async_delayed_task(stop(loop), 2))
         return None
+
+    async def getmininginfo(self, *a, **kw):
+        blocks = await self.vo_service.getblockcount()
+        chain = self.vo_service.p2p.pool.context.get_network()['chain']
+        return {
+            "blocks": blocks,
+            "chain": chain,
+            "currentblocktx": 0,
+            "currentblockweight": 0,
+            "difficulty": 0,
+            "networkhashps": 0,
+            "pooledtx": 0,
+            "errors": "spruned, emulating bitcoind, incomplete data"
+        }
+
+    async def getmempoolinfo(self, *a, **kw):
+        return {
+            "size": 0,
+            "bytes": 0,
+            "usage": 0,
+            "maxmempool": 0,
+            "mempoolminfee": 0,
+            "errors": "spruned, emulating bitcoind, incomplete data"
+        }
+
+    async def getrawmempool(self, *a, **kw):
+        return []
+
+    async def getchaintxstats(self, *a, **kw):
+        return {
+            "time": int(time.time()),
+            "txcount": 0,
+            "window_block_count": 0,
+            "window_tx_count": 0,
+            "window_interval": 0,
+            "txrate": 0,
+            "errors": "spruned, emulating bitcoind, incomplete data"
+        }
+
