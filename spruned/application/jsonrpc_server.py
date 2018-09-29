@@ -363,7 +363,7 @@ class JSONRPCServer:
                 message="server error: try again"
             )
 
-    async def getrawmempool(self, verbose):
+    async def getrawmempool(self, verbose=False):
         try:
             return await self.vo_service.getrawmempool(verbose)
         except exceptions.MempoolDisabledException:
