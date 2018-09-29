@@ -30,7 +30,7 @@ class P2PConnection(BaseConnection):
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=5, connector=asyncio.open_connection,
-            bloom_filter=None, best_header=None):
+            bloom_filter=None, best_header=None, version_checker=None):
 
         super().__init__(
             hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
@@ -52,6 +52,7 @@ class P2PConnection(BaseConnection):
         self.connector = connector
         self.best_header = best_header
         self.starting_height = None
+        self.version_checker = version_checker
 
     @property
     def subversion(self):
@@ -129,6 +130,9 @@ class P2PConnection(BaseConnection):
 
     async def _verify_peer(self, peer):
         if peer.version['last_block_index'] < self.best_header['block_height']:
+            await self.disconnect()
+            raise exceptions.PeerVersionMismatchException
+        if self.version_checker and not self.version_checker(peer.version):
             await self.disconnect()
             raise exceptions.PeerBlockchainBehindException
 
@@ -220,11 +224,12 @@ class P2PConnectionPool(BaseConnectionPool):
             network=MAINNET,
             batcher_timeout=20,
             ipv6=False,
-            servers_storage=save_p2p_peers
+            servers_storage=save_p2p_peers,
+            context=None
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
-            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet
+            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet,
         )
 
         self._pool_filter = None
@@ -237,6 +242,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._required_connections = connections
         self._create_bloom_filter()
         self.best_header = None
+        self.context = context
 
     async def set_best_header(self, value):
         self.best_header = value
@@ -248,6 +254,11 @@ class P2PConnectionPool(BaseConnectionPool):
         hash_function_count = hash_function_count_required(filter_size, element_count)
         self._pool_filter = BloomFilter(filter_size, hash_function_count=hash_function_count, tweak=1)
         self._pool_filter.add_address('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+
+    def version_checker(self, peer_version):
+        for version in self.context.get_network()['admitted_versions']:
+            if version in peer_version['subversion']:
+                return True
 
     @property
     def required_connections(self):
@@ -309,7 +320,8 @@ class P2PConnectionPool(BaseConnectionPool):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
         connection = P2PConnection(
             host, port, loop=self.loop, network=self._network,
-            bloom_filter=self._pool_filter, best_header=self.best_header
+            bloom_filter=self._pool_filter, best_header=self.best_header,
+            version_checker=self.version_checker
         )
         if not await connection.connect():
             Logger.p2p.debug(
