@@ -33,8 +33,8 @@ getblockcount
 getblockhash height
 getblockheader "hash" ( verbose )
 gettxout "txid" n ( include_mempool )
-getmempoolinfo
-getrawmempool
+getmempoolinfo [ may be disabled, see help, --mempoolsize ]
+getrawmempool [ may be disabled, see help, --mempoolsize ]
 
 == Rawtransactions ==
 getrawtransaction "txid" ( verbose )
@@ -50,10 +50,8 @@ getpeerinfo
 getnetworkinfo
 
 == Partially emulated for compatibility ==
-getmempoolinfo
 getchaintxstats
 getmininginfo
-getrawmempool
 getnettotals
 
 
