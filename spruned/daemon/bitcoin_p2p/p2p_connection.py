@@ -245,6 +245,8 @@ class P2PConnectionPool(BaseConnectionPool):
         self._required_connections = connections
         self._create_bloom_filter()
         self.best_header = None
+        self._on_transaction_hash_callback = []
+        self._on_transaction_callback = []
 
     async def set_best_header(self, value):
         self.best_header = value

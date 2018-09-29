@@ -31,6 +31,8 @@ getblockcount
 getblockhash height
 getblockheader "hash" ( verbose )
 gettxout "txid" n ( include_mempool )
+getmempoolinfo
+getrawmempool
 
 == Rawtransactions ==
 getrawtransaction "txid" ( verbose )
