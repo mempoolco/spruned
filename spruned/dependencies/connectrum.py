@@ -98,7 +98,7 @@ import json
 
 # Check if aiosocks is present, and load it if it is.
 
-if importutil.find_spec("aiosocks") is not None:
+if importutil.find_spec("aiohttp_socks") is not None:
     import aiohttp_socks
     have_aiosocks = True
 else:
