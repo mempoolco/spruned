@@ -7,7 +7,7 @@ import time
 from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify
+from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.daemon.bitcoin_p2p.utils import get_block_factory
@@ -17,7 +17,7 @@ from spruned.dependencies.pybitcointools import deserialize
 
 class SprunedVOService(RPCAPIService):
     def __init__(self, electrod, p2p, cache: CacheAgent=None, repository=None,
-                 loop=asyncio.get_event_loop()):
+                 loop=asyncio.get_event_loop(), context=None):
         self.cache = cache
         self.p2p = p2p
         self.electrod = electrod
@@ -25,6 +25,7 @@ class SprunedVOService(RPCAPIService):
         self.loop = loop
         self._last_estimatefee = None
         self.block_factory = get_block_factory()
+        self.context = context
 
     def available(self):
         raise NotImplementedError
@@ -248,3 +249,6 @@ class SprunedVOService(RPCAPIService):
             raise exceptions.MempoolDisabledException
         mempool_txids = list(self.repository.mempool.get_raw_mempool(verbose))
         return mempool_txids
+
+    async def validateaddress(self, address):
+        return bool(is_address(address, self.context.get_network()['regex_legacy_addresses_prefix']))

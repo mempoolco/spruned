@@ -19,6 +19,7 @@ from spruned.application.tools import async_delayed_task
 from spruned.daemon.exceptions import GenesisTransactionRequestedException
 from spruned import __version__ as spruned_version
 from spruned import __bitcoind_version_emulation__ as bitcoind_version
+from spruned.dependencies.pybitcointools import address_to_script
 
 config.schema_validation = False
 
@@ -48,6 +49,9 @@ uptime
 == Network ==
 getpeerinfo
 getnetworkinfo
+
+== Wallet ==
+validateaddress
 
 == Partially emulated for compatibility ==
 getchaintxstats
@@ -154,6 +158,7 @@ class JSONRPCServer:
         methods.add(self.getnetworkinfo)
         methods.add(self.uptime)
         methods.add(self.getnettotals)
+        methods.add(self.validateaddress)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
@@ -465,4 +470,20 @@ class JSONRPCServer:
                 "bytes_left_in_cycle": 0,
                 "time_left_in_cycle": 0
             }
+        }
+
+    async def validateaddress(self, address):
+        isvalid = await self.vo_service.validateaddress(address)
+        if isvalid:
+            return {
+                "isvalid": isvalid,
+                "address": address,
+                "scriptPubKey": address_to_script(address),
+                "ismine": False,
+                "iswatchonly": False,
+                "isscript": bool(address[0] in '23')
+            }
+
+        return {
+            "isvalid": isvalid
         }

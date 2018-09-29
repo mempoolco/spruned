@@ -20,7 +20,8 @@ def builder(ctx: Context):  # pragma: no cover
         electrod_interface,
         p2p_interface,
         repository=repository,
-        cache=cache
+        cache=cache,
+        context=ctx
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)

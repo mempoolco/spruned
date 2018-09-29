@@ -4,6 +4,7 @@ mainnet = {
     'pycoin': MAINNET,
     'electrum_servers': 'bc_mainnet',
     'chain': 'main',
+    'regex_legacy_addresses_prefix': '13',
     'electrum_concurrency': 4,
     'admitted_versions': [
         b'Satoshi:0.16.3'
@@ -35,6 +36,7 @@ testnet = {
     'pycoin': TESTNET,
     'chain': 'test',
     'electrum_servers': 'bc_testnet',
+    'regex_legacy_addresses_prefix': 'nm',
     'electrum_concurrency': 1,
     'admitted_versions': [
         b'/Satoshi:0.16.3'
