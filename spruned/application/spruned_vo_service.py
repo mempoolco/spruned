@@ -68,10 +68,10 @@ class SprunedVOService(RPCAPIService):
                 raise exceptions.ServiceException
             else:
                 block = await self._get_block(blockheader, _r + 1)
-        if verbose:  # and not block.get('verbose'):
+        if verbose and not block.get('verbose'):
             block['verbose'] = self.__make_verbose_block(block, blockheader)
-        #if not storedblock:
-        self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
+        if not storedblock:
+            self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
     async def getrawtransaction(self, txid: str, verbose=False):
