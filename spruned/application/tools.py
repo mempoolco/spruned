@@ -151,7 +151,7 @@ class ElectrumMerkleVerify:
     @classmethod
     def verify_merkle(self, txid, merkle, header):
         tx_hash = txid
-        if not merkle.get('merkle'):
+        if merkle.get('merkle', None) is None:
             return
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, merkle['pos'])
         if not header or header.get('merkle_root') != merkle_root:
