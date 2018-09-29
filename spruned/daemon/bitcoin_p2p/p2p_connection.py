@@ -345,7 +345,7 @@ class P2PConnectionPool(BaseConnectionPool):
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
                 connections = privileged and self._pick_privileged_connections(peers if peers is not None else 1) or []
                 connections = connections or self._pick_multiple_connections(peers if peers is not None else 1)
-                _ = [self._busy_peers.add(connection.hostname) for connection in connections]
+                #_ = [self._busy_peers.add(connection.hostname) for connection in connections]
                 for connection in connections:
                     Logger.p2p.debug('Adding connection %s to batcher', connection.hostname)
                     await batcher.add_peer(connection.peer_event_handler)
@@ -366,7 +366,7 @@ class P2PConnectionPool(BaseConnectionPool):
             future and future.cancel()
         finally:
             try:
-                _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
+                #_ = [self._busy_peers.remove(connection.hostname) for connection in connections]
                 del connections
             except KeyError as e:
                 Logger.p2p.debug('Peer %s already removed from busy peers', str(e))
