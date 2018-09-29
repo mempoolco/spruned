@@ -1,2 +1,2 @@
-__version__ = '0.0.3b7'
+__version__ = '0.0.4b1'
 __bitcoind_version_emulation__ = '0.16'
