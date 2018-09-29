@@ -107,16 +107,18 @@ In sync ? Ok, see the list of available commands:
 ```console
 $ bitcoin-cli help
 
-== spruned 0.0.1a5, emulating bitcoind 0.16 ==
+spruned 0.0.4b2, emulating bitcoind 0.16
 
 == Blockchain ==
 getbestblockhash
-getblock "blockhash" ( verbosity ) 
+getblock "blockhash" ( verbosity )
 getblockchaininfo
 getblockcount
 getblockhash height
 getblockheader "hash" ( verbose )
 gettxout "txid" n ( include_mempool )
+getmempoolinfo [ may be disabled, see help, --mempoolsize ]
+getrawmempool [ may be disabled, see help, --mempoolsize ]
 
 == Rawtransactions ==
 getrawtransaction "txid" ( verbose )
@@ -125,9 +127,21 @@ sendrawtransaction "hexstring" ( allowhighfees )
 == Util ==
 estimatefee nblocks
 estimatesmartfee conf_target ("estimate_mode")
+uptime
 
 == Network ==
 getpeerinfo
+getnetworkinfo
+
+== Wallet ==
+validateaddress
+
+== Partially emulated for compatibility ==
+getchaintxstats
+getmininginfo
+getnettotals
+
+
 
 ```
 
@@ -233,25 +247,33 @@ _* bitcoin-cli is not included_
 
 #### Emulated APIs as in bitcoind 0.16:
 ```
-- estimatefee
-- estimatesmartfee
+== Blockchain ==
 - getbestblockhash
-- getblock [ mode 0 and mode 1, mode 2 unavailable ]
+- getblock "blockhash" ( verbosity )
 - getblockchaininfo
 - getblockcount
-- getblockhash
-- getblockheader [ verbose  ]
-- getrawtransaction [ verbose ]
-- gettxout
-- sendrawtransaction
+- getblockhash height
+- getblockheader "hash" ( verbose )
+- gettxout "txid" n ( include_mempool )
+- getmempoolinfo [ may be disabled, see help, --mempoolsize ]
+- getrawmempool [ may be disabled, see help, --mempoolsize ]
+- getrawtransaction "txid" ( verbose )
+- sendrawtransaction "hexstring" ( allowhighfees )
+- estimatefee nblocks
+- estimatesmartfee conf_target ("estimate_mode")
+- uptime
 - getpeerinfo
+- getnetworkinfo
+- validateaddress
+- getchaintxstats
+- getmininginfo
+- getnettotals
 ```
 
 #### RPC Roadmap:
 
 ```
-- importaddress (watch only mode)
--  
+- importaddress (watch only mode)  
 ```
 
 
