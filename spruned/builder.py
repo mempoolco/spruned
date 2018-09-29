@@ -16,7 +16,6 @@ def builder(ctx: Context):  # pragma: no cover
     repository = Repository.instance()
     cache = CacheAgent(repository, int(ctx.cache_size))
     repository.set_cache(cache)
-
     service = spruned_vo_service.SprunedVOService(
         electrod_interface,
         p2p_interface,
@@ -26,12 +25,18 @@ def builder(ctx: Context):  # pragma: no cover
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)
     headers_reactor = HeadersReactor(repository.headers, electrod_interface)
+
+    if ctx.mempool_size:
+        from spruned.application.mempool_observer import MempoolObserver
+        mempool_observer = MempoolObserver(repository, p2p_interface)
+        headers_reactor.add_on_new_header_callback(mempool_observer.on_block_header)
+        p2p_interface.mempool = repository.mempool
+        p2p_connectionpool.add_on_transaction_callback(mempool_observer.on_transaction)
+        p2p_connectionpool.add_on_transaction_hash_callback(mempool_observer.on_transaction_hash)
+
     blocks_reactor = BlocksReactor(repository, p2p_interface, prune=int(ctx.keep_blocks))
-
     headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
-
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache
 
 
 jsonrpc_server, headers_reactor, blocks_reactor, repository, cache = builder(_ctx)
-

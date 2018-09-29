@@ -75,6 +75,11 @@ class BlockchainRepository:
             saved.append(self.save_transaction(transaction))
         return saved
 
+    def is_block_saved(self, blockhash: str) -> bool:
+        key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
+        data = self.session.get(self.storage_name + b'.' + key)
+        return bool(data)
+
     def get_block(self, blockhash: str) -> (None, Dict):
         key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
         data = self.session.get(self.storage_name + b'.' + key)

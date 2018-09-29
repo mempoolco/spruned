@@ -26,8 +26,9 @@ class Context(dict):
                     'rpcpassword': 'rpcpassword',
                     'network': 'bitcoin.mainnet',
                     'debug': False,
-                    'cache_size': 100,
-                    'keep_blocks': 50
+                    'cachesize': 100,
+                    'keepblocks': 50,
+                    'mempoolsize': 0
                 }
             }
         )
@@ -49,6 +50,7 @@ class Context(dict):
             if not line:
                 continue
             k, v = line.split('=')
+            k = k.replace('-', '_')
             if k not in self['default']:
                 raise ValueError('Configuration file error: parameter not admitted: %s (%s:%s)' % (line, filename, i))
             if k in values['i']:
@@ -70,7 +72,15 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return int(self._get_param('keep_blocks'))
+        return int(self._get_param('keepblocks'))
+
+    @property
+    def mempool_size(self):
+        return int(self._get_param('mempoolsize'))
+
+    @property
+    def block_size_for_multiprocessing(self):
+        return 0
 
     @property
     def network(self):
@@ -102,7 +112,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return int(self._get_param('cache_size'))
+        return int(self._get_param('cachesize'))
 
     def load_args(self, args: Namespace):
         self['args'] = {
@@ -114,8 +124,9 @@ class Context(dict):
             'rpcuser': args.rpcuser,
             'network': args.network,
             'debug': args.debug,
-            'cache_size': int(args.cache_size),
-            'keep_blocks': int(args.keep_blocks)
+            'cachesize': int(args.cachesize),
+            'keepblocks': int(args.keepblocks),
+            'mempoolsize': int(args.mempoolsize)
         }
         self.apply_context()
 

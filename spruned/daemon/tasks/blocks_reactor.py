@@ -52,7 +52,7 @@ class BlocksReactor:
             Logger.p2p.exception('Error on BlocksReactor fallback %s', str(e))
         finally:
             self.loop.create_task(
-                self.delayer(self.check, 0 if urgent else self._fallback_check_interval)
+                self.delayer(self.check(), 0 if urgent else self._fallback_check_interval)
             )
 
     async def _check_blockchain(self, best_header):

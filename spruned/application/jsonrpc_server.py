@@ -11,7 +11,7 @@ import json
 from jsonrpcserver.aio import methods
 from jsonrpcserver import config, status
 from jsonrpcserver.exceptions import JsonRpcServerError
-from jsonrpcserver.response import ExceptionResponse
+from spruned.application import exceptions
 
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
@@ -33,6 +33,8 @@ getblockcount
 getblockhash height
 getblockheader "hash" ( verbose )
 gettxout "txid" n ( include_mempool )
+getmempoolinfo
+getrawmempool
 
 == Rawtransactions ==
 getrawtransaction "txid" ( verbose )
@@ -145,6 +147,8 @@ class JSONRPCServer:
         methods.add(self.getrawtransaction)
         methods.add(self.gettxout)
         methods.add(self.getpeerinfo)
+        methods.add(self.sendrawtransaction)
+        methods.add(self.stop)
         methods.add(self.getmempoolinfo)
         methods.add(self.getchaintxstats)
         methods.add(self.getmininginfo)
@@ -154,9 +158,6 @@ class JSONRPCServer:
         methods.add(self.getnettotals)
         methods.add(self.dev_memorysummary, name="dev-gc-stats")
         methods.add(self.dev_collect, name="dev-gc-collect")
-        methods.add(self.stop, name="stop")
-        methods.add(self.sendrawtransaction)
-
         return await web.TCPSite(runner, host=self.host, port=self.port).start()
 
     async def help(self, *args):
@@ -275,7 +276,7 @@ class JSONRPCServer:
                 code=-5,
                 message="Error parsing JSON:%s" % blocks
             )
-        response = await self.vo_service.estimatefee(blocks)
+        response = await round(self.vo_service.estimatefee(blocks), 8)
         if response is None:
             return "-1"
         return response["average_satoshi_per_kb"]
@@ -301,7 +302,7 @@ class JSONRPCServer:
             )
         return {
             "blocks": blocks,
-            "feerate": response["average_satoshi_per_kb"],
+            "feerate": round(response["average_satoshi_per_kb"], 8),
             "_origin": response
         }
 
@@ -345,6 +346,36 @@ class JSONRPCServer:
         loop.create_task(async_delayed_task(stop(loop), 2))
         return None
 
+    async def getmempoolinfo(self):
+        try:
+            return await self.vo_service.getmempoolinfo()
+        except exceptions.MempoolDisabledException:
+            return {
+                "size": 0,
+                "bytes": 0,
+                "usage": 0,
+                "maxmempool": 0,
+                "mempoolminfee": 0,
+                "errors": "spruned, emulating bitcoind, incomplete data"
+            }
+
+        except:
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )
+
+    async def getrawmempool(self, verbose):
+        try:
+            return await self.vo_service.getrawmempool(verbose)
+        except exceptions.MempoolDisabledException:
+            return []
+        except:
+            raise JsonRpcServerException(
+                code=-8,
+                message="server error: try again"
+            )
+
     async def getmininginfo(self, *a, **kw):
         blocks = await self.vo_service.getblockcount()
         chain = self.vo_service.p2p.pool.context.get_network()['chain']
@@ -358,19 +389,6 @@ class JSONRPCServer:
             "pooledtx": 0,
             "errors": "spruned, emulating bitcoind, incomplete data"
         }
-
-    async def getmempoolinfo(self, *a, **kw):
-        return {
-            "size": 0,
-            "bytes": 0,
-            "usage": 0,
-            "maxmempool": 0,
-            "mempoolminfee": 0,
-            "errors": "spruned, emulating bitcoind, incomplete data"
-        }
-
-    async def getrawmempool(self, *a, **kw):
-        return []
 
     async def getchaintxstats(self, *a, **kw):
         return {
