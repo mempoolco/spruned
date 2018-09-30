@@ -23,10 +23,8 @@ from spruned.dependencies.pybitcointools import address_to_script
 
 config.schema_validation = False
 
-API_HELP = """
-spruned %s, emulating bitcoind %s
-
-== Blockchain ==
+API_HELP = \
+"""== Blockchain ==
 getbestblockhash
 getblock "blockhash" ( verbosity )
 getblockchaininfo
@@ -34,8 +32,8 @@ getblockcount
 getblockhash height
 getblockheader "hash" ( verbose )
 gettxout "txid" n ( include_mempool )
-getmempoolinfo [ may be disabled, see help, --mempoolsize ]
-getrawmempool [ may be disabled, see help, --mempoolsize ]
+getmempoolinfo 
+getrawmempool 
 
 == Rawtransactions ==
 getrawtransaction "txid" ( verbose )
@@ -58,8 +56,7 @@ getchaintxstats
 getmininginfo
 getnettotals
 
-
-""" % (spruned_version, bitcoind_version)
+"""
 
 
 class JsonRpcServerException(JsonRpcServerError):
