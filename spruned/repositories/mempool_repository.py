@@ -155,8 +155,8 @@ class MempoolRepository:
     def get_raw_mempool(self, verbose):
         txitems = self._transactions.items()
         if verbose:
-            return (
-                {
+            return {
+                v['txid']: {
                     "size": v['size'],
                     "fee": 0,
                     "modifiedfee": 0,
@@ -171,9 +171,9 @@ class MempoolRepository:
                     "depends": [
                     ]
                 } for k, v in txitems
-            )
+            }
         else:
-            return (k for k, v in txitems)
+            return [k for k, v in txitems]
 
     def get_txids(self):
         return (x for x in self._transactions.keys())

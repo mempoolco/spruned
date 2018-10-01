@@ -336,7 +336,7 @@ class P2PConnectionPool(BaseConnectionPool):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
         connection = P2PConnection(
             host, port, loop=self.loop, network=self._network,
-            bloom_filter=self._pool_filter, best_header=self.best_header,
+            bloom_filter=not self.context.mempool_size and self._pool_filter, best_header=self.best_header,
             version_checker=self.version_checker
         )
         if not await connection.connect():
