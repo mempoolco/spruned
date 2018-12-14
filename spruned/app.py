@@ -47,6 +47,7 @@ parser.add_argument(
     help='Run in the background as a daemon and accept commands'
 )
 parser.add_argument(
+
     '--keep-blocks',
     action='store', dest='keep_blocks', default=int(ctx.keep_blocks), type=int,
     help=''
@@ -67,8 +68,8 @@ parser.add_argument(
     help='Enable debug mode'
 )
 parser.add_argument(
-    '--cache-size',
-    action='store', dest='cache_size', default=int(ctx.cache_size),
+    '--cachesize',
+    action='store', dest='cachesize', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
 parser.add_argument(

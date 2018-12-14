@@ -1,6 +1,6 @@
 import asyncio
 import time
-
+import re
 from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
 from spruned.application import exceptions
 import hashlib
@@ -171,7 +171,14 @@ class ElectrumMerkleVerify:
     @classmethod
     def verify_merkle(self, txid, merkle, header):
         tx_hash = txid
+        if merkle.get('merkle', None) is None:
+            return
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, merkle['pos'])
         if not header or header.get('merkle_root') != merkle_root:
             return
         return True
+
+
+def is_address(addr, prefix):
+    ADDR_RE = re.compile("^[%s][a-km-zA-HJ-NP-Z0-9]{26,33}$" % prefix)
+    return bool(ADDR_RE.match(addr))

@@ -97,10 +97,16 @@ class CacheAgent:
             )
             i = 0
             while self.index['total'] * 1.1 > self.limit:
-                item = index_sorted[i]
-                Logger.cache.debug('Deleting %s' % item)
-                self.delete(item)
-                i += 1
+                try:
+                    if len(index_sorted) >= i:
+                        item = index_sorted[i]
+                        Logger.cache.debug('Deleting %s' % item)
+                        self.delete(item)
+                        i += 1
+                    else:
+                        break
+                except IndexError:
+                    break
         else:
             Logger.cache.info('Cache is ok, size: %s, limit: %s', self.index['total'], self.limit)
         if self.index['total'] != self._last_dump_size:

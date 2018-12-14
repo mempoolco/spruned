@@ -40,6 +40,10 @@ class HeadersReactor:
         self.orphans_headers = []
         self.on_best_height_hit_volatile_callbacks = []
         self.on_best_height_hit_persistent_callbacks = []
+        self._on_new_best_header_callbacks = []
+
+    def add_on_new_header_callback(self, callback):
+        self._on_new_best_header_callbacks.append(callback)
 
     def add_on_best_height_hit_volatile_callbacks(self, callback):
         self.on_best_height_hit_volatile_callbacks.append(callback)
@@ -55,6 +59,8 @@ class HeadersReactor:
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
             )
+            for callback in self._on_new_best_header_callbacks:
+                self.loop.create_task(callback(self._last_processed_header))
 
     async def on_connected(self):
         if self.store_headers:
@@ -309,11 +315,13 @@ class HeadersReactor:
                 self.synced = True
                 return
             res = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
-            peer, headers = res if res else (None, None)
+            peer, headers = res if res else (None, [])
             if not headers:
                 raise exceptions.NoHeadersException
-            saving_headers = [h for h in headers if h['block_height'] > local_best_height] if local_best_height \
-                else headers
+            if local_best_height:
+                saving_headers = [h for h in headers if h['block_height'] > local_best_height]
+            else:
+                saving_headers = headers
             try:
                 saved_headers = headers and self.repo.save_headers(saving_headers)
             except exceptions.HeadersInconsistencyException:

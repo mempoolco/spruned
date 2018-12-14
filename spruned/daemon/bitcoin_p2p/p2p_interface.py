@@ -1,5 +1,7 @@
 import asyncio
 from typing import Dict
+
+import time
 from pycoin.serialize import h2b_rev
 from spruned.application.context import ctx
 
@@ -13,13 +15,15 @@ from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
 class P2PInterface:
     def __init__(self,
                  connection_pool: P2PConnectionPool, loop=asyncio.get_event_loop(),
-                 network=MAINNET, peers_bootstrapper=utils.dns_bootstrap_servers):
+                 network=MAINNET, peers_bootstrapper=utils.dns_bootstrap_servers,
+                 mempool_repository=None):
         self.pool = connection_pool
         self._on_connect_callbacks = []
         self.loop = loop
         self.network = network
         self._bootstrap_status = 0
         self.peers_bootstrapper = peers_bootstrapper
+        self.mempool = mempool_repository
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:

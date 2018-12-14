@@ -20,3 +20,7 @@ class InvalidPOWException(SprunedException):
 
 class SourcesDisagreementException(SprunedException):
     pass
+
+
+class MempoolDisabledException(SprunedException):
+    pass

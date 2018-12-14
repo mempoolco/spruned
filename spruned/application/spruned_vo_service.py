@@ -7,22 +7,25 @@ import time
 from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify
+from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
+from spruned.daemon.bitcoin_p2p.utils import get_block_factory
 from spruned.daemon.exceptions import ElectrodMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
 
 class SprunedVOService(RPCAPIService):
     def __init__(self, electrod, p2p, cache: CacheAgent=None, repository=None,
-                 loop=asyncio.get_event_loop()):
+                 loop=asyncio.get_event_loop(), context=None):
         self.cache = cache
         self.p2p = p2p
         self.electrod = electrod
         self.repository = repository
         self.loop = loop
         self._last_estimatefee = None
+        self.block_factory = get_block_factory()
+        self.context = context
 
     def available(self):
         raise NotImplementedError
@@ -42,18 +45,17 @@ class SprunedVOService(RPCAPIService):
                 res = self.__make_verbose_block(block, block_header)
                 self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
             best_header = self.repository.headers.get_best_header()
-            res['confirmations'] = best_header['block_height'] - block_header['block_height']
+            res['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
         else:
             bb = block['block_bytes']
             res = binascii.hexlify(bb).decode()
-        del block
         Logger.p2p.info(
             'Block {} ({}) provided in {:.4f}s)'.format(block_header['block_height'], blockhash, time.time() - start)
         )
         return res
 
-    def __make_verbose_block(self, block: dict, block_header) -> dict:
-        block_object = Block.parse(io.BytesIO(block['block_bytes']))
+    async def __make_verbose_block(self, block: dict, block_header) -> dict:
+        block_object = await self.block_factory.get(block['block_bytes'])
         serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
         serialized['tx'] = [tx.id() for tx in block_object.txs]
         serialized['size'] = len(block['block_bytes'])
@@ -69,7 +71,7 @@ class SprunedVOService(RPCAPIService):
             else:
                 block = await self._get_block(blockheader, _r + 1)
         if verbose and not block.get('verbose'):
-            block['verbose'] = self.__make_verbose_block(block, blockheader)
+            block['verbose'] = await self.__make_verbose_block(block, blockheader)
         if not storedblock:
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
@@ -235,3 +237,18 @@ class SprunedVOService(RPCAPIService):
                 }
             )
         return response
+
+    async def getmempoolinfo(self):
+        if not self.repository.mempool:
+            raise exceptions.MempoolDisabledException
+        return self.repository.mempool.get_mempool_info()
+
+    async def getrawmempool(self, verbose):
+        if not self.repository.mempool:
+            raise exceptions.MempoolDisabledException
+        print('verbose?: %s' % verbose)
+        mempool_txids = self.repository.mempool.get_raw_mempool(verbose)
+        return mempool_txids
+
+    async def validateaddress(self, address):
+        return bool(is_address(address, self.context.get_network()['regex_legacy_addresses_prefix']))

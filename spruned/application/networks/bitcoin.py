@@ -4,6 +4,7 @@ mainnet = {
     'pycoin': MAINNET,
     'alias': 'bc_mainnet',
     'chain': 'main',
+    'regex_legacy_addresses_prefix': '1',
     'electrum_concurrency': 4,
     'admitted_versions': [
         b'Satoshi:0.16.3'

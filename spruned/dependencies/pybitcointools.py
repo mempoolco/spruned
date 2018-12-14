@@ -274,3 +274,50 @@ def serialize(txobj):
                     o.append(num_to_var_int(0) * 2)
     o.append(encode(txobj["locktime"], 256, 4)[::-1])
     return b''.join(o)
+
+
+def address_to_script(addr):
+    if addr[0] == '3' or addr[0] == '2':
+        return mk_scripthash_script(addr)
+    else:
+        return mk_pubkey_script(addr)
+
+
+def mk_pubkey_script(addr):
+    # Keep the auxiliary functions around for altcoins' sake
+    return '76a914' + b58check_to_hex(addr) + '88ac'
+
+
+def mk_scripthash_script(addr):
+    return 'a914' + b58check_to_hex(addr) + '87'
+
+
+def b58check_to_hex(inp):
+    return safe_hexlify(b58check_to_bin(inp))
+
+
+def b58check_to_bin(inp):
+    leadingzbytes = len(re.match('^1*', inp).group(0))
+    data = b'\x00' * leadingzbytes + changebase(inp, 58, 256)
+    assert bin_dbl_sha256(data[:-4])[:4] == data[-4:]
+    return data[1:-4]
+
+
+def changebase(string, frm, to, minlen=0):
+    if frm == to:
+        return lpad(string, get_code_string(frm)[0], minlen)
+    return encode(decode(string, frm), to, minlen)
+
+
+def lpad(msg, symbol, length):
+    if len(msg) >= length:
+        return msg
+    return symbol * (length - len(msg)) + msg
+
+
+def safe_hexlify(a):
+    return binascii.hexlify(a).decode()
+
+
+def bin_dbl_sha256(s):
+    return hashlib.sha256(hashlib.sha256(s).digest()).digest()

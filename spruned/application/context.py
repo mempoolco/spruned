@@ -58,6 +58,7 @@ class Context(dict):
             if not line:
                 continue
             k, v = line.split('=')
+            k = k.replace('-', '_')
             if k not in self['default']:
                 raise ValueError('Configuration file error: parameter not admitted: %s (%s:%s)' % (line, filename, i))
             if k in values['i']:
@@ -87,7 +88,15 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return int(self._get_param('keep_blocks'))
+        return int(self._get_param('keepblocks'))
+
+    @property
+    def mempool_size(self):
+        return int(self._get_param('mempoolsize'))
+
+    @property
+    def block_size_for_multiprocessing(self):
+        return 0
 
     @property
     def network(self):
@@ -127,7 +136,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return int(self._get_param('cache_size'))
+        return int(self._get_param('cachesize'))
 
     def load_args(self, args: Namespace):
         self['args'] = {
@@ -150,7 +159,6 @@ class Context(dict):
             'disable_electrum_peer_discovery': args.disable_electrum_peer_discovery,
             'max_electrum_connections': args.max_electrum_connections,
             'add_electrum_server': args.electrum_server
-
         }
         self.apply_context()
 
