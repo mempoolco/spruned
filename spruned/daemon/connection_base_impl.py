@@ -8,14 +8,14 @@ from spruned.daemon.abstracts import ConnectionAbstract
 
 class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
     def __init__(
-            self, hostname: str, use_tor=False, loop=None,
+            self, hostname: str, proxy=False, loop=None,
             start_score=10, timeout=10, expire_errors_after=180,
             is_online_checker: callable=None, delayer=async_delayed_task
     ):
         self._is_online_checker = is_online_checker
         self._hostname = hostname
         self._hostname = hostname
-        self.use_tor = use_tor
+        self._proxy = proxy
         self._version = None
         self.connected_at = None
         self._on_headers_callbacks = []
@@ -34,6 +34,10 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._expire_errors_after = expire_errors_after
         self._is_online_checker = is_online_checker
         self.delayer = delayer
+
+    @property
+    def proxy(self):
+        return self._proxy
 
     @property
     def hostname(self):

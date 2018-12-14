@@ -5,3 +5,4 @@ plyvel==0.9.0
 daemonize==2.4.7
 aiohttp==3.0.0b0
 pycoin==0.80
+aiohttp-socks==0.1.6

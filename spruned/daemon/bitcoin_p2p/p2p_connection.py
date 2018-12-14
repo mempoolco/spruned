@@ -1,5 +1,6 @@
 import asyncio
 
+import aiohttp_socks
 import async_timeout
 import time
 
@@ -19,20 +20,26 @@ from spruned.dependencies.pycoinnet.pycoin.bloom import BloomFilter, filter_size
 from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_NONE, NODE_WITNESS
 
 
+def connector_f(host=None, port=None, proxy=None):
+    if proxy:
+        return aiohttp_socks.open_connection(socks_url=proxy, host=host, port=port)
+    return asyncio.open_connection(host=host, port=port)
+
+
 class P2PConnection(BaseConnection):
     def ping(self, timeout=None):
         self.peer.send_msg('ping', int(time.time()))
 
     def __init__(
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
-            use_tor=None, start_score=2,
+            proxy=None, start_score=2,
             is_online_checker: callable=None,
             timeout=10, delayer=async_delayed_task, expire_errors_after=180,
-            call_timeout=5, connector=asyncio.open_connection,
+            call_timeout=5, connector=connector_f,
             bloom_filter=None, best_header=None, version_checker=None):
 
         super().__init__(
-            hostname=hostname, use_tor=use_tor, loop=loop, start_score=start_score,
+            hostname=hostname, proxy=proxy, loop=loop, start_score=start_score,
             is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
             expire_errors_after=expire_errors_after
         )
@@ -53,6 +60,11 @@ class P2PConnection(BaseConnection):
         self.best_header = best_header
         self.starting_height = None
         self.version_checker = version_checker
+
+    @property
+    def proxy(self):
+        proxy = self._proxy and self._proxy.split(':')
+        return proxy and 'socks5://{}:{}'.format(proxy[0], proxy[1])
 
     @property
     def subversion(self):
@@ -89,7 +101,7 @@ class P2PConnection(BaseConnection):
     async def connect(self):
         try:
             async with async_timeout.timeout(self._timeout):
-                reader, writer = await self.connector(host=self.hostname, port=self.port)
+                reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
                 peer = self._peer_factory(
                     reader,
                     writer,
@@ -225,7 +237,7 @@ class P2PConnectionPool(BaseConnectionPool):
             network_checker=check_internet_connection,
             delayer=async_delayed_task,
             loop=asyncio.get_event_loop(),
-            use_tor=False,
+            proxy=False,
             connections=3,
             sleep_no_internet=30,
             batcher=InvBatcher,
@@ -237,7 +249,7 @@ class P2PConnectionPool(BaseConnectionPool):
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
-            loop=loop, use_tor=use_tor, connections=connections, sleep_no_internet=sleep_no_internet,
+            loop=loop, proxy=proxy, connections=connections, sleep_no_internet=sleep_no_internet
         )
 
         self._pool_filter = None
@@ -253,6 +265,10 @@ class P2PConnectionPool(BaseConnectionPool):
         self._on_transaction_hash_callback = []
         self._on_transaction_callback = []
         self.context = context
+
+    @property
+    def proxy(self):
+        return self._proxy
 
     async def set_best_header(self, value):
         self.best_header = value
@@ -327,7 +343,7 @@ class P2PConnectionPool(BaseConnectionPool):
             for connection in self._connections:
                 if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
-            await asyncio.sleep(2)
+            await asyncio.sleep(10)
 
     async def _disconnect_peer(self, peer):
         await peer.disconnect()
@@ -336,8 +352,8 @@ class P2PConnectionPool(BaseConnectionPool):
         Logger.p2p.debug('Allocating peer %s:%s', host, port)
         connection = P2PConnection(
             host, port, loop=self.loop, network=self._network,
-            bloom_filter=not self.context.mempool_size and self._pool_filter, best_header=self.best_header,
-            version_checker=self.version_checker
+            bloom_filter=self._pool_filter, best_header=self.best_header,
+            version_checker=self.version_checker, proxy=self._proxy
         )
         if not await connection.connect():
             Logger.p2p.debug(
@@ -386,7 +402,7 @@ class P2PConnectionPool(BaseConnectionPool):
             future and future.cancel()
         finally:
             try:
-                #_ = [self._busy_peers.remove(connection.hostname) for connection in connections]
+                _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
                 del connections
             except KeyError as e:
                 Logger.p2p.debug('Peer %s already removed from busy peers', str(e))

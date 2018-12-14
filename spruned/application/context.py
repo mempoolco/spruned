@@ -18,7 +18,7 @@ class Context(dict):
                 'configfile': {},
                 'args': {},
                 'default': {
-                    'daemonize': False,
+                    'daemon': False,
                     'datadir': str(Path.home()) + '/.spruned',
                     'rpcbind': '127.0.0.1',
                     'rpcport': None,
@@ -26,9 +26,17 @@ class Context(dict):
                     'rpcpassword': 'rpcpassword',
                     'network': 'bitcoin.mainnet',
                     'debug': False,
-                    'cachesize': 100,
-                    'keepblocks': 50,
-                    'mempoolsize': 0
+                    'cache_size': 50,
+                    'keep_blocks': 200,
+                    'proxy': None,
+                    'tor': False,
+                    'no_dns_seed': False,
+                    'disable_p2p_peer_discovery': True,
+                    'max_p2p_connections': 8,
+                    'add_p2p_peer': [],
+                    'disable_electrum_peer_discovery': True,
+                    'max_electrum_connections': 4,
+                    'add_electrum_server': [],
                 }
             }
         )
@@ -67,6 +75,14 @@ class Context(dict):
         return self._get_param('datadir')
 
     @property
+    def max_electrum_connections(self):
+        """
+        pass network default if is not set
+        """
+        exists = self._get_param('max_electrum_connections')
+        return int(exists if exists is not None else self.get_network()['electrum_concurrency'])
+
+    @property
     def debug(self):
         return self._get_param('debug')
 
@@ -103,8 +119,16 @@ class Context(dict):
         return self._get_param('rpcpassword')
 
     @property
-    def daemonize(self):
-        return self._get_param('daemonize')
+    def daemon(self):
+        return self._get_param('daemon')
+
+    @property
+    def proxy(self):
+        return self._get_param('proxy')
+
+    @property
+    def tor(self):
+        return self._get_param('tor')
 
     @property
     def uptime(self):
@@ -116,7 +140,7 @@ class Context(dict):
 
     def load_args(self, args: Namespace):
         self['args'] = {
-            'daemonize': args.daemonize,
+            'daemon': args.daemon,
             'datadir': args.datadir,
             'rpcbind': args.rpcbind,
             'rpcpassword': args.rpcpassword,
@@ -124,9 +148,17 @@ class Context(dict):
             'rpcuser': args.rpcuser,
             'network': args.network,
             'debug': args.debug,
-            'cachesize': int(args.cachesize),
-            'keepblocks': int(args.keepblocks),
-            'mempoolsize': int(args.mempoolsize)
+            'cache_size': int(args.cache_size),
+            'keep_blocks': int(args.keep_blocks),
+            'proxy': args.proxy,
+            'tor': args.tor,
+            'no_dns_seed': args.no_dns_seed,
+            'disable_p2p_peer_discovery': args.disable_p2p_peer_discovery,
+            'max_p2p_connections': args.max_p2p_connections,
+            'add_p2p_peer': args.add_p2p_peer,
+            'disable_electrum_peer_discovery': args.disable_electrum_peer_discovery,
+            'max_electrum_connections': args.max_electrum_connections,
+            'add_electrum_server': args.electrum_server
         }
         self.apply_context()
 
@@ -136,7 +168,9 @@ class Context(dict):
                self['default'].get(key, None)
 
     def apply_context(self):
-        pass
+        if self.tor:
+            if not self.proxy:
+                self['default'].update({'proxy': 'localhost:9050'})
 
     def get_network(self) -> Dict:
         net, work = self._get_param('network').split('.')

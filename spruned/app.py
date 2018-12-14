@@ -13,7 +13,7 @@ import asyncio
 from spruned.application.context import ctx
 
 parser = argparse.ArgumentParser(
-    description="A Bitcoin Lightweight Pseudonode",
+    description="A Bitcoin Lightweight Client",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter
 )
 parser.add_argument(
@@ -43,13 +43,14 @@ parser.add_argument(
 )
 parser.add_argument(
     '--daemon',
-    action='store_true', dest='daemonize', default=bool(ctx.daemonize),
+    action='store_const', const=True, dest='daemon', default=bool(ctx.daemon),
     help='Run in the background as a daemon and accept commands'
 )
 parser.add_argument(
-    '--keepblocks',
-    action='store', dest='keepblocks', default=int(ctx.keep_blocks),
-    help='', type=int
+
+    '--keep-blocks',
+    action='store', dest='keep_blocks', default=int(ctx.keep_blocks), type=int,
+    help=''
 )
 parser.add_argument(
     '--network',
@@ -72,9 +73,49 @@ parser.add_argument(
     help='Cache size (in megabytes)'
 )
 parser.add_argument(
-    '--mempoolsize',
-    action='store', dest='mempoolsize', default=0,
-    help='Mempool size (in megabytes) - 0 '
+    '--proxy',
+    action='store', dest='proxy', default=None,
+    help='Proxy server (hostname:port)'
+)
+parser.add_argument(
+    '--tor',
+    action='store_const', const=True, dest='tor', default=False,
+    help='Connect only to hidden services. \nUse proxy on localhost:9050, if nothing else is provided with --proxy\n'
+)
+parser.add_argument(
+    '--no-dns-seeds',
+    action='store_true', dest='no_dns_seed', default=False,
+    help='Disable DNS seeds for P2P peers discovery'
+)
+parser.add_argument(
+    '--add-p2p-peer',
+    action='store', dest='add_p2p_peer', default=None,
+    help='Add a P2P peer'
+)
+parser.add_argument(
+    '--max-p2p-connections',
+    action='store', dest='max_p2p_connections', default=None,
+    help='How many P2P peers to connect'
+)
+parser.add_argument(
+    '--add-electrum-server',
+    action='store', dest='electrum_server', default=None,
+    help='Add an Electrum server'
+)
+parser.add_argument(
+    '--max-electrum-connections',
+    action='store', dest='max_electrum_connections', default=None,
+    help='How many Electrum servers to connect'
+)
+parser.add_argument(
+    '--disable-p2p-peer-discovery',
+    action='store_false', dest='disable_p2p_peer_discovery', default=False,
+    help='Control P2P peers discovery (getaddr)'
+)
+parser.add_argument(
+    '--disable-electrum-peer-discovery',
+    action='store_false', dest='disable_electrum_peer_discovery', default=False,
+    help='Control electrum peers discovery (peer subscribe)'
 )
 
 args = parser.parse_args()
@@ -98,7 +139,7 @@ def main():   # pragma: no cover
         main_loop.create_task(main_task(main_loop))
         main_loop.run_forever()
 
-    if args.daemonize:
+    if args.daemon:
         from spruned.application.logging_factory import Logger
         pid = ctx.datadir + '/spruned.pid'
         Logger.root.debug('Running spruned daemon')

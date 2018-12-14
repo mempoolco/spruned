@@ -49,7 +49,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
 
     def test_connect_no_internet_connectivity(self):
         self.sut._sleep_on_no_internet_connectivity = 2
-        self.network_checker.return_value = False
+        self.network_checker.return_value = async_coro(True)
         self.loop.run_until_complete(
             asyncio.gather(
                 self.stop_keepalive(4.1),
@@ -59,11 +59,11 @@ class TestElectrodConnectionPool(unittest.TestCase):
         self.sut._sleep_on_no_internet_connectivity = 30
 
         self.assertEqual(0, len(self.sut.connections))
-        self.assertEqual(4, self.network_checker.call_count)
+        self.assertEqual(1, self.network_checker.call_count)
 
     def test_connect_success(self):
         self.sut.loop = self.loop
-        self.network_checker.return_value = True
+        self.network_checker.return_value = async_coro(True)
         conn1 = Mock(connected=False, score=0)
         conn1.connect = lambda: connect(conn1)
         conn2 = Mock(connected=False, score=0)
@@ -98,7 +98,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
         but it did, maybe asyncio lag\race conditions
         """
         self.sut.loop = self.loop
-        self.network_checker.return_value = True
+        self.network_checker.return_value = async_coro(True)
         self.sut._required_connections = 2
         conn1 = Mock(score=10, connected=False, start_score=10)
         conn1.connect = lambda: connect(conn1)
@@ -268,7 +268,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
     def test_on_connected_callback(self):
         peer = Mock()
         cob = Mock()
-        self.network_checker.return_value = True
+        self.network_checker.return_value = async_coro(True)
         self.sut.add_on_connected_observer(cob)
         peer.subscribe.return_value = 'subscriberrr'
         self.delayer.return_value = 'delayerrr'
@@ -293,7 +293,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
         hob = Mock()
         hob.return_value = 'observing'
         self.delayer.return_value = 'delayerr'
-        self.network_checker.return_value = True
+        self.network_checker.return_value = async_coro(True)
         self.sut.add_header_observer(hob)
         self.loop.run_until_complete(self.sut.on_peer_received_header(peer))
         Mock.assert_called_once_with(self.electrod_loop.create_task, 'delayerr')
@@ -309,10 +309,10 @@ class TestElectrodConnectionPool(unittest.TestCase):
     def test_on_peer_error_during_connection(self):
         peer = Mock(is_online=True, connected=False, _errors=[])
         peer.add_error = lambda *x: peer._errors.append(x[0]) if x else peer._errors.append(int(time.time()))
-        self.network_checker.return_value = False
+        self.network_checker.return_value = async_coro(False)
         self.loop.run_until_complete(self.sut.on_peer_error(peer, error_type='connect'))
         self.assertEqual(len(peer._errors), 0)
 
-        self.network_checker.return_value = True
+        self.network_checker.return_value = async_coro(True)
         self.loop.run_until_complete(self.sut.on_peer_error(peer, error_type='connect'))
         self.assertEqual(len(peer._errors), 1)

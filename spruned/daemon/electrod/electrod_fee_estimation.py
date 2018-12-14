@@ -58,7 +58,7 @@ class EstimateFeeConsensusProjector:
 
 
 class EstimateFeeConsensusCollector:
-    def __init__(self, connectionclass=ElectrodConnection, time_window=120, max_age=900):
+    def __init__(self, connectionclass=ElectrodConnection, proxy=None, time_window=120, max_age=900):
         self._rates = set()
         self._data = dict()
         self._time_window = time_window
@@ -67,6 +67,11 @@ class EstimateFeeConsensusCollector:
         self._peers = set()
         self._max_age = max_age
         self._collector_lock = asyncio.Lock()
+        self._proxy = proxy
+
+    @property
+    def proxy(self):
+        return self._proxy
 
     def add_peer(self, peer):
         self._peers.add(peer)
@@ -123,7 +128,9 @@ class EstimateFeeConsensusCollector:
                 connections = []
                 for peer in expired_peers:
                     hostname, protocol = peer.split('/')
-                    connection = self._connectionclass(hostname, protocol, keepalive=False, timeout=5)
+                    connection = self._connectionclass(
+                        hostname, protocol, keepalive=False, timeout=self.proxy and 10 or 5, proxy=self.proxy
+                    )
                     if self._is_active(self._data[peer]) and not self._is_updated(self._data[peer], rates):
                         futures.append(self._update(peer, connection, rates))
                         if futures:

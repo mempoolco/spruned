@@ -1,7 +1,6 @@
 import asyncio
-
+import time
 import re
-
 from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
 from spruned.application import exceptions
 import hashlib
@@ -81,23 +80,44 @@ def create_directory(ctx, storage_address):  # pragma: no cover
         os.makedirs(storage_address)
 
 
-def check_internet_connection():  # pragma: no cover
+_last_internet_connection_check = None
+
+
+async def check_internet_connection():  # pragma: no cover
+    global _last_internet_connection_check
+    if _last_internet_connection_check and int(time.time()) - _last_internet_connection_check < 30:
+        return True
+
+    from spruned.application.context import ctx
     from spruned.application.logging_factory import Logger
     from spruned.settings import CHECK_NETWORK_HOST
+    import asyncio
     import subprocess
     import os
-    Logger.electrum.debug('Checking internet connectivity')
-    i = 0
-    while i < 10:
-        import random
-        host = random.choice(CHECK_NETWORK_HOST)
-        ret_code = subprocess.call(['ping', '-c', '1', '-W', '5', host],
-                                   stdout=open(os.devnull, 'w'),
-                                   stderr=open(os.devnull, 'w'))
-        if not ret_code:
+    if not ctx.proxy:
+        Logger.root.debug('Checking internet connectivity')
+        i = 0
+        while i < 10:
+            import random
+            host = random.choice(CHECK_NETWORK_HOST)
+            ret_code = subprocess.call(['ping', '-c', '1', '-W', '5', host],
+                                       stdout=open(os.devnull, 'w'),
+                                       stderr=open(os.devnull, 'w'))
+            if not ret_code:
+                _last_internet_connection_check = int(time.time())
+                return True
+            i += 1
+        Logger.root.debug('No internet connectivity!')
+    else:
+        host, port = ctx.proxy.split(':')
+        Logger.root.debug('Checking proxy connectivity')
+        try:
+            _last_internet_connection_check = int(time.time())
+            p, t = await asyncio.open_connection(host=host, port=port)
+            t.close()
             return True
-        i += 1
-    Logger.electrum.debug('No internet connectivity!')
+        except Exception:
+                Logger.root.debug('Cannot connect to proxy %s:%s', host, port, exc_info=True)
     return False
 
 

@@ -16,7 +16,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                  network_checker=check_internet_connection,
                  delayer=async_delayed_task,
                  loop=asyncio.get_event_loop(),
-                 use_tor=False,
+                 proxy=False,
                  connections=3,
                  sleep_no_internet=30,
                  ipv6=False
@@ -28,7 +28,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._on_connect_observers = []
         self._required_connections = connections
         self._network_checker = network_checker
-        self._use_tor = use_tor
+        self._proxy = proxy
         self.loop = loop
         self.delayer = delayer
         self._connection_notified = False
@@ -166,7 +166,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         if self._network_checker is None:  # pragma: no cover
             self._is_online = True
             return
-        self._is_online = self._network_checker()
+        self._is_online = await self._network_checker()
         return self._is_online
 
     async def _handle_peer_error(self, peer: ConnectionAbstract):

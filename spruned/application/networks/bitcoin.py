@@ -2,7 +2,7 @@ from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
 
 mainnet = {
     'pycoin': MAINNET,
-    'electrum_servers': 'bc_mainnet',
+    'alias': 'bc_mainnet',
     'chain': 'main',
     'regex_legacy_addresses_prefix': '1',
     'electrum_concurrency': 4,
@@ -34,8 +34,8 @@ mainnet = {
 
 testnet = {
     'pycoin': TESTNET,
+    'alias': 'bc_testnet',
     'chain': 'test',
-    'electrum_servers': 'bc_testnet',
     'electrum_concurrency': 1,
     'admitted_versions': [
         b'/Satoshi:0.16.3'
