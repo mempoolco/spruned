@@ -66,20 +66,25 @@ spruned options:
 
 $ ~/src/spruned/venv/bin/spruned
 
-usage: spruned    [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
-                  [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
-                  [--daemon] [--keep-blocks KEEP_BLOCKS]
-                  [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
-                  [--cache-size CACHE_SIZE]
+usage: spruned [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
+               [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
+               [--daemon] [--keep-blocks KEEP_BLOCKS]
+               [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
+               [--cachesize CACHESIZE] [--proxy PROXY] [--tor]
+               [--no-dns-seeds] [--add-p2p-peer ADD_P2P_PEER]
+               [--max-p2p-connections MAX_P2P_CONNECTIONS]
+               [--add-electrum-server ELECTRUM_SERVER]
+               [--max-electrum-connections MAX_ELECTRUM_CONNECTIONS]
+               [--disable-p2p-peer-discovery]
+               [--disable-electrum-peer-discovery]
 
-A Bitcoin Lightweight Pseudonode
+A Bitcoin Lightweight Client
 
 optional arguments:
   -h, --help            show this help message and exit
   --rpcuser RPCUSER     Username for JSON-RPC connections (default: rpcuser)
   --rpcpassword RPCPASSWORD
-                        Password for JSON-RPC connections (default:
-                        rpcpassword)
+                        Password for JSON-RPC connections (default: passw0rd)
   --rpcport RPCPORT     Listen for JSON-RPC connections on <port> (default:
                         8332 or testnet: 18332) (default: 8332)
   --rpcbind RPCBIND     Bind to given address to listen for JSON-RPC
@@ -90,8 +95,28 @@ optional arguments:
   --keep-blocks KEEP_BLOCKS
   --network {bitcoin.mainnet,bitcoin.testnet}
   --debug               Enable debug mode (default: False)
-  --cache-size CACHE_SIZE
-                        Cache size (in megabytes) (default: 50)
+  --cachesize CACHESIZE
+                        Cache size (in megabytes) (default: 1)
+  --proxy PROXY         Proxy server (hostname:port) (default: None)
+  --tor                 Connect only to hidden services. Use proxy on
+                        localhost:9050, if nothing else is provided with
+                        --proxy (default: False)
+  --no-dns-seeds        Disable DNS seeds for P2P peers discovery (default:
+                        False)
+  --add-p2p-peer ADD_P2P_PEER
+                        Add a P2P peer (default: None)
+  --max-p2p-connections MAX_P2P_CONNECTIONS
+                        How many P2P peers to connect (default: None)
+  --add-electrum-server ELECTRUM_SERVER
+                        Add an Electrum server (default: None)
+  --max-electrum-connections MAX_ELECTRUM_CONNECTIONS
+                        How many Electrum servers to connect (default: None)
+  --disable-p2p-peer-discovery
+                        Control P2P peers discovery (getaddr) (default: False)
+  --disable-electrum-peer-discovery
+                        Control electrum peers discovery (peer subscribe)
+                        (default: False)
+
 ```
 
 And, once you run spruned:
@@ -140,8 +165,6 @@ validateaddress
 getchaintxstats
 getmininginfo
 getnettotals
-
-
 
 ```
 
