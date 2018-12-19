@@ -312,10 +312,8 @@ _* bitcoin-cli is not included_
 - May reduce privacy: if you have the entire blockchain on your own, you have to tell no one what you're looking for.
 - Not fast as a full node: internet download is slower than a read from disk.
 
-
 #### Future development
  
-- Tor support
 - Zeromq emulation
 - Maintenance web ui
 
