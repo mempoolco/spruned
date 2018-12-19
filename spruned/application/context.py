@@ -88,11 +88,11 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return int(self._get_param('keepblocks'))
+        return int(self._get_param('keepblocks') or 1)
 
     @property
     def mempool_size(self):
-        return int(self._get_param('mempoolsize'))
+        return int(self._get_param('mempoolsize') or 1)
 
     @property
     def block_size_for_multiprocessing(self):
@@ -136,7 +136,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return int(self._get_param('cachesize'))
+        return int(self._get_param('cachesize') or 1)
 
     def load_args(self, args: Namespace):
         self['args'] = {
