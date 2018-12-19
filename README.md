@@ -1,5 +1,5 @@
 ## sPRUNED
-#### A Bitcoin lightweight client with RPC that can fetch any block or transaction
+#### A Bitcoin-without-Blockchain client w/ RPC that can fetch any block or transaction
 
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
@@ -8,7 +8,8 @@
 
 #### What's this?
 
-spruned is a bitcoin client for lightweight systems. <br />
+spruned is a bitcoin client for lightweight systems. <br /> 
+it doesn't need to store the blockchain on the disk, just the headers.<br />
 __128mb ram & 500mb hdd__ should be fairly enough to keep it up & running.
 <br />
 
