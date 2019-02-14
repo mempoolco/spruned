@@ -68,8 +68,8 @@ parser.add_argument(
     help='Enable debug mode'
 )
 parser.add_argument(
-    '--cachesize',
-    action='store', dest='cachesize', default=int(ctx.cache_size),
+    '--cache_size',
+    action='store', dest='cache_size', default=int(ctx.cache_size),
     help='Cache size (in megabytes)'
 )
 parser.add_argument(
