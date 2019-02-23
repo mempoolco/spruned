@@ -74,7 +74,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--proxy',
-    action='store', dest='proxy', default=None,
+    action='store', dest='proxy',
     help='Proxy server (hostname:port)'
 )
 parser.add_argument(

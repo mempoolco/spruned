@@ -64,7 +64,7 @@ class P2PConnection(BaseConnection):
     @property
     def proxy(self):
         proxy = self._proxy and self._proxy.split(':')
-        return proxy and 'socks5://{}:{}'.format(proxy[0], proxy[1])
+        return len(proxy) > 1 and 'socks5://{}:{}'.format(proxy[0], proxy[1])
 
     @property
     def subversion(self):
