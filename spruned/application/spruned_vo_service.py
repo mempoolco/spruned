@@ -246,7 +246,6 @@ class SprunedVOService(RPCAPIService):
     async def getrawmempool(self, verbose):
         if not self.repository.mempool:
             raise exceptions.MempoolDisabledException
-        print('verbose?: %s' % verbose)
         mempool_txids = self.repository.mempool.get_raw_mempool(verbose)
         return mempool_txids
 
