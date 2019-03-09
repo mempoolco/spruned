@@ -1,11 +1,9 @@
 import asyncio
 from typing import Dict
-
-import time
 from pycoin.serialize import h2b_rev
 from spruned.application.context import ctx
 
-from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK
+from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_BLOCK
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.application import exceptions
 from spruned.daemon.bitcoin_p2p import utils
@@ -29,8 +27,9 @@ class P2PInterface:
         for callback in self._on_connect_callbacks:
             self.loop.create_task(callback())
 
-    async def get_block(self, blockhash: str, peers=None, timeout=None, privileged_peers=False) -> Dict:
-        inv_item = InvItem(ITEM_TYPE_SEGWIT_BLOCK, h2b_rev(blockhash))
+    async def get_block(self, blockhash: str, peers=None, timeout=None, privileged_peers=False, segwit=True) -> Dict:
+        block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
+        inv_item = InvItem(block_type, h2b_rev(blockhash))
         response = await self.pool.get(inv_item, peers=peers, timeout=timeout, privileged=privileged_peers)
         return response and {
             "block_hash": str(blockhash),

@@ -21,7 +21,8 @@ def builder(ctx: Context):  # pragma: no cover
         p2p_interface,
         repository=repository,
         cache=cache,
-        context=ctx
+        context=ctx,
+        fallback_non_segwit_blocks=True
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)

@@ -17,7 +17,7 @@ from spruned.dependencies.pybitcointools import deserialize
 
 class SprunedVOService(RPCAPIService):
     def __init__(self, electrod, p2p, cache: CacheAgent=None, repository=None,
-                 loop=asyncio.get_event_loop(), context=None):
+                 loop=asyncio.get_event_loop(), context=None, fallback_non_segwit_blocks=False):
         self.cache = cache
         self.p2p = p2p
         self.electrod = electrod
@@ -26,6 +26,7 @@ class SprunedVOService(RPCAPIService):
         self._last_estimatefee = None
         self.block_factory = get_block_factory()
         self.context = context
+        self._fallback_non_segwit_blocks = fallback_non_segwit_blocks
 
     def available(self):
         raise NotImplementedError
@@ -37,7 +38,12 @@ class SprunedVOService(RPCAPIService):
         block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
-        block = await self._get_block(block_header, verbose=mode == 1)
+        try:
+            block = await self._get_block(block_header, verbose=mode == 1)
+        except exceptions.ServiceException:
+            if not self._fallback_non_segwit_blocks:
+                raise
+            block = await self._get_block(block_header, verbose=mode ==1, segwit=False)
         if mode == 1:
             if block.get('verbose'):
                 res = block['verbose']
@@ -61,15 +67,15 @@ class SprunedVOService(RPCAPIService):
         serialized['size'] = len(block['block_bytes'])
         return serialized
 
-    async def _get_block(self, blockheader, _r=0, verbose=False):
+    async def _get_block(self, blockheader, _r=0, verbose=False, segwit=True):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
-        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3)
+        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3, segwit=segwit)
         if not block:
-            if _r > 10:
+            if _r > 3:
                 raise exceptions.ServiceException
             else:
-                block = await self._get_block(blockheader, _r + 1)
+                block = await self._get_block(blockheader, _r + 1, segwit=segwit)
         if verbose and not block.get('verbose'):
             block['verbose'] = await self.__make_verbose_block(block, blockheader)
         if not storedblock:
