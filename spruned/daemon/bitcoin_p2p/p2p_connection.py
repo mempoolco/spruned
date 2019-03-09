@@ -34,7 +34,7 @@ class P2PConnection(BaseConnection):
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
             proxy=None, start_score=2,
             is_online_checker: callable=None,
-            timeout=10, delayer=async_delayed_task, expire_errors_after=180,
+            timeout=3, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=5, connector=connector_f,
             bloom_filter=None, best_header=None, version_checker=None):
 
@@ -136,7 +136,7 @@ class P2PConnection(BaseConnection):
                 self._setup_events_handler()
         except Exception as e:
             self.peer = None
-            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, e)
+            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, e, exc_info=True)
             self.loop.create_task(self.on_error('connect'))
             return
 
@@ -144,7 +144,7 @@ class P2PConnection(BaseConnection):
         return self
 
     async def _verify_peer(self, peer):
-        if peer.version['last_block_index'] < self.best_header['block_height']:
+        if self.best_header['block_height'] - peer.version['last_block_index'] > 5:
             await self.disconnect()
             raise exceptions.PeerVersionMismatchException
         if self.version_checker and not self.version_checker(peer.version):
@@ -282,9 +282,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._pool_filter.add_address('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
 
     def version_checker(self, peer_version):
-        for version in self.context.get_network()['admitted_versions']:
-            if version in peer_version['subversion']:
-                return True
+        return peer_version['version'] >= self.context.get_network()['min_bitcoin_protocol_version']
 
     @property
     def required_connections(self):
