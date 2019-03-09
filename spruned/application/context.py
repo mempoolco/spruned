@@ -92,7 +92,7 @@ class Context(dict):
 
     @property
     def mempool_size(self):
-        return int(self._get_param('mempoolsize') or 1)
+        return int(self._get_param('mempoolsize') or 0)
 
     @property
     def block_size_for_multiprocessing(self):
