@@ -136,7 +136,7 @@ class Context(dict):
 
     @property
     def cache_size(self):
-        return int(self._get_param('cachesize') or 1)
+        return int(self._get_param('cache_size') or 1)
 
     def load_args(self, args: Namespace):
         self['args'] = {
