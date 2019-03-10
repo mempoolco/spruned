@@ -101,7 +101,7 @@ class SprunedVOService(RPCAPIService):
                   self.repository.headers.get_block_header(transaction['blockhash'])['block_height']
                 transaction['confirmations'] = ((await self.getblockcount()) - incl_height) + 1
             return transaction
-        return transaction['hex']
+        return transaction.get('hex') and transaction['hex'] or transaction
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')

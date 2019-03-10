@@ -210,7 +210,7 @@ class JSONRPCServer:
                 code=-8,
                 message="server error, try again"
             )
-        if not response:
+        if not response or 'No such mempool or blockchain transaction' in str(response):
             raise JsonRpcServerException(
                 code=-5,
                 message="No such mempool or blockchain transaction. [maybe try again]"
