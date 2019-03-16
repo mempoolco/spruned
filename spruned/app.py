@@ -117,6 +117,26 @@ parser.add_argument(
     action='store_false', dest='disable_electrum_peer_discovery', default=False,
     help='Control electrum peers discovery (peer subscribe)'
 )
+parser.add_argument(
+    '--zmqpubhashblock',
+    action='store', dest='zmqpubhashblock', default='',
+    help='Enable publish hash block in <address>'
+)
+parser.add_argument(
+    '--zmqpubrawtx',
+    action='store', dest='zmqpubrawtx', default='',
+    help='Enable publish raw transaction in <address>'
+)
+parser.add_argument(
+    '--zmqpubhashtx',
+    action='store', dest='zmqpubhashtx', default='',
+    help='Enable publish hash transaction in <address>'
+)
+parser.add_argument(
+    '--zmqpubrawblock',
+    action='store', dest='zmqpubrawblock', default='',
+    help='Enable publish raw block in <address>'
+)
 
 args = parser.parse_args()
 ctx.load_args(args)

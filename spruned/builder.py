@@ -1,4 +1,7 @@
+from spruned import settings
+
 from spruned.application.context import ctx as _ctx, Context
+from spruned.daemon.zeromq import build_zmq
 
 
 def builder(ctx: Context):  # pragma: no cover
@@ -35,9 +38,19 @@ def builder(ctx: Context):  # pragma: no cover
         p2p_interface.mempool = repository.mempool
         p2p_connectionpool.add_on_transaction_callback(mempool_observer.on_transaction)
         p2p_connectionpool.add_on_transaction_hash_callback(mempool_observer.on_transaction_hash)
+    else:
+        mempool_observer = None
 
+    ctx.is_zmq_enabled() and build_zmq(
+        ctx,
+        mempool_observer,
+        headers_reactor,
+        ctx.mempool_size,
+        service
+    )
     blocks_reactor = BlocksReactor(repository, p2p_interface, prune=int(ctx.keep_blocks))
     headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
+
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache
 
 

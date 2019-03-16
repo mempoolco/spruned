@@ -264,6 +264,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self.best_header = None
         self._on_transaction_hash_callback = []
         self._on_transaction_callback = []
+        self._on_block_callback = []
         self.context = context
 
     @property
@@ -300,6 +301,9 @@ class P2PConnectionPool(BaseConnectionPool):
 
     def add_on_transaction_callback(self, callback):
         self._on_transaction_callback.append(callback)
+
+    def add_on_block_callback(self, callback):
+        self._on_block_callback.append(callback)
 
     @property
     def connections(self):
@@ -368,6 +372,8 @@ class P2PConnectionPool(BaseConnectionPool):
             connection.add_on_transaction_hash_callback(callback)
         for callback in self._on_transaction_callback:
             connection.add_on_transaction_callback(callback)
+        for callback in self._on_block_callback:
+            connection.add_on_blocks_callback(callback)
 
     async def get(self, inv_item: InvItem, peers=None, timeout=None, privileged=False):
         batcher = self._batcher_factory()

@@ -61,6 +61,10 @@ class LoggingFactory:
     def jsonrpc(self):
         return logging.getLogger('jsonrpc')
 
+    @property
+    def zmq(self):
+        return logging.getLogger('zmq')
+
 
 if settings.TESTING:
     Logger = LoggingFactory(
@@ -81,6 +85,7 @@ elif ctx.debug:
     logging.getLogger('cache').setLevel(logging.DEBUG)
     logging.getLogger('leveldb').setLevel(logging.DEBUG)
     logging.getLogger('asyncio').setLevel(logging.INFO)
+    logging.getLogger('zmq').setLevel(logging.DEBUG)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,
@@ -99,6 +104,7 @@ else:
     logging.getLogger('cache').setLevel(logging.INFO)
     logging.getLogger('leveldb').setLevel(logging.INFO)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+    logging.getLogger('zmq').setLevel(logging.CRITICAL)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         #loglevel=logging.INFO,
