@@ -315,7 +315,7 @@ class JSONRPCServer:
             )
         return response
 
-    async def gettxout(self, txid: str, index: int):
+    async def gettxout(self, txid: str, index: int, include_mempool=False):
         try:
             txid = txid.strip()
             response = await self.vo_service.gettxout(txid, index)
