@@ -193,7 +193,7 @@ class SprunedVOService(RPCAPIService):
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],
             "difficulty": 0,
-            "chainwork": "",
+            "chainwork": 0,
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,
