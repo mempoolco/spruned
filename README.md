@@ -333,7 +333,7 @@ _* bitcoin-cli is not included_
 - Wallet APIs (electrum-servers based utxo management)
 - sPRUNED P2P network layer with cached blocks to offload the P2P network
 - Distribution (Linux .deb, Windows .exe, Docker Images, etc.)
-- Network bandwidth reduction.
+- Network bandwidth reduction
 
 #### Support sPRUNED!
 
@@ -343,7 +343,7 @@ _* bitcoin-cli is not included_
 #### Partecipate
 
 - sPRUNED is everyday more stable, talk about it at the next meetup!
-- Run Electrum servers and BitcoinCore full nodes.
+- Run Electrum servers and Bitcoin full nodes.
 - Take the chance to contribute to a FOSS Bitcoin project: propose yourself. We all have ideas, don't be shy :-)
 - Write extensive sPRUNED documentation and guides.
 - Help improving sPRUNED support to third-party applications. (ask missing APIs).
