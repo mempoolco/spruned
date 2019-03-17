@@ -4,7 +4,7 @@ from spruned import settings
 from spruned.application.context import ctx
 
 
-class LoggingFactory:
+class LoggingFactory:  # pragma: no cover
     def __init__(self, loglevel=logging.DEBUG, logfile=None, stdout=False):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         root = logging.getLogger()
@@ -73,7 +73,7 @@ if settings.TESTING:
         stdout=True
     )  # type: LoggingFactory
 
-elif ctx.debug:
+elif ctx.debug:  # pragma: no cover
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger('root').setLevel(logging.DEBUG)
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
@@ -92,7 +92,7 @@ elif ctx.debug:
         stdout=True
     )  # type: LoggingFactory
 
-else:
+else:  # pragma: no cover
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
     logging.getLogger('jsonrpcserver.dispatcher.request').setLevel(logging.WARNING)
     logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
@@ -107,6 +107,4 @@ else:
     logging.getLogger('zmq').setLevel(logging.CRITICAL)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
-        #loglevel=logging.INFO,
-        #stdout=False
     )  # type: LoggingFactory

@@ -4,7 +4,7 @@ from spruned.application.tools import async_delayed_task
 from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_server, repository
 
 
-async def main_task(loop):
+async def main_task(loop):  # pragma: no cover
     from spruned.application.logging_factory import Logger
     loop.create_task(jsonrpc_server.start())
     try:
@@ -27,13 +27,13 @@ async def main_task(loop):
         pass
 
 
-async def loop_check_integrity(l):
+async def loop_check_integrity(l):  # pragma: no cover
     """
     this task also prune blocks
     """
     await repository.ensure_integrity()
 
 
-async def loop_collect_garbage(l):
+async def loop_collect_garbage(l):  # pragma: no cover
     gc.collect()
     l.create_task(async_delayed_task(loop_collect_garbage(l), 300))
