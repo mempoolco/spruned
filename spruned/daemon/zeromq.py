@@ -9,6 +9,7 @@ from spruned.daemon import exceptions
 
 from spruned.application.logging_factory import Logger
 from spruned.daemon.tasks.headers_reactor import HeadersReactor
+import binascii
 
 _SOCKETS = {}
 
@@ -66,7 +67,8 @@ class ZeroMQObserver:
         self.transaction_hash_publisher and await self.transaction_hash_publisher.on_event(txhash)
 
     async def on_block_hash(self, data):
-        self.blockhash_publisher and await self.blockhash_publisher.on_event(data['header_bytes'])
+        block_hash = binascii.unhexlify(data['block_hash'].encode())
+        self.blockhash_publisher and await self.blockhash_publisher.on_event(block_hash)
 
     async def on_raw_block(self, block: Block):
         _futures = []
@@ -130,4 +132,5 @@ def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_st
             zeromq_observer.blockhash_publisher = zmqpubhashblock
             headers_reactor.add_on_new_header_callback(zeromq_observer.on_block_hash)
     except:
+        Logger.root.exception('Exception')
         zmq_ctx and zmq_ctx.term()

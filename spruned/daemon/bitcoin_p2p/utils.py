@@ -7,6 +7,7 @@ from spruned.dependencies.pycoinnet.dnsbootstrap import dns_bootstrap_host_port_
 from spruned.dependencies.pycoinnet.networks import TESTNET
 import asyncio
 from spruned.application.logging_factory import Logger
+from test.utils import async_coro
 
 
 async def dns_bootstrap_servers(network=TESTNET, howmany=50):  # pragma: no cover
@@ -56,3 +57,18 @@ class AsyncBlockFactory:
 
 def get_block_factory():
     return AsyncBlockFactory()
+
+
+def batcher_factory(self):
+    class FakeBatcher:
+        @staticmethod
+        async def add_peer(data):
+            nonlocal self
+            return self.batcher_factory.add_peer(data)
+
+        @staticmethod
+        async def inv_item_to_future(data):
+            nonlocal self
+            return async_coro(self.batcher_factory.inv_item_to_future(data))
+
+    return FakeBatcher()
