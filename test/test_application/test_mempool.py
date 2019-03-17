@@ -1,4 +1,3 @@
-import struct
 from unittest import TestCase
 from unittest.mock import Mock, create_autospec, ANY
 
@@ -10,10 +9,9 @@ from pycoin.merkle import merkle
 from spruned.application.mempool_observer import MempoolObserver
 from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
 from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
-from spruned.daemon.bitcoin_p2p.utils import batcher_factory
 from spruned.repositories.mempool_repository import MempoolRepository
 from spruned.repositories.repository import Repository
-from test.utils import async_coro
+from test.utils import async_coro, batcher_factory
 
 
 class TestMempoolObserver(TestCase):
