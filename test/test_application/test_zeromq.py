@@ -80,6 +80,8 @@ class TestZeroMQ(TestCase):
             msg = await socket.recv_multipart()
             print('done')
             self._data_from_topics[topic].append(msg)
+        socket.close()
+        print('socket closed')
 
     def test_zmq(self):
         block = self._get_block_with_tx()
@@ -120,3 +122,4 @@ class TestZeroMQ(TestCase):
         block_hash_data = self._data_from_topics[BitcoindZMQTopics.BLOCKHASH.value]
         self.assertEqual(block_hash_data[0][0], BitcoindZMQTopics.BLOCKHASH.value)
         self.assertEqual(block_hash_data[0][1], binascii.unhexlify(str(block.hash())))
+        self.ctx.term()
