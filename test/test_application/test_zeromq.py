@@ -1,6 +1,8 @@
 import random
 from unittest import TestCase
 from unittest.mock import Mock, create_autospec
+
+import async_timeout
 import binascii
 
 from zmq.asyncio import Context
@@ -68,20 +70,21 @@ class TestZeroMQ(TestCase):
         return block
 
     async def _subscribe_topic(self, topic, url, max_msgs):
-        socket = self.ctx.socket(zmq.SUB)
-        socket.connect(url)
-        socket.subscribe(topic)
-        if not self._data_from_topics.get(topic):
-            self._data_from_topics[topic] = []
-        x = 0
-        while x < max_msgs:
-            x += 1
-            print('waiting')
-            msg = await socket.recv_multipart()
-            print('done')
-            self._data_from_topics[topic].append(msg)
-        socket.close()
-        print('socket closed')
+        async with async_timeout.timeout(30):
+            socket = self.ctx.socket(zmq.SUB)
+            socket.connect(url)
+            socket.subscribe(topic)
+            if not self._data_from_topics.get(topic):
+                self._data_from_topics[topic] = []
+            x = 0
+            while x < max_msgs:
+                x += 1
+                print('waiting')
+                msg = await socket.recv_multipart()
+                print('done')
+                self._data_from_topics[topic].append(msg)
+            socket.close()
+            print('socket closed')
 
     def test_zmq(self):
         block = self._get_block_with_tx()
