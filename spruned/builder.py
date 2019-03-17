@@ -40,7 +40,7 @@ def builder(ctx: Context):  # pragma: no cover
         p2p_connectionpool.add_on_transaction_hash_callback(mempool_observer.on_transaction_hash)
     else:
         mempool_observer = None
-    ctx.is_zmq_enabled() and build_zmq(
+    zmq_context = ctx.is_zmq_enabled() and build_zmq(
         ctx,
         mempool_observer,
         headers_reactor,
@@ -50,7 +50,7 @@ def builder(ctx: Context):  # pragma: no cover
     blocks_reactor = BlocksReactor(repository, p2p_interface, prune=int(ctx.keep_blocks))
     headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
 
-    return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache
+    return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache, zmq_context
 
 
-jsonrpc_server, headers_reactor, blocks_reactor, repository, cache = builder(_ctx)
+jsonrpc_server, headers_reactor, blocks_reactor, repository, cache, zmq_context = builder(_ctx)

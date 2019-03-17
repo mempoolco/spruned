@@ -342,7 +342,10 @@ class JSONRPCServer:
 
         async def stop(l):
             l.stop()
-        loop.create_task(async_delayed_task(stop(loop), 2))
+
+        from spruned.builder import zmq_context
+        loop.create_task(async_delayed_task(stop(loop), 3))
+        zmq_context and zmq_context.term()
         return None
 
     async def getmempoolinfo(self):

@@ -122,4 +122,3 @@ class TestZeroMQ(TestCase):
         block_hash_data = self._data_from_topics[BitcoindZMQTopics.BLOCKHASH.value]
         self.assertEqual(block_hash_data[0][0], BitcoindZMQTopics.BLOCKHASH.value)
         self.assertEqual(block_hash_data[0][1], binascii.unhexlify(str(block.hash())))
-        self.ctx.term()
