@@ -97,11 +97,11 @@ class TestZeroMQ(TestCase):
         )
 
     async def _test_zmq(self, block):
-        await asyncio.sleep(1)
+        await asyncio.sleep(3)
         await self._callbacks['new_header']({'block_hash': block.id()})
         await self._callbacks['new_block'](block)
         await self._callbacks['new_tx_hash'](b'f'*32)
-        await asyncio.sleep(1)
+        await asyncio.sleep(3)
 
         txhash_data = self._data_from_topics[BitcoindZMQTopics.TXHASH.value]
         self.assertEqual(txhash_data[0][0], BitcoindZMQTopics.TXHASH.value)

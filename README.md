@@ -343,7 +343,7 @@ _* bitcoin-cli is not included_
 #### Partecipate
 
 - sPRUNED is everyday more stable, talk about it at the next meetup!
-- Run Electrum servers.
+- Run Electrum servers and BitcoinCore full nodes.
 - Take the chance to contribute to a FOSS Bitcoin project: propose yourself. We all have ideas, don't be shy :-)
 - Write extensive sPRUNED documentation and guides.
 - Help improving sPRUNED support to third-party applications. (ask missing APIs).
