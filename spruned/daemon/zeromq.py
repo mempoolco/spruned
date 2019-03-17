@@ -83,7 +83,7 @@ class ZeroMQObserver:
 
 
 def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_status, vo_service):
-    zmq_ctx = zmq.asyncio.Context()
+    zmq_ctx = zmq.asyncio.Context.instance()
     zeromq_observer = ZeroMQObserver()
     zeromq_observer.service = vo_service
 
