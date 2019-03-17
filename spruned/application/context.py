@@ -18,7 +18,6 @@ class Context(dict):
                 'configfile': {},
                 'args': {},
                 'default': {
-                    'daemon': False,
                     'datadir': str(Path.home()) + '/.spruned',
                     'rpcbind': '127.0.0.1',
                     'rpcport': None,
@@ -49,7 +48,7 @@ class Context(dict):
     def load_config(self):
         values = {
             'i': ['cache_size', 'keep_blocks', 'rpcport'],
-            'b': ['daemonize', 'debug']
+            'b': ['debug']
         }
         import os
         filename = self.datadir + '/' + self.configfile
@@ -123,10 +122,6 @@ class Context(dict):
         return self._get_param('rpcpassword')
 
     @property
-    def daemon(self):
-        return self._get_param('daemon')
-
-    @property
     def proxy(self):
         return self._get_param('proxy')
 
@@ -160,7 +155,6 @@ class Context(dict):
 
     def load_args(self, args: Namespace):
         self['args'] = {
-            'daemon': args.daemon,
             'datadir': args.datadir,
             'rpcbind': args.rpcbind,
             'rpcpassword': args.rpcpassword,

@@ -151,7 +151,7 @@ class SprunedVOService(RPCAPIService):
             "nonce": _deserialized_header['nonce'],
             "bits": str(_deserialized_header['bits']),
             "difficulty": 0,
-            "chainwork": 0,
+            "chainwork": '00'*32,
             "previousblockhash": _deserialized_header['prev_block_hash'],
             "nextblockhash": header.get('next_block_hash')
         }
@@ -193,7 +193,7 @@ class SprunedVOService(RPCAPIService):
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],
             "difficulty": 0,
-            "chainwork": 0,
+            "chainwork": '00'*32,
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,

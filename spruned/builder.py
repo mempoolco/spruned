@@ -40,7 +40,6 @@ def builder(ctx: Context):  # pragma: no cover
         p2p_connectionpool.add_on_transaction_hash_callback(mempool_observer.on_transaction_hash)
     else:
         mempool_observer = None
-
     ctx.is_zmq_enabled() and build_zmq(
         ctx,
         mempool_observer,

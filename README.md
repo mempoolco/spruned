@@ -69,7 +69,7 @@ $ ~/src/spruned/venv/bin/spruned
 
 usage: spruned [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
                [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
-               [--daemon] [--keep-blocks KEEP_BLOCKS]
+               [--keep-blocks KEEP_BLOCKS]
                [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
                [--cachesize CACHESIZE] [--proxy PROXY] [--tor]
                [--no-dns-seeds] [--add-p2p-peer ADD_P2P_PEER]
@@ -91,8 +91,6 @@ optional arguments:
   --rpcbind RPCBIND     Bind to given address to listen for JSON-RPC
                         connections. (default: 127.0.0.1)
   --datadir DATADIR     Specify data directory (default: /home/guido/.spruned)
-  --daemon              Run in the background as a daemon and accept commands
-                        (default: False)
   --keep-blocks KEEP_BLOCKS
   --network {bitcoin.mainnet,bitcoin.testnet}
   --debug               Enable debug mode (default: False)

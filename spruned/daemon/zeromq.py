@@ -10,14 +10,14 @@ from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.daemon.tasks.headers_reactor import HeadersReactor
 
-zmq_ctx = zmq.asyncio.Context()
 _SOCKETS = {}
 
 
 class ZeroMQPublisher:
-    def __init__(self, endpoint: str, topic: bytes):
+    def __init__(self, endpoint: str, topic: bytes, context: zmq.asyncio.Context):
         self._endpoint = endpoint
         self._topic = topic
+        self.context = context
         self.setup_socket()
 
     async def on_event(self, data: bytes, _r=0):
@@ -35,7 +35,7 @@ class ZeroMQPublisher:
 
     def setup_socket(self):
         if not _SOCKETS.get(self._endpoint):
-            _SOCKETS[self._endpoint] = zmq_ctx.socket(zmq.PUB)
+            _SOCKETS[self._endpoint] = self.context.socket(zmq.PUB)
             _SOCKETS[self._endpoint].bind(self._endpoint)
 
     @property
@@ -81,48 +81,53 @@ class ZeroMQObserver:
 
 
 def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_status, vo_service):
-    zeromq_observer = ZeroMQObserver()
-    zeromq_observer.service = vo_service
+    zmq_ctx = None
+    try:
+        zmq_ctx = zmq.asyncio.Context()
+        zeromq_observer = ZeroMQObserver()
+        zeromq_observer.service = vo_service
 
-    async def processblock(data, _r=0):
-        blockhash = data['block_hash']
-        try:
-            block = await vo_service.get_block_object(blockhash)
-        except exceptions.NoPeersException:
-            if _r < 10:
-                await asyncio.sleep(10)
-                return await processblock(data, _r=_r + 1)
-            raise
-        await zeromq_observer.on_raw_block(block)
+        async def processblock(data, _r=0):
+            blockhash = data['block_hash']
+            try:
+                block = await vo_service.get_block_object(blockhash)
+            except exceptions.NoPeersException:
+                if _r < 10:
+                    await asyncio.sleep(10)
+                    return await processblock(data, _r=_r + 1)
+                raise
+            await zeromq_observer.on_raw_block(block)
 
-    def _setup_rawblock():
-        zmqpubrawblock = ZeroMQPublisher(ctx.zmqpubrawblock, BitcoindZMQTopics.BLOCK.value)
-        zeromq_observer.block_publisher = zmqpubrawblock
-        if mempool_status:
-            mempool_observer.on_new_block_callback(zeromq_observer.on_raw_block)
-        else:
-            headers_reactor.add_on_new_header_callback(processblock)
+        def _setup_rawblock():
+            zmqpubrawblock = ZeroMQPublisher(ctx.zmqpubrawblock, BitcoindZMQTopics.BLOCK.value, zmq_ctx)
+            zeromq_observer.block_publisher = zmqpubrawblock
+            if mempool_status:
+                mempool_observer.on_new_block_callback(zeromq_observer.on_raw_block)
+            else:
+                headers_reactor.add_on_new_header_callback(processblock)
 
-    if ctx.zmqpubrawtx:
-        Logger.zmq.info('Setting up ZMQ, zmqpubrawtx on %s', ctx.zmqpubrawtx)
-        zmqpubrawtx = ZeroMQPublisher(ctx.zmqpubrawtx, BitcoindZMQTopics.TX.value)
-        zeromq_observer.transaction_publisher = zmqpubrawtx
-        mempool_status and mempool_observer.add_on_transaction_callback(zeromq_observer.on_transaction)
-        not ctx.zmqpubrawblock and _setup_rawblock()
+        if ctx.zmqpubrawtx:
+            Logger.zmq.info('Setting up ZMQ, zmqpubrawtx on %s', ctx.zmqpubrawtx)
+            zmqpubrawtx = ZeroMQPublisher(ctx.zmqpubrawtx, BitcoindZMQTopics.TX.value, zmq_ctx)
+            zeromq_observer.transaction_publisher = zmqpubrawtx
+            mempool_status and mempool_observer.add_on_transaction_callback(zeromq_observer.on_transaction)
+            not ctx.zmqpubrawblock and _setup_rawblock()
 
-    if ctx.zmqpubhashtx:
-        Logger.zmq.info('Setting up ZMQ, zmqpubhashtx on %s', ctx.zmqpubhashtx)
-        zmqpubhashtx = ZeroMQPublisher(ctx.zmqpubhashtx, BitcoindZMQTopics.TXHASH.value)
-        zeromq_observer.transaction_hash_publisher = zmqpubhashtx
-        mempool_status and mempool_observer.add_on_transaction_hash_callback(zeromq_observer.on_transaction_hash)
-        not ctx.zmqpubrawblock and _setup_rawblock()
+        if ctx.zmqpubhashtx:
+            Logger.zmq.info('Setting up ZMQ, zmqpubhashtx on %s', ctx.zmqpubhashtx)
+            zmqpubhashtx = ZeroMQPublisher(ctx.zmqpubhashtx, BitcoindZMQTopics.TXHASH.value, zmq_ctx)
+            zeromq_observer.transaction_hash_publisher = zmqpubhashtx
+            mempool_status and mempool_observer.add_on_transaction_hash_callback(zeromq_observer.on_transaction_hash)
+            not ctx.zmqpubrawblock and _setup_rawblock()
 
-    if ctx.zmqpubrawblock:
-        Logger.zmq.info('Setting up ZMQ, zmqpubrawblock on %s', ctx.zmqpubrawblock)
-        _setup_rawblock()
+        if ctx.zmqpubrawblock:
+            Logger.zmq.info('Setting up ZMQ, zmqpubrawblock on %s', ctx.zmqpubrawblock)
+            _setup_rawblock()
 
-    if ctx.zmqpubhashblock:
-        Logger.zmq.info('Setting up ZMQ, zmqpubhashblock on %s', ctx.zmqpubhashblock)
-        zmqpubhashblock = ZeroMQPublisher(ctx.zmqpubhashblock, BitcoindZMQTopics.BLOCKHASH.value)
-        zeromq_observer.blockhash_publisher = zmqpubhashblock
-        headers_reactor.add_on_new_header_callback(zeromq_observer.on_block_hash)
+        if ctx.zmqpubhashblock:
+            Logger.zmq.info('Setting up ZMQ, zmqpubhashblock on %s', ctx.zmqpubhashblock)
+            zmqpubhashblock = ZeroMQPublisher(ctx.zmqpubhashblock, BitcoindZMQTopics.BLOCKHASH.value, zmq_ctx)
+            zeromq_observer.blockhash_publisher = zmqpubhashblock
+            headers_reactor.add_on_new_header_callback(zeromq_observer.on_block_hash)
+    except:
+        zmq_ctx and zmq_ctx.term()
