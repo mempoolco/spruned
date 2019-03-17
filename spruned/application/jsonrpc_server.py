@@ -104,7 +104,6 @@ class JSONRPCServer:
                 futures.append(self._handle_request(r))
             responses = await asyncio.gather(*futures)
             data = [x[0] for x in responses]
-            print('response: %s' % data)
             return web.Response(
                 body=json.dumps(data),
                 status=200,

@@ -135,7 +135,6 @@ class SprunedVOService(RPCAPIService):
             res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
         else:
             res = binascii.hexlify(header['header_bytes']).decode()
-            print(res)
         return res
 
     @staticmethod

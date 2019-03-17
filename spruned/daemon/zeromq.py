@@ -22,7 +22,7 @@ class ZeroMQPublisher:
 
     async def on_event(self, data: bytes, _r=0):
         try:
-            await self.socket.send(b'%s %s' % (self._topic, data))
+            await self.socket.send_multipart([self._topic, data])
             Logger.zmq.debug('Published on topic %s' % self._topic.decode())
         except Exception as e:
             if _r:
