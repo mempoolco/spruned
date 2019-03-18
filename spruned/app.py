@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2018 Guido Dassori <guido.dassori@gmail.com>
 #
-
+import signal
 import sys
 sys.path.insert(0, './')
 

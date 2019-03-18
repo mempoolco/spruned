@@ -131,6 +131,7 @@ class JSONRPCServer:
         app = web.Application()
         app.router.add_post('/', self._handle)
         runner = web.AppRunner(app)
+        self.app = app
         await runner.setup()
         methods.add(self.echo)
         methods.add(self.help)
@@ -339,12 +340,11 @@ class JSONRPCServer:
 
     async def stop(self):
         loop = asyncio.get_event_loop()
-
-        async def stop(l):
-            l.stop()
-
-        loop.create_task(async_delayed_task(stop(loop), 3))
         loop.stop()
+        from spruned.application.context import ctx
+        if ctx.is_zmq_enabled():
+            from spruned.builder import zmq_observer
+            zmq_observer.close_zeromq()
         return None
 
     async def getmempoolinfo(self):

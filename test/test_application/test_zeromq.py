@@ -1,7 +1,9 @@
+import signal
+
 import random
 from unittest import TestCase
 from unittest.mock import Mock, create_autospec
-
+import sys
 import async_timeout
 import binascii
 
@@ -28,6 +30,7 @@ class TestZeroMQ(TestCase):
         self._setup_reactor()
         self._loop = asyncio.get_event_loop()
         self._data_from_topics = {}
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     def _setup_reactor(self):
         def _save(topic, data):
@@ -38,7 +41,7 @@ class TestZeroMQ(TestCase):
         self.mempool_observer.add_on_transaction_callback = lambda x: _save('new_tx', x)
 
     def _build(self):
-        build_zmq(
+        self.ctx, self.obs = build_zmq(
             self.context,
             self.mempool_observer,
             self.headers_reactor,
@@ -123,3 +126,5 @@ class TestZeroMQ(TestCase):
         block_hash_data = self._data_from_topics[BitcoindZMQTopics.BLOCKHASH.value]
         self.assertEqual(block_hash_data[0][0], BitcoindZMQTopics.BLOCKHASH.value)
         self.assertEqual(block_hash_data[0][1], binascii.unhexlify(str(block.hash())))
+
+        self.obs.close_zeromq()
