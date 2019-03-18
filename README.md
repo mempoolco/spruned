@@ -14,10 +14,18 @@ __128mb ram & 500mb hdd__ should be fairly enough to keep it up & running.
 <br />
 
 Supports both Bitcoin Mainnet and Testnet<br />
-It's proven to work on a Raspberry Zero, along with CLightning, it simply provides an interface for bitcoin-cli. <br />
+
+__The RPC API is able to support__:
+ 
+ - c-lightning
+ - LND (zeromq must be enabled)
+ - btc-rpc-explorer
+ - ...many more, open an issue if you need other API calls.
+  
 <br />
 
 Dive into spruned by reading the __[documentation](http://spruned.readthedocs.io/en/latest/#)__
+
 
 #### How it works?
 
@@ -71,13 +79,17 @@ usage: spruned [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
                [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
                [--daemon] [--keep-blocks KEEP_BLOCKS]
                [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
-               [--cachesize CACHESIZE] [--proxy PROXY] [--tor]
+               [--cache-size CACHE_SIZE] [--proxy PROXY] [--tor]
                [--no-dns-seeds] [--add-p2p-peer ADD_P2P_PEER]
                [--max-p2p-connections MAX_P2P_CONNECTIONS]
                [--add-electrum-server ELECTRUM_SERVER]
                [--max-electrum-connections MAX_ELECTRUM_CONNECTIONS]
                [--disable-p2p-peer-discovery]
                [--disable-electrum-peer-discovery]
+               [--zmqpubhashblock ZMQPUBHASHBLOCK]
+               [--zmqpubrawtx ZMQPUBRAWTX] [--zmqpubhashtx ZMQPUBHASHTX]
+               [--zmqpubrawblock ZMQPUBRAWBLOCK]
+
 
 A Bitcoin Lightweight Client
 
@@ -91,8 +103,6 @@ optional arguments:
   --rpcbind RPCBIND     Bind to given address to listen for JSON-RPC
                         connections. (default: 127.0.0.1)
   --datadir DATADIR     Specify data directory (default: /home/guido/.spruned)
-  --daemon              Run in the background as a daemon and accept commands
-                        (default: False)
   --keep-blocks KEEP_BLOCKS
   --network {bitcoin.mainnet,bitcoin.testnet}
   --debug               Enable debug mode (default: False)
@@ -117,6 +127,17 @@ optional arguments:
   --disable-electrum-peer-discovery
                         Control electrum peers discovery (peer subscribe)
                         (default: False)
+
+  --zmqpubhashblock ZMQPUBHASHBLOCK
+                        Enable publish hash block in <address> (default: )
+  --zmqpubrawtx ZMQPUBRAWTX
+                        Enable publish raw transaction in <address> (default:
+                        )
+  --zmqpubhashtx ZMQPUBHASHTX
+                        Enable publish hash transaction in <address> (default:
+                        )
+  --zmqpubrawblock ZMQPUBRAWBLOCK
+                        Enable publish raw block in <address> (default: )
 
 ```
 
@@ -294,12 +315,6 @@ _* bitcoin-cli is not included_
 - getnettotals
 ```
 
-#### RPC Roadmap:
-
-```
-- importaddress (watch only mode)  
-```
-
 
 #### Requirements
 - An internet connection
@@ -309,15 +324,27 @@ _* bitcoin-cli is not included_
 
 #### Limitations
 
-- May reduce privacy: if you have the entire blockchain on your own, you have to tell no one what you're looking for.
 - Not fast as a full node: internet download is slower than a read from disk.
+- Doesn't help to keep the network healthy (I care about that, and this is really going to be addressed).
 
-#### Future development
+#### Roadmap
  
-- Zeromq emulation
 - Maintenance web ui
+- Wallet APIs (electrum-servers based utxo management)
+- sPRUNED P2P network layer with cached blocks to offload the P2P network
+- Distribution (Linux .deb, Windows .exe, Docker Images, etc.)
+- Network bandwidth reduction
 
+#### Support sPRUNED!
 
-#### Contribute
+- **Donate BTC to 3FVGopUDc6tyAP6t4P8f3GkYTJ5JD5tPwV** 
+- How much you care? With 10 BTC I'll guarantee >15hrs\week on the product for a year!
 
-Help the development of spruned! Report bugs with the issue tracker. If you're a developer, feel free to discuss a PR.
+#### Partecipate
+
+- sPRUNED is everyday more stable, talk about it at the next meetup!
+- Run Electrum servers and Bitcoin full nodes.
+- Take the chance to contribute to a FOSS Bitcoin project: propose yourself. We all have ideas, don't be shy :-)
+- Write extensive sPRUNED documentation and guides.
+- Help improving sPRUNED support to third-party applications. (ask missing APIs).
+- Report about your usage!

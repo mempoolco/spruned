@@ -7,6 +7,7 @@ from spruned.dependencies.pycoinnet.dnsbootstrap import dns_bootstrap_host_port_
 from spruned.dependencies.pycoinnet.networks import TESTNET
 import asyncio
 from spruned.application.logging_factory import Logger
+from test.utils import async_coro
 
 
 async def dns_bootstrap_servers(network=TESTNET, howmany=50):  # pragma: no cover

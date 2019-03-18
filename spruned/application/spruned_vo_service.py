@@ -31,6 +31,19 @@ class SprunedVOService(RPCAPIService):
     def available(self):
         raise NotImplementedError
 
+    async def get_block_object(self, blockhash: str):
+        block_header = self.repository.headers.get_block_header(blockhash)
+        if not block_header:
+            return
+        try:
+            block = await self._get_block(block_header)
+        except exceptions.ServiceException:
+            if not self._fallback_non_segwit_blocks:
+                raise
+            block = await self._get_block(block_header, segwit=False)
+        block_object = await self.block_factory.get(block['block_bytes'])
+        return block_object
+
     async def getblock(self, blockhash: str, mode: int=1):
         start = time.time()
         if mode == 2:
@@ -67,7 +80,7 @@ class SprunedVOService(RPCAPIService):
         serialized['size'] = len(block['block_bytes'])
         return serialized
 
-    async def _get_block(self, blockheader, _r=0, verbose=False, segwit=True):
+    async def _get_block(self, blockheader, _r=0, verbose=False, segwit=True, block_object=False):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
         block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3, segwit=segwit)
@@ -136,9 +149,9 @@ class SprunedVOService(RPCAPIService):
             "time": _deserialized_header['timestamp'],
             "mediantime": _deserialized_header['timestamp'],
             "nonce": _deserialized_header['nonce'],
-            "bits": _deserialized_header['bits'],
-            "difficulty": "",
-            "chainwork": "",
+            "bits": str(_deserialized_header['bits']),
+            "difficulty": 0,
+            "chainwork": '00'*32,
             "previousblockhash": _deserialized_header['prev_block_hash'],
             "nextblockhash": header.get('next_block_hash')
         }
@@ -179,8 +192,8 @@ class SprunedVOService(RPCAPIService):
             "blocks": best_header["block_height"],
             "headers": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],
-            "difficulty": "",
-            "chainwork": "",
+            "difficulty": 0,
+            "chainwork": '00'*32,
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,

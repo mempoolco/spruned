@@ -58,14 +58,16 @@ class MempoolRepository:
                 break
         if not double_spend:
             self._add_outpoints(data)
-            self._transactions[txid].update(
-                {
+            tx = {
                     "received_at": data["timestamp"],
                     "received_at_height": None,
                     "outpoints": data["outpoints"],
                     "size": data["size"]
                 }
-            )
+            if not self._transactions.get(txid):
+                self._transactions[txid] = tx
+            else:
+                self._transactions[txid].update(tx)
             self._project_transaction(data, '+')
         elif self._is_rbf(data):
             raise NotImplementedError()
@@ -156,7 +158,7 @@ class MempoolRepository:
         txitems = self._transactions.items()
         if verbose:
             return {
-                v['txid']: {
+                k: {
                     "size": v['size'],
                     "fee": 0,
                     "modifiedfee": 0,
@@ -179,8 +181,8 @@ class MempoolRepository:
         return (x for x in self._transactions.keys())
 
     def on_new_block(self, block_object: Block):
-        # fixme
         txs = [str(x.w_hash()) for x in block_object.txs]
+        txs.extend([str(x.hash()) for x in block_object.txs])
         removed = []
         self._add_txids_to_forget_pool(*txs)
         for txid in txs:

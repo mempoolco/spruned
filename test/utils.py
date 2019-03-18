@@ -44,3 +44,18 @@ def make_headers(s: int, e: int, prevblock_0: str= None, with_timestamp=True):
         if not with_timestamp:
             _headers[i].pop('timestamp')
     return _headers
+
+
+def batcher_factory(self):
+    class FakeBatcher:
+        @staticmethod
+        async def add_peer(data):
+            nonlocal self
+            return self.batcher_factory.add_peer(data)
+
+        @staticmethod
+        async def inv_item_to_future(data):
+            nonlocal self
+            return async_coro(self.batcher_factory.inv_item_to_future(data))
+
+    return FakeBatcher()

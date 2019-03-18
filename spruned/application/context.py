@@ -18,7 +18,6 @@ class Context(dict):
                 'configfile': {},
                 'args': {},
                 'default': {
-                    'daemon': False,
                     'datadir': str(Path.home()) + '/.spruned',
                     'rpcbind': '127.0.0.1',
                     'rpcport': None,
@@ -37,6 +36,10 @@ class Context(dict):
                     'disable_electrum_peer_discovery': True,
                     'max_electrum_connections': 4,
                     'add_electrum_server': [],
+                    'zmqpubhashblock': '',
+                    'zmqpubrawtx': '',
+                    'zmqpubhashtx': '',
+                    'zmqpubrawblock': ''
                 }
             }
         )
@@ -45,7 +48,7 @@ class Context(dict):
     def load_config(self):
         values = {
             'i': ['cache_size', 'keep_blocks', 'rpcport'],
-            'b': ['daemonize', 'debug']
+            'b': ['debug']
         }
         import os
         filename = self.datadir + '/' + self.configfile
@@ -119,10 +122,6 @@ class Context(dict):
         return self._get_param('rpcpassword')
 
     @property
-    def daemon(self):
-        return self._get_param('daemon')
-
-    @property
     def proxy(self):
         return self._get_param('proxy')
 
@@ -138,9 +137,24 @@ class Context(dict):
     def cache_size(self):
         return int(self._get_param('cache_size') or 1)
 
+    @property
+    def zmqpubhashblock(self) -> str:
+        return self._get_param('zmqpubhashblock')
+
+    @property
+    def zmqpubrawtx(self) -> str:
+        return self._get_param('zmqpubrawtx')
+
+    @property
+    def zmqpubhashtx(self) -> str:
+        return self._get_param('zmqpubhashtx')
+
+    @property
+    def zmqpubrawblock(self) -> str:
+        return self._get_param('zmqpubrawblock')
+
     def load_args(self, args: Namespace):
         self['args'] = {
-            'daemon': args.daemon,
             'datadir': args.datadir,
             'rpcbind': args.rpcbind,
             'rpcpassword': args.rpcpassword,
@@ -158,7 +172,11 @@ class Context(dict):
             'add_p2p_peer': args.add_p2p_peer,
             'disable_electrum_peer_discovery': args.disable_electrum_peer_discovery,
             'max_electrum_connections': args.max_electrum_connections,
-            'add_electrum_server': args.electrum_server
+            'add_electrum_server': args.electrum_server,
+            'zmqpubhashblock': args.zmqpubhashblock,
+            'zmqpubrawtx': args.zmqpubrawtx,
+            'zmqpubhashtx': args.zmqpubhashtx,
+            'zmqpubrawblock': args.zmqpubrawblock
         }
         self.apply_context()
 
@@ -176,6 +194,11 @@ class Context(dict):
         net, work = self._get_param('network').split('.')
         module = getattr(networks, net)
         return getattr(module, work)
+
+    def is_zmq_enabled(self):
+        return bool(
+            self.zmqpubhashblock or self.zmqpubrawblock or self.zmqpubhashtx or self.zmqpubrawtx
+        )
 
 
 _local = threading.local()

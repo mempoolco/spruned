@@ -6,13 +6,12 @@ from spruned.application.context import Context
 from spruned.daemon.bitcoin_p2p import utils
 
 
-def build(ctx: Context):
+def build(ctx: Context):  # pragma: no cover
     network = ctx.get_network()
     assert isinstance(network, dict), network
     from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
     from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
     peers = load_p2p_peers()
-    print(ctx.proxy)
     pool = P2PConnectionPool(
         connections=8, batcher_timeout=15, network=network['pycoin'], ipv6=False, proxy=str(ctx.proxy), context=ctx
     )
@@ -26,7 +25,7 @@ def build(ctx: Context):
     return pool, interface
 
 
-def load_p2p_peers():
+def load_p2p_peers():  # pragma: no cover
     from spruned.application.context import ctx
     _local = ctx.datadir + '/p2p_peers.json'
     local_peers = []

@@ -38,10 +38,10 @@ class TestVOService(unittest.TestCase):
             'prev_block_hash': '0000000000000000004c3270bc11b00779e2a9ce2cdbc67a26a339abec01d06a'
         }
         self.response_header = {
-                'bits': 391481763,
-                'chainwork': '',
+                'bits': '391481763',
+                'chainwork': '00'*32,
                 'confirmations': 2,
-                'difficulty': '',
+                'difficulty': 0,
                 'hash': '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e',
                 'height': 513979,
                 'mediantime': 1521312803,
@@ -85,8 +85,8 @@ class TestVOService(unittest.TestCase):
               "mediantime": 1231469665,
               "nonce": 2573394689,
               "bits": 486604799,
-              "difficulty": "",
-              "chainwork": "",
+              "difficulty": 0,
+              'chainwork': '00'*32,
               "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
               "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
               "tx": [
@@ -124,9 +124,9 @@ class TestVOService(unittest.TestCase):
               "time": 1231469665,
               "mediantime": 1231469665,
               "nonce": 2573394689,
-              "bits": 486604799,
-              "difficulty": "",
-              "chainwork": "",
+              "bits": '486604799',
+              "difficulty": 0,
+              'chainwork': '00'*32,
               "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
               "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
               "tx": [
@@ -238,8 +238,8 @@ class TestVOService(unittest.TestCase):
               "mediantime": 1231469665,
               "nonce": 2573394689,
               "bits": 486604799,
-              "difficulty": "",
-              "chainwork": "",
+              "difficulty": 0,
+              'chainwork': '00'*32,
               "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
               "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
               "tx": [
@@ -287,8 +287,8 @@ class TestVOService(unittest.TestCase):
             "mediantime": 1231469665,
             "nonce": 2573394689,
             "bits": 486604799,
-            "difficulty": "",
-            "chainwork": "",
+            "difficulty": 0,
+            'chainwork': '00'*32,
             "previousblockhash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
             "nextblockhash": "000000006a625f06636b8bb6ac7b960a8d03705d1ace08b1a19da3fdcc99ddbd",
             "tx": [
@@ -386,8 +386,8 @@ class TestVOService(unittest.TestCase):
                 'blocks': 513979,
                 'headers': 513979,
                 'bestblockhash': '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e',
-                'difficulty': '',
-                'chainwork': '',
+                'difficulty': 0,
+                'chainwork': '00'*32,
                 'mediantime': 1521312803,
                 'verificationprogress': 0,
                 'pruned': False
