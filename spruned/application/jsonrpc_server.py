@@ -220,7 +220,7 @@ class JSONRPCServer:
     async def getbestblockhash(self):
         return await self.vo_service.getbestblockhash()
 
-    async def sendrawtransaction(self, rawtx: str):
+    async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
         try:
             binascii.unhexlify(rawtx)
         except (binascii.Error, AssertionError):
@@ -228,7 +228,7 @@ class JSONRPCServer:
                 code=-22,
                 message="TX decode failed"
             )
-        return await self.vo_service.sendrawtransaction(rawtx)
+        return await self.vo_service.sendrawtransaction(rawtx, allowhighfees)
 
     async def getblockcount(self):
         res = await self.vo_service.getblockcount()
