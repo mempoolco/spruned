@@ -42,7 +42,6 @@ class ZeroMQPublisher:
     def setup_socket(self):
         if not getattr(_SOCKETS, self._endpoint, None):
             s = self.context.socket(zmq.PUB)
-            s.setsockopt(zmq.LINGER, 0)
             setattr(_SOCKETS, self._endpoint, s)
             s.bind(self._endpoint)
 
@@ -162,5 +161,5 @@ def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_st
         zeromq_observer.blockhash_publisher = zmqpubhashblock
         headers_reactor.add_on_new_header_callback(zeromq_observer.on_block_hash)
 
-    signal.signal(signal.SIGINT, lambda x: zeromq_observer.close_zeromq())
+    signal.signal(signal.SIGINT, lambda *a, **kw: zeromq_observer.close_zeromq())
     return zmq_ctx, zeromq_observer
