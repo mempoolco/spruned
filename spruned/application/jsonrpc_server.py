@@ -15,10 +15,8 @@ from spruned.application import exceptions
 
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import async_delayed_task
 from spruned.daemon.exceptions import GenesisTransactionRequestedException
 from spruned import __version__ as spruned_version
-from spruned import __bitcoind_version_emulation__ as bitcoind_version
 from spruned.dependencies.pybitcointools import address_to_script
 
 config.schema_validation = False

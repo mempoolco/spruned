@@ -1,10 +1,8 @@
 import asyncio
-import io
 import binascii
 import itertools
 
 import time
-from pycoin.block import Block
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify, is_address

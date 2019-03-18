@@ -5,7 +5,7 @@ import time
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.repositories.blockchain_repository import TRANSACTION_PREFIX, BLOCK_PREFIX
+from spruned.repositories.blockchain_repository import BLOCK_PREFIX
 
 
 class CacheAgent:

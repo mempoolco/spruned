@@ -1,5 +1,3 @@
-from spruned import settings
-
 from spruned.application.context import ctx as _ctx, Context
 from spruned.daemon.zeromq import build_zmq
 
