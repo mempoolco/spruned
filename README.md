@@ -5,6 +5,7 @@
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
 [![rtd](https://readthedocs.org/projects/spruned/badge/?version=latest)](http://spruned.readthedocs.io/en/latest/#)
 [![PyPI version](https://badge.fury.io/py/spruned.svg)](https://badge.fury.io/py/spruned)
+[![PyPI version](https://img.shields.io/badge/talk-groups.io-blue.svg)](https://groups.io/g/spruned/)
 
 #### What's this?
 
