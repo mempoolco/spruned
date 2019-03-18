@@ -162,5 +162,5 @@ def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_st
         zeromq_observer.blockhash_publisher = zmqpubhashblock
         headers_reactor.add_on_new_header_callback(zeromq_observer.on_block_hash)
 
-    signal.signal(signal.SIGINT, zeromq_observer.close_zeromq)
+    signal.signal(signal.SIGINT, lambda x: zeromq_observer.close_zeromq())
     return zmq_ctx, zeromq_observer
