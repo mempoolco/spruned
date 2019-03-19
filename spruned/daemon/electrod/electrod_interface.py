@@ -205,7 +205,7 @@ class ElectrodInterface:
     async def disconnect_from_peer(self, peer: ElectrodConnection):
         self.loop.create_task(peer.disconnect())
 
-    async def sendrawtransaction(self, rawtx: str):
+    async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
 
     def get_peers(self):

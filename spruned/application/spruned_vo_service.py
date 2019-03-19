@@ -93,9 +93,19 @@ class SprunedVOService(RPCAPIService):
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
+    async def _get_rawtransaction(self, txid: str, r=0):
+        try:
+            return await self.electrod.getrawtransaction(txid, verbose=True)
+        except:
+            await asyncio.sleep(1)
+            r += 1
+            if r > 10:
+                raise
+            return await self._get_rawtransaction(txid, r=r)
+
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_json_transaction(txid)
-        transaction = repo_tx or await self.electrod.getrawtransaction(txid, verbose=True)
+        transaction = repo_tx or await self._get_rawtransaction(txid)
         block_header = None
         if not repo_tx and transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])
