@@ -24,3 +24,7 @@ class SourcesDisagreementException(SprunedException):
 
 class MempoolDisabledException(SprunedException):
     pass
+
+
+class ItemNotFoundException(SprunedException):
+    pass

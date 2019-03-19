@@ -13,7 +13,7 @@ from jsonrpcserver import config, status
 from jsonrpcserver.exceptions import JsonRpcServerError
 from spruned.application import exceptions
 
-from spruned.application.exceptions import InvalidPOWException
+from spruned.application.exceptions import InvalidPOWException, ItemNotFoundException
 from spruned.application.logging_factory import Logger
 from spruned.daemon.exceptions import GenesisTransactionRequestedException
 from spruned import __version__ as spruned_version
@@ -208,7 +208,7 @@ class JSONRPCServer:
                 code=-8,
                 message="server error, try again"
             )
-        if not response or 'No such mempool or blockchain transaction' in str(response):
+        except ItemNotFoundException:
             raise JsonRpcServerException(
                 code=-5,
                 message="No such mempool or blockchain transaction. [maybe try again]"
@@ -317,6 +317,8 @@ class JSONRPCServer:
         try:
             txid = txid.strip()
             response = await self.vo_service.gettxout(txid, index)
+        except ItemNotFoundException:
+            response = ""
         except:
             Logger.jsonrpc.error('Error in gettxout', exc_info=True)
             raise JsonRpcServerException(

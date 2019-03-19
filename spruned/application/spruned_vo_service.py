@@ -25,6 +25,7 @@ class SprunedVOService(RPCAPIService):
         self.block_factory = get_block_factory()
         self.context = context
         self._fallback_non_segwit_blocks = fallback_non_segwit_blocks
+        self._expected_data = {'txids': []}
 
     def available(self):
         raise NotImplementedError
@@ -93,19 +94,21 @@ class SprunedVOService(RPCAPIService):
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
-    async def _get_rawtransaction(self, txid: str, r=0):
+    async def _get_electrum_transaction(self, txid: str, r=0):
         try:
-            return await self.electrod.getrawtransaction(txid, verbose=True)
+            response = await self.electrod.getrawtransaction(txid, verbose=True)
+            if response.get('code') == 2 or 'error' in response.get('message', ''):
+                raise exceptions.ItemNotFoundException
         except:
+            if txid not in self._expected_data['txids'] or r > 10:
+                raise
             await asyncio.sleep(1)
             r += 1
-            if r > 10:
-                raise
-            return await self._get_rawtransaction(txid, r=r)
+            return await self._get_electrum_transaction(txid, r=r)
 
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_json_transaction(txid)
-        transaction = repo_tx or await self._get_rawtransaction(txid)
+        transaction = repo_tx or await self._get_electrum_transaction(txid)
         block_header = None
         if not repo_tx and transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])
@@ -130,6 +133,13 @@ class SprunedVOService(RPCAPIService):
 
     async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
         res = await self.electrod.sendrawtransaction(rawtx, allowhighfees=allowhighfees)
+        try:
+            binascii.unhexlify(res)
+            self._expected_data['txids'].append(res)
+            # This must be done to retry on race conditions in send\get rawtxs
+            # And to avoid "local bias" (we can't simply store and return the local data)
+        except:
+            pass
         return res
 
     async def getblockhash(self, blockheight: int):
@@ -211,7 +221,7 @@ class SprunedVOService(RPCAPIService):
     async def gettxout(self, txid: str, index: int):
         repo_tx = self.repository.blockchain.get_transaction(txid)
         transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']).decode() \
-                        or await self.electrod.getrawtransaction(txid)
+                        or await self._get_electrum_transaction(txid)
         if not transaction:
             return
         deserialized = deserialize(transaction)
