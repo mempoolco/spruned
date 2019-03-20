@@ -43,7 +43,7 @@ class SprunedVOService(RPCAPIService):
         block_object = await self.block_factory.get(block['block_bytes'])
         return block_object
 
-    async def getblock(self, blockhash: str, mode: int=1):
+    async def getblock(self, blockhash: str, mode: int = 1):
         start = time.time()
         if mode == 2:
             raise NotImplementedError
@@ -99,6 +99,10 @@ class SprunedVOService(RPCAPIService):
             response = await self.electrod.getrawtransaction(txid, verbose=verbose)
             if not response:
                 raise exceptions.ItemNotFoundException
+            if verbose:
+                for vout in response.get('vout'):
+                    if vout.get('value'):
+                        vout['value'] = float(vout['value'])
             return response
         except:
             if txid not in self._expected_data['txids'] or r > 10:
@@ -242,7 +246,7 @@ class SprunedVOService(RPCAPIService):
         return {
             "bestblock": best_header['block_hash'],
             "confirmations": best_header['block_height'] - txout['height'],
-            "value": "{:.8f}".format(txout['value'] / 10**8, 8),
+            "value": round(float(txout['value'] / 10**8), 8),
             "scriptPubKey": {
                 "asm": "",  # todo
                 "hex": deserialized_vout['script'],

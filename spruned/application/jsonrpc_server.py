@@ -81,7 +81,7 @@ class JSONRPCServer:
         return bool(request.headers.get('Authorization') == self._auth)
 
     @staticmethod
-    def _json_dumps_with_fixed_float_precision(value, precision = 8):
+    def _json_dumps_with_fixed_float_precision(value, precision=8):
         res = json.dumps(value)
         return re.sub('\d+e-07?\d+', lambda x: '%.*f' % (precision, float(x.group())), res)
 
