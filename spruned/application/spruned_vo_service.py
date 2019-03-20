@@ -113,7 +113,7 @@ class SprunedVOService(RPCAPIService):
 
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_json_transaction(txid)
-        transaction = repo_tx or await self._get_electrum_transaction(txid, verbose=True)
+        transaction = repo_tx or await self._get_electrum_transaction(txid, verbose=verbose)
         block_header = None
         if not repo_tx and transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])

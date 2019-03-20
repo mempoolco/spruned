@@ -9,7 +9,7 @@ from test.utils import async_coro
 
 class TestJSONRPCServerSendrawtransaction(TestCase):
     def setUp(self):
-        bindport = random.randint(31337, 41337)
+        bindport = random.randint(11337, 41337)
         self.sut = JSONRPCServer('127.0.0.1', bindport, 'testuser', 'testpassword')
         self.vo_service = Mock()
         self.sut.set_vo_service(self.vo_service)

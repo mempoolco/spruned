@@ -213,7 +213,8 @@ class TestVOService(unittest.TestCase):
                    '00500000000001976a914fa511ca56ee17f57b8190ad490c4e5bf7ef0e34b88ac951e00000000000016001458e05b9b412c3b'
                    '4f35bdb54f47376beaeb8f81aa024830450221008a6edb6ce73676d4065ffb810f3945b3c3554025d3d7545bfca7185aaff62'
                    '0cc022066e2f0640aeb0775e4b47701472b28d1018b4ab8fd688acbdcd757b75c2731b6012103dfc2e6847645ca8057120780'
-                   'e5ae6fa84be76b39465cd2a5158d1fffba78b22600000000'
+                   'e5ae6fa84be76b39465cd2a5158d1fffba78b22600000000',
+            'vout': []
         }
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.electrod.getrawtransaction.return_value = async_coro(tx)
@@ -261,7 +262,8 @@ class TestVOService(unittest.TestCase):
                    '947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000',
 
             'blockhash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
-            'confirmations': 6
+            'confirmations': 6,
+            'vout': []
         }
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.electrod.getrawtransaction.return_value = async_coro(tx)
@@ -310,7 +312,8 @@ class TestVOService(unittest.TestCase):
                    '947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000',
 
             'blockhash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
-            'confirmations': 6
+            'confirmations': 6,
+            'vout': []
         }
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.electrod.getrawtransaction.return_value = async_coro(tx)
@@ -419,7 +422,7 @@ class TestVOService(unittest.TestCase):
             {
                 "bestblock": "0000000000000000001a0822fbaef92ef048967fa32c68f96e3d57d13183ef2b",
                 "confirmations": 513980,
-                "value": "0.00000001",
+                "value": 0.00000001,
                 "scriptPubKey": {
                     "asm": "",
                     "hex": "410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7"
