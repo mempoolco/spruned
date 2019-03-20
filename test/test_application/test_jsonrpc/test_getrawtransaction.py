@@ -2,6 +2,8 @@ import asyncio
 import random
 from unittest import TestCase
 from unittest.mock import Mock, call
+
+from spruned.application.exceptions import ItemNotFoundException
 from spruned.application.jsonrpc_server import JSONRPCServer
 from spruned.application.utils.jsonrpc_client import JSONClient
 from spruned.daemon import exceptions
@@ -39,7 +41,7 @@ class TestJSONRPCServerGetrawtransaction(TestCase):
         )
 
     def test_getrawtransaction_error_missing(self):
-        self.vo_service.getrawtransaction.side_effect = [async_coro(None)]
+        self.vo_service.getrawtransaction.side_effect = ItemNotFoundException
 
         async def test():
             await self.sut.start()

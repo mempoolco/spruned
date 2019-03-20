@@ -108,7 +108,11 @@ class ElectrodInterface:
     async def getrawtransaction(self, txid: str, verbose=False):
         if txid == self._network['tx0']:
             raise exceptions.GenesisTransactionRequestedException
-        return await self.pool.call('blockchain.transaction.get', txid, int(verbose))
+        response = await self.pool.call('blockchain.transaction.get', txid, int(verbose))
+        if isinstance(response, dict) and (response.get('code') == 2 or 'error' in response.get('message', '')):
+            Logger.electrum.warning('getrawtransaction error response: %s' % response)
+            return
+        return response
 
     async def listunspents_by_address(self, address: str):
         return await self.pool.call('blockchain.address.listunspent', address)

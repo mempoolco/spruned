@@ -55,7 +55,7 @@ class SprunedVOService(RPCAPIService):
         except exceptions.ServiceException:
             if not self._fallback_non_segwit_blocks:
                 raise
-            block = await self._get_block(block_header, verbose=mode ==1, segwit=False)
+            block = await self._get_block(block_header, verbose=mode == 1, segwit=False)
         if mode == 1:
             if block.get('verbose'):
                 res = block['verbose']
@@ -79,7 +79,7 @@ class SprunedVOService(RPCAPIService):
         serialized['size'] = len(block['block_bytes'])
         return serialized
 
-    async def _get_block(self, blockheader, _r=0, verbose=False, segwit=True, block_object=False):
+    async def _get_block(self, blockheader, _r=0, verbose=False, segwit=True):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
         block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3, segwit=segwit)
@@ -94,21 +94,22 @@ class SprunedVOService(RPCAPIService):
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
-    async def _get_electrum_transaction(self, txid: str, r=0):
+    async def _get_electrum_transaction(self, txid: str, verbose=False, r=0):
         try:
-            response = await self.electrod.getrawtransaction(txid, verbose=True)
-            if response.get('code') == 2 or 'error' in response.get('message', ''):
+            response = await self.electrod.getrawtransaction(txid, verbose=verbose)
+            if not response:
                 raise exceptions.ItemNotFoundException
+            return response
         except:
             if txid not in self._expected_data['txids'] or r > 10:
                 raise
             await asyncio.sleep(1)
             r += 1
-            return await self._get_electrum_transaction(txid, r=r)
+            return await self._get_electrum_transaction(txid, verbose=verbose, r=r)
 
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_json_transaction(txid)
-        transaction = repo_tx or await self._get_electrum_transaction(txid)
+        transaction = repo_tx or await self._get_electrum_transaction(txid, verbose=True)
         block_header = None
         if not repo_tx and transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])
