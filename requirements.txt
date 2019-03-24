@@ -1,8 +1,8 @@
+aiohttp==3.0.0b0
+aiohttp-socks==0.1.6
 async-timeout==2.0.1
 jsonrpcserver==3.5.3
-sqlalchemy==1.2.6
 plyvel==0.9.0
-aiohttp==3.0.0b0
 pycoin==0.80
-aiohttp-socks==0.1.6
 pyzmq==18.0.1
+sqlalchemy==1.2.6

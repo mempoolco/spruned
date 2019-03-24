@@ -19,7 +19,7 @@ CHECK_NETWORK_HOST = [
     'm.root-servers.net'
 ]
 SQLITE_DBNAME = ''
-LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/{}-test.ldb'.format(binascii.hexlify(os.urandom(8)))
+LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/%s-test.ldb' % binascii.hexlify(os.urandom(8))
 LEVELDB_BLOCKCHAIN_SLUG = b'blockchain'
 LEVELDB_CACHE_SLUG = b'cache'
 
