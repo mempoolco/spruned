@@ -23,12 +23,12 @@ class ZeroMQPublisher:
         self.context = context
         self.setup_socket()
 
-    async def on_event(self, data: bytes, _r=0):
+    async def on_event(self, data: bytes, retries=0):
         try:
             await self.socket.send_multipart([self._topic, data])
             Logger.zmq.debug('Published on topic %s' % self._topic.decode())
         except Exception as e:
-            if _r:
+            if retries:
                 raise
             Logger.zmq.warning('Error: %s' % e)
             await asyncio.sleep(0.5)
@@ -37,7 +37,7 @@ class ZeroMQPublisher:
             except:
                 pass
             setattr(_SOCKETS, self._endpoint, None)
-            await self.on_event(data, _r=_r+1)
+            await self.on_event(data, retries=retries+1)
 
     def setup_socket(self):
         if not getattr(_SOCKETS, self._endpoint, None):
@@ -112,14 +112,14 @@ def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_st
     zeromq_observer.context = zmq_ctx
     zeromq_observer.service = vo_service
 
-    async def processblock(data, _r=0):
+    async def processblock(data, retries=0):
         blockhash = data['block_hash']
         try:
             block = await vo_service.get_block_object(blockhash)
         except exceptions.NoPeersException:
-            if _r < 10:
+            if retries < 10:
                 await asyncio.sleep(10)
-                return await processblock(data, _r=_r + 1)
+                return await processblock(data, retries=retries + 1)
             raise
         await zeromq_observer.on_raw_block(block)
 

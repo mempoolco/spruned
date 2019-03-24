@@ -6,6 +6,7 @@ mainnet = {
     'chain': 'main',
     'regex_legacy_addresses_prefix': '1',
     'electrum_concurrency': 4,
+    'fees_consensus': 5,
     'min_bitcoin_protocol_version': 70012,
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',
@@ -25,7 +26,8 @@ mainnet = {
         250000: "000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214",
         279000: "0000000000000001ae8c72a0b0c301f67e3afca10e819efa9041e458e9bd7e40",
         295000: "00000000000000004d9b4ef50f0f9d686fd69db2e03af35a100370c64632a983",
-        478559: "00000000000000000019f112ec0a9982926f1258cdcc558dd7c3b7e5dc7fa148"
+        478559: "00000000000000000019f112ec0a9982926f1258cdcc558dd7c3b7e5dc7fa148",
+        568150: "00000000000000000001ae8ead7f279a3f7038967a147a0fb35acb83ff16fd82"
     },
     'rpc_port': 8332
 }
@@ -35,6 +37,7 @@ testnet = {
     'alias': 'bc_testnet',
     'chain': 'test',
     'electrum_concurrency': 1,
+    'fees_consensus': 1,
     'min_bitcoin_protocol_version': 70012,
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': 'f0315ffc38709d70ad5647e22048358dd3745f3ce3874223c80a7c92fab0c8ba',
@@ -42,7 +45,8 @@ testnet = {
         0: "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943",
         1: "00000000b873e79784647a6c82962c70d228557d24a747ea4d1b8bbe878e1206",
         500000: "000000000001a7c0aaa2630fbb2c0e476aafffc60f82177375b2aaa22209f606",
-        1000000: "0000000000478e259a3eda2fafbeeb0106626f946347955e99278fe6cc848414"
+        1000000: "0000000000478e259a3eda2fafbeeb0106626f946347955e99278fe6cc848414",
+        1485500: "000000000000000deb21d7f38f845864f6b57167b3a64cb88d05c664f370363a"
     },
     'rpc_port': 18332
 }

@@ -1,7 +1,6 @@
 import asyncio
 import binascii
 import itertools
-
 import time
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
@@ -60,7 +59,7 @@ class SprunedVOService(RPCAPIService):
             if block.get('verbose'):
                 res = block['verbose']
             else:
-                res = self.__make_verbose_block(block, block_header)
+                res = self._make_verbose_block(block, block_header)
                 self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
             best_header = self.repository.headers.get_best_header()
             res['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
@@ -72,29 +71,29 @@ class SprunedVOService(RPCAPIService):
         )
         return res
 
-    async def __make_verbose_block(self, block: dict, block_header) -> dict:
+    async def _make_verbose_block(self, block: dict, block_header) -> dict:
         block_object = await self.block_factory.get(block['block_bytes'])
         serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
         serialized['tx'] = [tx.id() for tx in block_object.txs]
         serialized['size'] = len(block['block_bytes'])
         return serialized
 
-    async def _get_block(self, blockheader, _r=0, verbose=False, segwit=True):
+    async def _get_block(self, blockheader, retries=0, verbose=False, segwit=True):
         blockhash = blockheader['block_hash']
         storedblock = self.repository.blockchain.get_block(blockhash)
-        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=_r > 3, segwit=segwit)
+        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=retries > 3, segwit=segwit)
         if not block:
-            if _r > 3:
+            if retries > 3:
                 raise exceptions.ServiceException
             else:
-                block = await self._get_block(blockheader, _r + 1, segwit=segwit)
+                block = await self._get_block(blockheader, retries + 1, segwit=segwit)
         if verbose and not block.get('verbose'):
-            block['verbose'] = await self.__make_verbose_block(block, blockheader)
+            block['verbose'] = await self._make_verbose_block(block, blockheader)
         if not storedblock:
             self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
         return block
 
-    async def _get_electrum_transaction(self, txid: str, verbose=False, r=0):
+    async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):
         try:
             response = await self.electrod.getrawtransaction(txid, verbose=verbose)
             if not response:
@@ -105,21 +104,19 @@ class SprunedVOService(RPCAPIService):
                         vout['value'] = float(vout['value'])
             return response
         except:
-            if txid not in self._expected_data['txids'] or r > 10:
+            if txid not in self._expected_data['txids'] or retries > 10:
                 raise
             await asyncio.sleep(1)
-            r += 1
-            return await self._get_electrum_transaction(txid, verbose=verbose, r=r)
+            return await self._get_electrum_transaction(txid, verbose=verbose, retries=retries + 1)
 
     async def getrawtransaction(self, txid: str, verbose=False):
         repo_tx = self.repository.blockchain.get_json_transaction(txid)
-        transaction = repo_tx or await self._get_electrum_transaction(txid, verbose=verbose)
+        transaction = repo_tx or await self._get_electrum_transaction(txid, verbose=True)
         block_header = None
         if not repo_tx and transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])
             merkle_proof = await self.electrod.get_merkleproof(txid, block_header['block_height'])
             dh = deserialize_header(block_header['header_bytes'])
-            dh['merkle_root'] = binascii.hexlify(dh['merkle_root'])
             if not ElectrumMerkleVerify.verify_merkle(txid, merkle_proof, dh):
                 raise exceptions.InvalidPOWException
             if transaction.get('confirmations') > 2:
@@ -130,7 +127,7 @@ class SprunedVOService(RPCAPIService):
                   self.repository.headers.get_block_header(transaction['blockhash'])['block_height']
                 transaction['confirmations'] = ((await self.getblockcount()) - incl_height) + 1
             return transaction
-        return transaction.get('hex') and transaction['hex'] or transaction
+        return transaction['hex']
 
     async def getbestblockhash(self):
         res = self.repository.headers.get_best_header().get('block_hash')
@@ -189,15 +186,15 @@ class SprunedVOService(RPCAPIService):
             pass
         return self._last_estimatefee
 
-    async def _estimatefee(self, blocks, _r=1):
+    async def _estimatefee(self, blocks, retries=1):
         try:
             res = await self.electrod.estimatefee(blocks)
         except ElectrodMissingResponseException as e:
             Logger.electrum.error('Error with peer', exc_info=True)
-            _r += 1
-            if _r > 5:
+            retries += 1
+            if retries > 5:
                 raise e
-            return await self._estimatefee(blocks, _r + 1)
+            return await self._estimatefee(blocks, retries + 1)
         return res
 
     async def getbestblockheader(self, verbose=True):
@@ -245,7 +242,7 @@ class SprunedVOService(RPCAPIService):
         best_header = self.repository.headers.get_best_header()
         return {
             "bestblock": best_header['block_hash'],
-            "confirmations": best_header['block_height'] - txout['height'],
+            "confirmations": best_header['block_height'] - txout['height'] + 1,
             "value": round(float(txout['value'] / 10**8), 8),
             "scriptPubKey": {
                 "asm": "",  # todo
@@ -256,13 +253,13 @@ class SprunedVOService(RPCAPIService):
             }
         }
 
-    async def _listunspent_by_scripthash(self, scripthash, _r=0):
+    async def _listunspent_by_scripthash(self, scripthash, retries=0):
         try:
             unspents = await self.electrod.listunspents_by_scripthash(scripthash)
         except:
-            if _r > 15:
+            if retries > 15:
                 return
-            return await self._listunspent_by_scripthash(scripthash, _r=_r+1)
+            return await self._listunspent_by_scripthash(scripthash, retries=retries+1)
         return unspents
 
     async def getpeerinfo(self):

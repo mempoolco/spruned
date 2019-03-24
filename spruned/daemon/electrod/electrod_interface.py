@@ -31,16 +31,17 @@ class ElectrodInterface:
             self._collector_bootstrap = True
 
             async def bootstrap():
+                consensus = self._network['fees_consensus']
                 rates = [2, 6, 36, 4, 100]
                 i = 0
                 max_i = 20
-                await self._fees_collector.collect(rates, members=5)
+                await self._fees_collector.collect(rates, members=consensus)
                 while 1:
                     if i > max_i:
                         break
-                    if all([len(self._fees_collector.get_rates(rate)) >= 5 for rate in rates]):
+                    if all([len(self._fees_collector.get_rates(rate)) >= consensus for rate in rates]):
                         break
-                    await self._fees_collector.collect(rates, members=5)
+                    await self._fees_collector.collect(rates, members=consensus)
             self.loop.create_task(bootstrap())
 
     @property
@@ -155,6 +156,7 @@ class ElectrodInterface:
         return await asyncio.gather(*futures)
 
     async def estimatefee(self, blocks: int):
+        consensus = self._network['fees_consensus']
         i = 0
         max_i = 10
         while 1:
@@ -162,14 +164,14 @@ class ElectrodInterface:
             if i > max_i:
                 raise ValueError
             try:
-                await self._fees_collector.collect(rates=[blocks], members=5)
+                await self._fees_collector.collect(rates=[blocks], members=consensus)
             except NoPeersException:
                 self._fees_collector.reset_data()
 
-            if not len(self._fees_collector.get_rates(blocks)) >= 5:
+            if not len(self._fees_collector.get_rates(blocks)) >= consensus:
                 continue
             rates_data = self._fees_collector.get_rates(blocks)
-            projection = self._fees_projector.project(rates_data, members=5)
+            projection = self._fees_projector.project(rates_data, members=consensus)
             for d in projection["disagree"]:
                 _ = [self._fees_collector.penalize_peer(d) for _ in range(0, 5)]
             if projection["agree"]:

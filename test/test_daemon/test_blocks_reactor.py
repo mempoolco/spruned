@@ -32,7 +32,7 @@ class TestBlocksReactory(TestCase):
         Mock.assert_called_once_with(self.repo.headers.get_best_header)
         Mock.assert_called_once_with(self.interface.get_blocks, 'babe')
         Mock.assert_called_once_with(self.repo.headers.get_headers_since_height, 9, limit=10)
-        Mock.assert_called_once_with(self.repo.blockchain.get_block, 'babe', with_transactions=False)
+        Mock.assert_called_once_with(self.repo.blockchain.get_block, 'babe')
         Mock.assert_called_once_with(self.repo.blockchain.save_blocks, {'block_hash': 'babe', 'block_bytes': b'raw'})
 
     def test_check_blockchain_local_behind_remote_but_block_already_stored(self):
@@ -45,7 +45,7 @@ class TestBlocksReactory(TestCase):
         self.loop.run_until_complete(self.sut.check())
         Mock.assert_called_once_with(self.repo.headers.get_best_header)
         Mock.assert_called_once_with(self.repo.headers.get_headers_since_height, 9, limit=10)
-        Mock.assert_called_once_with(self.repo.blockchain.get_block, 'babe', with_transactions=False)
+        Mock.assert_called_once_with(self.repo.blockchain.get_block, 'babe')
         Mock.assert_not_called(self.interface.get_blocks)
         Mock.assert_not_called(self.repo.blockchain.save_blocks)
         self.assertEqual(self.sut._last_processed_block, {'block_hash': 'babe', 'block_height': 10})
@@ -65,7 +65,7 @@ class TestBlocksReactory(TestCase):
         Mock.assert_called_once_with(self.repo.headers.get_best_header)
         Mock.assert_called_once_with(self.interface.get_blocks, 'babe')
         Mock.assert_called_once_with(self.repo.headers.get_headers_since_height, 9, limit=10)
-        Mock.assert_called_once_with(self.repo.blockchain.get_block, 'babe', with_transactions=False)
+        Mock.assert_called_once_with(self.repo.blockchain.get_block, 'babe')
         self.assertEqual(self.sut._last_processed_block, {'block_hash': 'cafe', 'block_height': 9})
 
     def test_check_blockchain_local_a_lot_behind(self):
@@ -109,11 +109,11 @@ class TestBlocksReactory(TestCase):
         Mock.assert_has_calls(
             self.repo.blockchain.get_block,
             calls=[
-                call('block16', with_transactions=False),
-                call('block17', with_transactions=False),
-                call('block18', with_transactions=False),
-                call('block19', with_transactions=False),
-                call('block20', with_transactions=False)
+                call('block16'),
+                call('block17'),
+                call('block18'),
+                call('block19'),
+                call('block20')
             ]
         )
         Mock.assert_called_once_with(self.interface.get_blocks, 'block17', 'block18', 'block19', 'block20')

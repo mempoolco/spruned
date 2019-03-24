@@ -120,9 +120,7 @@
     ["y4td57fxytoo5ki7.onion", "s"]
   ],
   "bc_testnet": [
-    ["testnet1.bauerj.eu", ["s", "t"]],
-    ["testnet.qtornado.com", ["s", "t"]],
-    ["testnet.hsmiths.com", ["s", "t"]],
-    ["electrumx.kekku.li", "s"]
+    ["electrumx.testnet.mempool.co", "s"],
+    ["electrumx.testnet.mempool.co", "t"]
   ]
 }

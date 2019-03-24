@@ -321,6 +321,8 @@ class StratumClient:
             logger.debug("Traffic on subscription: %s" % method)
 
             subs = self.subscriptions.get(method)
+            if not subs:
+                return
             for q in subs:
                 self.loop.create_task(q.put(result))
 

@@ -166,17 +166,15 @@ class ElectrumMerkleVerify:
         for i in range(len(merkle_s)):
             item = merkle_s[i]
             h = cls._hash(cls.hash_decode(item) + h) if ((pos >> i) & 1) else cls._hash(h + cls.hash_decode(item))
-        return binascii.hexlify(h[::-1])
+        return binascii.hexlify(h[::-1]).decode()
 
     @classmethod
     def verify_merkle(self, txid, merkle, header):
-        tx_hash = txid
-        if merkle.get('merkle', None) is None:
+        if not header or merkle.get('merkle', None) is None:
             return
-        merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, merkle['pos'])
-        if not header or header.get('merkle_root') != merkle_root:
-            return
-        return True
+        merkle_root = self.hash_merkle_root(merkle['merkle'], txid, merkle['pos'])
+        expected = (header.get('merkle_root') and binascii.hexlify(header['merkle_root']).decode())
+        return merkle_root == expected
 
 
 def is_address(addr, prefix):

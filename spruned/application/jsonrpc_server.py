@@ -274,10 +274,11 @@ class JSONRPCServer:
                 code=-5,
                 message="Error parsing JSON:%s" % blocks
             )
-        response = await round(self.vo_service.estimatefee(blocks), 8)
+        estimatefee_res = await self.vo_service.estimatefee(blocks)
+        response = round(estimatefee_res["average_satoshi_per_kb"], 8)
         if response is None:
             return "-1"
-        return response["average_satoshi_per_kb"]
+        return response
 
     async def estimatesmartfee(self, blocks: int, estimate_mode=None):
         try:

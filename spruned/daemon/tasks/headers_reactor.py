@@ -144,12 +144,12 @@ class HeadersReactor:
                 self.new_headers_fallback_poll_interval
             )
 
-    async def on_new_header(self, peer, network_best_header: Dict, _r=0):
+    async def on_new_header(self, peer, network_best_header: Dict, retries=0):
         if not network_best_header:
             Logger.electrum.warning('Weird. No best header received on call')
             return
         try:
-            not _r and await self.lock.acquire()
+            not retries and await self.lock.acquire()
             if self._last_processed_header and \
                     self._last_processed_header['block_hash'] == network_best_header['block_hash'] and \
                     self._last_processed_header['block_height'] == network_best_header['block_height']:
@@ -182,8 +182,8 @@ class HeadersReactor:
                 exceptions.NoHeadersException,
         ) as e:
             self._sync_errors += 1
-            if _r < 5:
-                return await self.on_new_header(peer, network_best_header, _r + 1)
+            if retries < 5:
+                return await self.on_new_header(peer, network_best_header, retries + 1)
             Logger.electrum.error('Excessive recursion on new_header. %s', e)
         finally:
             if self.synced:
@@ -196,7 +196,7 @@ class HeadersReactor:
                 for callback in self.on_best_height_hit_persistent_callbacks:
                     self.loop.create_task(callback(self._last_processed_header))
 
-            not _r and self.lock.release()
+            not retries and self.lock.release()
 
     @database.atomic
     async def on_inconsistent_header_received(self, peer: ElectrodConnection, received_header: Dict, local_hash: str):
@@ -210,7 +210,7 @@ class HeadersReactor:
             return
         if response['block_hash'] == local_hash:
             Logger.electrum.warning('Received a controversial header (%s), handling error with peer %s',
-                                    received_header, peer.server_info)
+                                    received_header, peer.version)
             await self.interface.handle_peer_error(peer)
             return True
 
