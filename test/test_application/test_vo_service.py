@@ -423,7 +423,7 @@ class TestVOService(unittest.TestCase):
             {
                 "bestblock": "0000000000000000001a0822fbaef92ef048967fa32c68f96e3d57d13183ef2b",
                 "confirmations": 513981,
-                "value": 0.00000001,
+                "value": "0.00000001",
                 "scriptPubKey": {
                     "asm": "",
                     "hex": "410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7"

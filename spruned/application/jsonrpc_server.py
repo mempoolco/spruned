@@ -81,9 +81,17 @@ class JSONRPCServer:
         return bool(request.headers.get('Authorization') == self._auth)
 
     @staticmethod
-    def _json_dumps_with_fixed_float_precision(value, precision=8):
+    def _json_dumps_with_fixed_float_precision(value):
         res = json.dumps(value)
-        return re.sub('\d+e-07?\d+', lambda x: '%.*f' % (precision, float(x.group())), res)
+
+        def parser(x):
+            res = x.group().split(' ')
+            y = re.sub(r'"(\d+(?:\.\d+)?)"', r"\1", res[1])
+            return res[0] + ' ' + y
+
+        res = re.sub(r'"value": "(\d+(?:\.\d+)?)"', parser, res)
+        res = re.sub(r'"feerate": "(\d+(?:\.\d+)?)"', parser, res)
+        return res
 
     async def _handle(self, jsonrequest):
         if not self._authenticate(jsonrequest):
@@ -301,7 +309,7 @@ class JSONRPCServer:
             )
         return {
             "blocks": blocks,
-            "feerate": round(response["average_satoshi_per_kb"], 8),
+            "feerate": "{:.8f}".format(response["average_satoshi_per_kb"]),
             "_origin": response
         }
 

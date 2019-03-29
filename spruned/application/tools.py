@@ -1,4 +1,5 @@
 import asyncio
+import socket
 import time
 import re
 from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
@@ -92,21 +93,20 @@ async def check_internet_connection():  # pragma: no cover
     from spruned.application.logging_factory import Logger
     from spruned.settings import CHECK_NETWORK_HOST
     import asyncio
-    import subprocess
-    import os
     if not ctx.proxy:
         Logger.root.debug('Checking internet connectivity')
         i = 0
         while i < 10:
             import random
             host = random.choice(CHECK_NETWORK_HOST)
-            ret_code = subprocess.call(['ping', '-c', '1', '-W', '5', host],
-                                       stdout=open(os.devnull, 'w'),
-                                       stderr=open(os.devnull, 'w'))
-            if not ret_code:
+            socket.setdefaulttimeout(3)
+            try:
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, 53))
                 _last_internet_connection_check = int(time.time())
                 return True
-            i += 1
+            except:
+                i += 1
+                continue
         Logger.root.debug('No internet connectivity!')
     else:
         host, port = ctx.proxy.split(':')

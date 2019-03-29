@@ -101,7 +101,7 @@ class SprunedVOService(RPCAPIService):
             if verbose:
                 for vout in response.get('vout'):
                     if vout.get('value'):
-                        vout['value'] = float(vout['value'])
+                        vout['value'] = "{:.8f}".format(vout['value'])
             return response
         except:
             if txid not in self._expected_data['txids'] or retries > 10:
@@ -243,7 +243,7 @@ class SprunedVOService(RPCAPIService):
         return {
             "bestblock": best_header['block_hash'],
             "confirmations": best_header['block_height'] - txout['height'] + 1,
-            "value": round(float(txout['value'] / 10**8), 8),
+            "value": "{:.8f}".format(txout['value']/10**8),
             "scriptPubKey": {
                 "asm": "",  # todo
                 "hex": deserialized_vout['script'],
