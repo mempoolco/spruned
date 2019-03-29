@@ -5,7 +5,7 @@
 # docker run -p=18332:18332 --mount=source=data,target=/root/.spruned spruned --network bitcoin.testnet --debug
 #
 # Mainnet:
-# docker run ---mount=source=data,target=/root/.spruned spruned
+# docker run -p=8332:8332 --mount=source=data,target=/root/.spruned spruned
 #
 
 FROM debian:stretch@sha256:df6ebd5e9c87d0d7381360209f3a05c62981b5c2a3ec94228da4082ba07c4f05

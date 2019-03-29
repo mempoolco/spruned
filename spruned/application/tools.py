@@ -169,10 +169,10 @@ class ElectrumMerkleVerify:
         return binascii.hexlify(h[::-1]).decode()
 
     @classmethod
-    def verify_merkle(self, txid, merkle, header):
+    def verify_merkle(cls, txid, merkle, header):
         if not header or merkle.get('merkle', None) is None:
             return
-        merkle_root = self.hash_merkle_root(merkle['merkle'], txid, merkle['pos'])
+        merkle_root = cls.hash_merkle_root(merkle['merkle'], txid, merkle['pos'])
         expected = (header.get('merkle_root') and binascii.hexlify(header['merkle_root']).decode())
         return merkle_root == expected
 
