@@ -252,7 +252,7 @@ class StratumClient:
                 if isinstance(res, Exception):
                     raise res
         except Exception:
-            logger.debug('Unsupported protocol version: %s', self.server_info['local_version'])
+            logger.debug('Unsupported protocol version: %s', self.server_info['local_version'], exc_info=True)
             try:
                 self.protocol.close()
             except:

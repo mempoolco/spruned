@@ -57,7 +57,7 @@ class ElectrodConnection(BaseConnection):
         try:
             with async_timeout.timeout(self._timeout):
                 await self.client.connect(
-                    self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.2"),
+                    self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.4"),
                     disconnect_callback=not disable_callbacks and self.on_connectrum_disconnect,
                     disable_cert_verify=True,
                     proxy=self.proxy,
@@ -91,7 +91,7 @@ class ElectrodConnection(BaseConnection):
         try:
             async with async_timeout.timeout(timeout):
                 now = time.time()
-                await self.client.RPC('server.version', 'spruned 1.2', '1.2')
+                await self.client.RPC('server.ping')
                 return time.time() - now
         except asyncio.TimeoutError:
             return
@@ -117,12 +117,12 @@ class ElectrodConnection(BaseConnection):
                 future, q = self.client.subscribe(channel)
             self.subscriptions.append({channel: q})
             header = await future
-            self.starting_height = header['block_height']
+            self.starting_height = header['height']
             self._last_header = header
             on_subscription and self.loop.create_task(on_subscription(self))
             self.loop.create_task(self._poll_queue(q, on_traffic))
         except Exception as e:
-            Logger.electrum.error('subscribe %s on %s failed', channel, self.hostname)
+            Logger.electrum.error('subscribe %s on %s failed', channel, self.hostname, exc_info=True)
             self.loop.create_task(self.delayer(self.on_error(e)))
 
     async def _poll_queue(self, queue: asyncio.Queue, callback):
@@ -283,7 +283,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
             peers = set()
             _peers = await peer.rpc_call('server.peers.subscribe', []) or []
             for peer in _peers:
-                if peer[2][0] == 'v1.2':
+                if peer[2][0] == 'v1.4':
                     peers.add(peer[0])
             self.servers_storage(peers)
         finally:

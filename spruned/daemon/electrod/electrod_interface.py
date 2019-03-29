@@ -49,16 +49,16 @@ class ElectrodInterface:
         return self.pool.is_online()
 
     def _parse_header(self, electrum_header: Dict):
-        header_hex = serialize_header(electrum_header)
+        header_hex = electrum_header['hex']
         blockhash_from_header = blockheader_to_blockhash(header_hex)
-        if electrum_header['block_height'] in self._checkpoints:
-            if self._checkpoints[electrum_header['block_height']] != blockhash_from_header:
+        if electrum_header['height'] in self._checkpoints:
+            if self._checkpoints[electrum_header['height']] != blockhash_from_header:
                 raise exceptions.NetworkHeadersInconsistencyException
 
         header_data = deserialize_header(header_hex)
         return {
             'block_hash': blockhash_from_header,
-            'block_height': electrum_header['block_height'],
+            'block_height': electrum_header['height'],
             'header_bytes': binascii.unhexlify(header_hex),
             'prev_block_hash': header_data['prev_block_hash'],
             'timestamp': header_data['timestamp']

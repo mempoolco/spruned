@@ -68,7 +68,7 @@ class TestElectrodConnection(unittest.TestCase):
         )
         Mock.assert_called_once_with(
             self.serverinfo,
-            self.sut.nickname, hostname='hostname', ports='s', version='1.2'
+            self.sut.nickname, hostname='hostname', ports='s', version='1.4'
         )
         self.assertEqual(8, len(binascii.unhexlify(self.sut.nickname)))
         self.assertEqual(callback.call_count, 1)
@@ -136,14 +136,14 @@ class TestElectrodConnection(unittest.TestCase):
 
     def test_subscribe_and_fail(self):
         queue = Mock()
-        queue.get.side_effect = [async_coro([{'block_height': '2'}]), ConnectionError]
-        future = {'block_height': '1'}
+        queue.get.side_effect = [async_coro([{'height': '2'}]), ConnectionError]
+        future = {'height': '1'}
         self.client.subscribe.return_value = async_coro(future), queue
         sub_called = False
 
         async def on_subscription(*a):
             nonlocal sub_called
-            self.assertEqual(a[0]._last_header, {'block_height': '1'})
+            self.assertEqual(a[0]._last_header, {'height': '1'})
             sub_called = True
 
         self.sut.loop = self.loop
@@ -151,7 +151,7 @@ class TestElectrodConnection(unittest.TestCase):
         self.loop.run_until_complete(self.sut.subscribe('channel', on_subscription, lambda *a: async_coro(True)))
         Mock.assert_not_called(self.electrod_loop.create_task)
         self.assertTrue(sub_called)
-        self.sut._last_header = {'block_height': '2'}
+        self.sut._last_header = {'height': '2'}
 
     def test_subscribe_error(self):
         self.sut.loop = self.electrod_loop
