@@ -25,7 +25,7 @@ if sys.version > '3.5.2':  # pragma: no cover
     )
     parser.add_argument(
         '--rpcport',
-        action='store', dest='rpcport', default=ctx.rpcport,
+        action='store', dest='rpcport', default=None,
         help='Listen for JSON-RPC connections on <port> (default: 8332 or testnet: 18332)'
     )
     parser.add_argument(
@@ -134,10 +134,6 @@ if sys.version > '3.5.2':  # pragma: no cover
         action='store', dest='zmqpubrawblock', default='',
         help='Enable publish raw block in <address>'
     )
-
-    args = parser.parse_args()
-    ctx.load_args(args)
-
 
     def main():  # pragma: no cover
         args = parser.parse_args()
