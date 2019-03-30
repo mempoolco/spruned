@@ -109,7 +109,7 @@ class EstimateFeeConsensusCollector:
             self._data[peer] = {
                 "rates": {r: None for r in self._rates},
                 "peer": peer,
-                "score": 0,
+                "score": 5,
                 "permanent": permanent
             }
 
