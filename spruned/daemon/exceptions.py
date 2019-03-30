@@ -51,3 +51,7 @@ class PeerBlockchainBehindException(SprunedException):
 
 class PeerVersionMismatchException(SprunedException):
     pass
+
+
+class BrokenDataException(SprunedException):
+    pass

@@ -37,7 +37,6 @@ def deserialize_header(header: (str, bytes)):
         data['prev_block_hash'] = binascii.hexlify(data['prev_block_hash']).decode()
         data['merkle_root'] = binascii.hexlify(data['merkle_root']).decode()
         data['hash'] = binascii.hexlify(data['hash']).decode()
-    verify_pow(h, blockhash)
     return data
 
 

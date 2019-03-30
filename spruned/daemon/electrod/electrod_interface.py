@@ -5,7 +5,7 @@ from spruned.application.context import ctx
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
-from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
+from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header, verify_pow
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
 from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
     EstimateFeeConsensusCollector, NoPeersException
@@ -56,10 +56,12 @@ class ElectrodInterface:
                 raise exceptions.NetworkHeadersInconsistencyException
 
         header_data = deserialize_header(header_hex)
+        header_bytes = binascii.unhexlify(header_hex)
+        verify_pow(header_bytes, binascii.unhexlify(header_data['hash']))
         return {
             'block_hash': blockhash_from_header,
             'block_height': electrum_header['height'],
-            'header_bytes': binascii.unhexlify(header_hex),
+            'header_bytes': header_bytes,
             'prev_block_hash': header_data['prev_block_hash'],
             'timestamp': header_data['timestamp']
         }
@@ -188,7 +190,10 @@ class ElectrodInterface:
             chunk = await self.get_chunk(chunk_index, get_peer=get_peer)
         if not chunk:
             return
-        hex_headers = [chunk[i:i + 160] for i in range(0, len(chunk), 160)]
+        try:
+            hex_headers = [chunk[i:i + 160] for i in range(0, len(chunk), 160)]
+        except TypeError as e:
+            raise exceptions.BrokenDataException from e
         headers = []
         for i, header_hex in enumerate(hex_headers):
             header = deserialize_header(header_hex)

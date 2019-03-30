@@ -97,6 +97,7 @@ import time
 import json
 
 # Check if aiosocks is present, and load it if it is.
+from spruned.daemon import exceptions
 
 if importutil.find_spec("aiohttp_socks") is not None:
     import aiohttp_socks
@@ -271,9 +272,7 @@ class StratumClient:
         pointless traffic.
         """
         while self.protocol:
-            payload = '%s %s' % (self.server_info['nickname'], self.server_info['local_version'])
-            vers = await self.RPC('server.version', payload, self.server_info['local_version'])
-            logger.debug("Server version: %s", vers)
+            await self.RPC('server.ping')
             await asyncio.sleep(self.keepalive_interval)
 
     def _send_request(self, method, params=list(), is_subscribe=False):
@@ -346,7 +345,11 @@ class StratumClient:
             rv.set_exception(ElectrumErrorResponse(err, req, self))
 
         else:
-            rv.set_result(result)
+            try:
+                rv.set_result(result)
+            except asyncio.InvalidStateError as e:
+                raise exceptions.ElectrodMissingResponseException
+
 
     def RPC(self, method, *params):
         assert '.' in method

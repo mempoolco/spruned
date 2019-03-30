@@ -1,7 +1,10 @@
 from typing import List, Dict
+
+import binascii
 from sqlalchemy.exc import IntegrityError
 from spruned.application.abstracts import HeadersRepository
 from spruned.application.logging_factory import Logger
+from spruned.application.tools import verify_pow
 from spruned.daemon import exceptions
 from spruned.application import database
 
@@ -102,6 +105,7 @@ class HeadersSQLiteRepository(HeadersRepository):
     def save_headers(self, headers: List[Dict]):
         session = self.session()
         for i, header in enumerate(headers):
+            verify_pow(header['header_bytes'], binascii.unhexlify(header['block_hash']))
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
                 if prev_block.blockhash != header['prev_block_hash']:

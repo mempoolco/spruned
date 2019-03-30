@@ -9,7 +9,10 @@ def load_electrum_servers(ctx):  # pragma: no cover
     _current_path = os.path.dirname(os.path.abspath(__file__))
     if os.path.exists(_local) and os.path.isfile(_local):
         with open(_local, 'r') as f:
-            local_servers = json.load(f)['electrum_servers']
+            try:
+                local_servers = json.load(f)['electrum_servers']
+            except:
+                local_servers = []
     with open(_current_path + '/electrum_servers.json', 'r') as f:
         hardcoded_servers = json.load(f)
         electrum_servers = hardcoded_servers[network['alias']]
@@ -28,7 +31,11 @@ def save_electrum_servers(peers: set):  # pragma: no cover
     _local = ctx.datadir + '/electrum_servers.json'
     if os.path.exists(_local) and os.path.isfile(_local):
         with open(_local, 'r') as fr:
-            servers = list(set([x[0] for x in json.load(fr)['electrum_servers']]) | peers)
+            try:
+                servers = json.load(fr)['electrum_servers']
+            except:
+                servers = []
+            servers = list(set([x[0] for x in servers]) | peers)
     else:
         servers = list(peers)
     with open(_local, 'w') as fw:

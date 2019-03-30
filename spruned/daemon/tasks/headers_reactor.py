@@ -247,17 +247,17 @@ class HeadersReactor:
                     local_best_header['block_height'] < network_best_header['block_height'] - \
                     MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS:
                 """
-                bootstrap or behind of more than <N> headers
+                bootstrap or behind more than <N> headers
                 """
                 await self._fetch_headers_chunks(chunks_at_time, local_best_header, network_best_header)
             elif local_best_header['block_height'] == network_best_header['block_height'] - 1:
                 """
-                behind of 1 header
+                behind 1 header
                 """
                 await self._save_header(network_best_header)
             else:
                 """
-                behind of less than MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS, download single headers and don't use chunks
+                behind less than MAX_SINGLE_HEADERS_BEFORE_USING_CHUNKS, download single headers and don't use chunks
                 """
                 await self._fetch_multiple_headers(local_best_header, network_best_header)
         except exceptions.HeadersInconsistencyException:
@@ -299,10 +299,11 @@ class HeadersReactor:
         """
         i = 0
         current_height = local_best_header and local_best_header['block_height'] or 0
+        saving_headers = []
         while 1:
             Logger.electrum.debug(
-                'Behind of %s blocks, fetching chunks',
-                network_best_header['block_height'] - current_height
+                '%s headers behind, downloading',
+                network_best_header['block_height'] - current_height - len(saving_headers)
 
             )
             local_best_height = local_best_header and local_best_header['block_height'] or 0
@@ -310,8 +311,9 @@ class HeadersReactor:
             _from = rewind_from
             _to = rewind_from + chunks_at_time
             if _from > (network_best_header['block_height'] // 2016):
-                # fixme, move the chunk stuff inside the electrod interface and
-                # here just "fetch headers". stop.
+                saved_headers = saving_headers and self.repo.save_headers(saving_headers) or []
+                saved_headers and self.set_last_processed_header(saved_headers[-1])
+
                 self.synced = True
                 return
             res = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
@@ -319,22 +321,27 @@ class HeadersReactor:
             if not headers:
                 raise exceptions.NoHeadersException
             if local_best_height:
-                saving_headers = [h for h in headers if h['block_height'] > local_best_height]
+                saving_headers = saving_headers + [h for h in headers if h['block_height'] > local_best_height]
             else:
-                saving_headers = headers
+                saving_headers = saving_headers + headers
             try:
-                saved_headers = headers and self.repo.save_headers(saving_headers)
+                if not i % 5:
+                    saved_headers = headers and self.repo.save_headers(saving_headers) or []
+                    saving_headers = []
+                else:
+                    saved_headers = []
+
             except exceptions.HeadersInconsistencyException:
                 await peer.disconnect()
                 raise
             Logger.electrum.debug(
-                'Fetched %s headers (from chunk %s to chunk %s), saved %s headers of %s',
-                len(headers), _from, _to, len(saved_headers), len(saving_headers)
+                'Fetched %s headers (chunk %s/%s), tot. %s',
+                len(headers), _from, _to, len(saving_headers)
             )
             if saved_headers:
                 self.set_last_processed_header(saved_headers[-1])
                 current_height = self._last_processed_header['block_height']
-            else:
+            elif saving_headers:
                 self.set_last_processed_header(None)
             i += 1
 
