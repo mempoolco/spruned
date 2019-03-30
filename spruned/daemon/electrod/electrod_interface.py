@@ -164,18 +164,17 @@ class ElectrodInterface:
         while 1:
             i += 1
             if i > max_i:
-                raise ValueError
+                raise exceptions.ElectrodMissingResponseException
             try:
                 await self._fees_collector.collect(rates=[blocks], members=consensus)
             except NoPeersException:
                 self._fees_collector.reset_data()
-
             if not len(self._fees_collector.get_rates(blocks)) >= consensus:
                 continue
             rates_data = self._fees_collector.get_rates(blocks)
             projection = self._fees_projector.project(rates_data, members=consensus)
             for d in projection["disagree"]:
-                _ = [self._fees_collector.penalize_peer(d) for _ in range(0, 5)]
+                self._fees_collector.penalize_peer(d)
             if projection["agree"]:
                 return projection
             else:

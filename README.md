@@ -327,13 +327,14 @@ _* bitcoin-cli is not included_
 
 - Not fast as a full node: internet download is slower than a read from disk.
 - Doesn't help to keep the network healthy (I care about that, and this is really going to be addressed).
+- Privacy leaky if not behind Tor
 
 #### Roadmap
  
 - Maintenance web ui
 - Wallet APIs (electrum-servers based utxo management)
 - sPRUNED P2P network layer with cached blocks to offload the P2P network
-- Distribution (Linux .deb, Windows .exe, Docker Images, etc.)
+- Distribution
 - Network bandwidth reduction
 
 #### Support sPRUNED!

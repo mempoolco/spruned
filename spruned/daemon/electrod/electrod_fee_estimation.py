@@ -2,6 +2,11 @@ import asyncio
 import json
 import time
 from statistics import median
+
+import random
+
+from spruned.application.context import ctx
+from spruned.application.logging_factory import Logger
 from spruned.daemon.electrod.electrod_connection import ElectrodConnection
 
 
@@ -64,7 +69,7 @@ class EstimateFeeConsensusCollector:
         self._time_window = time_window
         self._permanent_connections_pool = None
         self._connectionclass = connectionclass
-        self._peers = set()
+        self._peers = list()
         self._max_age = max_age
         self._collector_lock = asyncio.Lock()
         self._proxy = proxy
@@ -74,7 +79,8 @@ class EstimateFeeConsensusCollector:
         return self._proxy
 
     def add_peer(self, peer):
-        self._peers.add(peer)
+        if peer not in self._peers:
+            self._peers.append(peer)
 
     def add_permanent_connections_pool(self, connectionpool):
         self._permanent_connections_pool = connectionpool
@@ -94,12 +100,17 @@ class EstimateFeeConsensusCollector:
 
     def add_peer_to_consensus(self, *peers):
         for peer in peers:
+            permanent = False
+            if 'permanent|' in peer:
+                peer = peer.replace('permanent|', '')
+                permanent = True
             if self._data.get(peer):
                 pass
             self._data[peer] = {
                 "rates": {r: None for r in self._rates},
                 "peer": peer,
-                "score": 0
+                "score": 0,
+                "permanent": permanent
             }
 
     def add_rate(self, *rate):
@@ -116,54 +127,81 @@ class EstimateFeeConsensusCollector:
     def reset_data(self):
         self._data = {}
 
-    async def collect(self, rates=None, members=8):
-        await self._collector_lock.acquire()
-        try:
-            _ = rates and [self.add_rate(rate) for rate in rates if rate not in self._rates]
-            if not self.is_consensus_pool_established(members):
-                self._establish_consensus_pool(members)
-            expired_peers = self.get_expired_consensus_members()
-            if expired_peers:
-                futures = []
-                connections = []
-                for peer in expired_peers:
-                    hostname, protocol = peer.split('/')
+    async def collect(self, rates=None, members=ctx.max_electrum_connections):
+        _ = rates and [self.add_rate(rate) for rate in rates if rate not in self._rates]
+        if not self.is_consensus_pool_established(members):
+            self._establish_consensus_pool(members)
+        expired_peers = self.get_expired_consensus_members()
+        if expired_peers:
+            futures = []
+            connections = []
+            permanents = []
+            for peer in expired_peers:
+                hostname, protocol = peer.split('/')
+                established = self._permanent_connections_pool and \
+                              self._permanent_connections_pool.established_connections or []
+                permanent = hostname in [peer.hostname for peer in established]
+                if permanent:
+                    permanents.append(hostname)
+                    connection = self._permanent_connections_pool.get_peer_for_hostname(hostname)
+                else:
                     connection = self._connectionclass(
                         hostname, protocol, keepalive=False, timeout=self.proxy and 10 or 5, proxy=self.proxy
                     )
-                    if self._is_active(self._data[peer]) and not self._is_updated(self._data[peer], rates):
-                        futures.append(self._update(peer, connection, rates))
-                        if futures:
-                            try:
-                                await connection.connect(
-                                    ignore_version=True, disable_callbacks=True, short_term=True
-                                )
-                                connections.append(connection)
-                            except:
-                                self.penalize_peer(peer)
-                await asyncio.gather(*futures, return_exceptions=True)
-                for connection in connections:
-                    try:
-                        await connection.disconnect()
-                    except:
-                        pass
-        finally:
-            self._collector_lock.release()
+                if self._is_active(self._data[peer]) and not self._is_updated(self._data[peer], rates):
+                    futures.append(self._update(peer, connection, rates))
+                    if futures:
+                        try:
+                            await connection.connect(
+                                ignore_version=True, disable_callbacks=True, short_term=True
+                            )
+                            connections.append(connection)
+                        except:
+                            self.penalize_peer(peer)
+                            Logger.electrum.debug('Fee estimation, penalizing peer: %s', peer)
+            await asyncio.gather(*futures, return_exceptions=True)
+            for connection in connections:
+                if connection.hostname in permanents:
+                    continue
+                try:
+                    await connection.disconnect()
+                except:
+                    pass
 
-    def _establish_consensus_pool(self, members):
+    def _establish_consensus_pool(self, members: int):
         while not self.is_consensus_pool_established(members):
+            if self._permanent_connections_pool:
+                permanents = [
+                    '%s/%s' % (x.hostname, x.protocol) for x in self._permanent_connections_pool.established_connections
+                ]
+                for peer in permanents:
+                    if not self._data.get(peer, None):
+                        self.add_peer_to_consensus('permanent|{}'.format(peer))
+
             if not self._peers:
                 raise NoPeersException
-            peer = self._peers.pop()
+            peer = random.choice(self._peers)
             self.add_peer_to_consensus(peer)
 
-    def is_consensus_pool_established(self, members):
+    def is_consensus_pool_established(self, members: int):
+        if self._permanent_connections_pool:
+            established = [
+                '%s/%s' % (x.hostname, x.protocol) for x in self._permanent_connections_pool.established_connections
+            ]
+            for address, peer in self._data.items():
+                if peer.get('permanent') and address not in established:
+                    self._data.pop(address)
         if len(self._data) < members:
             return False
         active = []
+        to_remove = []
         for peer, value in self._data.items():
             if self._is_active(value):
                 active.append(peer)
+            else:
+                to_remove.append(peer)
+        for peer in to_remove:
+            self._data.pop(peer)
         return len(active) >= members
 
     def get_expired_consensus_members(self, rates=None):

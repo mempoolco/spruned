@@ -51,7 +51,8 @@ class TestStratumClient(unittest.TestCase):
             responses = {
                 'server.version': 'mock 1.2 1.2',
                 'blockchain.scripthash.listunspent': 'cafebabe',
-                'something.subscribe': 'babe'
+                'something.subscribe': 'babe',
+                'server.ping': True
             }
             while 1:
                 data = await r.read(1024)

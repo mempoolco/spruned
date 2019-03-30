@@ -288,3 +288,8 @@ class ElectrodConnectionPool(BaseConnectionPool):
             self.servers_storage(peers)
         finally:
             self._storage_lock.release()
+
+    def get_peer_for_hostname(self, hostname: str):
+        for peer in self.established_connections:
+            if hostname == peer.hostname:
+                return peer

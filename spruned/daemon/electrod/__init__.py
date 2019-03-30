@@ -59,6 +59,7 @@ def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
         proxy=ctx.proxy,
         tor=ctx.tor
     )
+    fees_collector.add_permanent_connections_pool(electrod_pool)
     electrod_interface = ElectrodInterface(
         electrod_pool,
         loop,
