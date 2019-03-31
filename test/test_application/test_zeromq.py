@@ -36,7 +36,7 @@ class TestZeroMQ(TestCase):
         def _save(topic, data):
             self._callbacks[topic] = data
         self.headers_reactor.add_on_new_header_callback = lambda x: _save('new_header', x)
-        self.mempool_observer.on_new_block_callback = lambda x: _save('new_block', x)
+        self.mempool_observer.add_on_new_block_callback = lambda x: _save('new_block', x)
         self.mempool_observer.add_on_transaction_hash_callback = lambda x: _save('new_tx_hash', x)
         self.mempool_observer.add_on_transaction_callback = lambda x: _save('new_tx', x)
 

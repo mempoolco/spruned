@@ -76,21 +76,21 @@ spruned options:
 
 $ ~/src/spruned/venv/bin/spruned
 
-usage: spruned [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
-               [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
-               [--daemon] [--keep-blocks KEEP_BLOCKS]
-               [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
-               [--cache-size CACHE_SIZE] [--proxy PROXY] [--tor]
-               [--no-dns-seeds] [--add-p2p-peer ADD_P2P_PEER]
-               [--max-p2p-connections MAX_P2P_CONNECTIONS]
-               [--add-electrum-server ELECTRUM_SERVER]
-               [--max-electrum-connections MAX_ELECTRUM_CONNECTIONS]
-               [--disable-p2p-peer-discovery]
-               [--disable-electrum-peer-discovery]
-               [--zmqpubhashblock ZMQPUBHASHBLOCK]
-               [--zmqpubrawtx ZMQPUBRAWTX] [--zmqpubhashtx ZMQPUBHASHTX]
-               [--zmqpubrawblock ZMQPUBRAWBLOCK]
-
+usage: spruned    [-h] [--rpcuser RPCUSER] [--rpcpassword RPCPASSWORD]
+                  [--rpcport RPCPORT] [--rpcbind RPCBIND] [--datadir DATADIR]
+                  [--daemon] [--keep-blocks KEEP_BLOCKS]
+                  [--network {bitcoin.mainnet,bitcoin.testnet}] [--debug]
+                  [--cache-size CACHE_SIZE] [--proxy PROXY] [--tor]
+                  [--no-dns-seeds] [--add-p2p-peer ADD_P2P_PEER]
+                  [--max-p2p-connections MAX_P2P_CONNECTIONS]
+                  [--add-electrum-server ELECTRUM_SERVER]
+                  [--max-electrum-connections MAX_ELECTRUM_CONNECTIONS]
+                  [--disable-p2p-peer-discovery]
+                  [--disable-electrum-peer-discovery]
+                  [--zmqpubhashblock ZMQPUBHASHBLOCK]
+                  [--zmqpubrawtx ZMQPUBRAWTX] [--zmqpubhashtx ZMQPUBHASHTX]
+                  [--zmqpubrawblock ZMQPUBRAWBLOCK]
+                  [--mempool-size MEMPOOL_SIZE]
 
 A Bitcoin Lightweight Client
 
@@ -100,15 +100,17 @@ optional arguments:
   --rpcpassword RPCPASSWORD
                         Password for JSON-RPC connections (default: passw0rd)
   --rpcport RPCPORT     Listen for JSON-RPC connections on <port> (default:
-                        8332 or testnet: 18332) (default: 8332)
+                        8332 or testnet: 18332) (default: None)
   --rpcbind RPCBIND     Bind to given address to listen for JSON-RPC
                         connections. (default: 127.0.0.1)
   --datadir DATADIR     Specify data directory (default: /home/guido/.spruned)
+  --daemon              Run in the background as a daemon and accept commands
+                        (default: False)
   --keep-blocks KEEP_BLOCKS
   --network {bitcoin.mainnet,bitcoin.testnet}
   --debug               Enable debug mode (default: False)
-  --cachesize CACHESIZE
-                        Cache size (in megabytes) (default: 1)
+  --cache-size CACHE_SIZE
+                        Cache size (in megabytes) (default: 50)
   --proxy PROXY         Proxy server (hostname:port) (default: None)
   --tor                 Connect only to hidden services. Use proxy on
                         localhost:9050, if nothing else is provided with
@@ -128,7 +130,6 @@ optional arguments:
   --disable-electrum-peer-discovery
                         Control electrum peers discovery (peer subscribe)
                         (default: False)
-
   --zmqpubhashblock ZMQPUBHASHBLOCK
                         Enable publish hash block in <address> (default: )
   --zmqpubrawtx ZMQPUBRAWTX
@@ -139,6 +140,10 @@ optional arguments:
                         )
   --zmqpubrawblock ZMQPUBRAWBLOCK
                         Enable publish raw block in <address> (default: )
+  --mempool-size MEMPOOL_SIZE
+                        Set the mempool size in megabytes (0 = mempool
+                        disabled, default) - VERY experimental (default: 0)
+
 
 ```
 
@@ -153,9 +158,8 @@ You'll see it will took about 15 minutes to sync block headers (up to 2 hours on
 In sync ? Ok, see the list of available commands:
 
 ```console
-$ bitcoin-cli help
 
-spruned 0.0.4b2, emulating bitcoind 0.16
+bitcoin-cli help
 
 == Blockchain ==
 getbestblockhash
@@ -165,8 +169,8 @@ getblockcount
 getblockhash height
 getblockheader "hash" ( verbose )
 gettxout "txid" n ( include_mempool )
-getmempoolinfo [ may be disabled, see help, --mempoolsize ]
-getrawmempool [ may be disabled, see help, --mempoolsize ]
+getmempoolinfo
+getrawmempool
 
 == Rawtransactions ==
 getrawtransaction "txid" ( verbose )
@@ -300,13 +304,17 @@ _* bitcoin-cli is not included_
 - getblockcount
 - getblockhash height
 - getblockheader "hash" ( verbose )
-- gettxout "txid" n ( include_mempool )
+
 - getmempoolinfo [ may be disabled, see help, --mempoolsize ]
 - getrawmempool [ may be disabled, see help, --mempoolsize ]
+
+- gettxout "txid" n ( include_mempool )
 - getrawtransaction "txid" ( verbose )
 - sendrawtransaction "hexstring" ( allowhighfees )
+
 - estimatefee nblocks
 - estimatesmartfee conf_target ("estimate_mode")
+
 - uptime
 - getpeerinfo
 - getnetworkinfo
