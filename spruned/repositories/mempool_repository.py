@@ -16,7 +16,7 @@ class MempoolRepository:
             "size": 0,
             "bytes": 0,
             "maxmempool": self._max_mempool_size_bytes,
-            "last_update": None
+            "last_update": int(time.time())
         }
         self._forget_pool = {}
 

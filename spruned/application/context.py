@@ -39,7 +39,8 @@ class Context(dict):
                     'zmqpubhashblock': '',
                     'zmqpubrawtx': '',
                     'zmqpubhashtx': '',
-                    'zmqpubrawblock': ''
+                    'zmqpubrawblock': '',
+                    'mempool_size': 0
                 }
             }
         )
@@ -95,7 +96,7 @@ class Context(dict):
 
     @property
     def mempool_size(self):
-        return int(self._get_param('mempoolsize') or 0)
+        return int(self._get_param('mempool_size') or 0)
 
     @property
     def block_size_for_multiprocessing(self):
@@ -176,7 +177,8 @@ class Context(dict):
             'zmqpubhashblock': args.zmqpubhashblock,
             'zmqpubrawtx': args.zmqpubrawtx,
             'zmqpubhashtx': args.zmqpubhashtx,
-            'zmqpubrawblock': args.zmqpubrawblock
+            'zmqpubrawblock': args.zmqpubrawblock,
+            'mempool_size': args.mempool_size
         }
         self.apply_context()
 

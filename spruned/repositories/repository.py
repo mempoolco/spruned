@@ -41,12 +41,12 @@ class Repository:
             settings.LEVELDB_BLOCKCHAIN_SLUG,
             settings.LEVELDB_BLOCKCHAIN_ADDRESS
         )
-        if ctx.mempool_size > 500:
+        if ctx.mempool_size > 1000:
             Logger.mempool.error(
                 'Initializing mempool, are you sure you need a %s megabytes mempool?',
                 ctx.mempool_size*1024000
             )
-            raise ValueError('Max mempool size: 500mb')
+            raise ValueError('Max mempool size: 1000mb')
         mempool_repository = ctx.mempool_size and MempoolRepository(max_size_bytes=ctx.mempool_size*1024000) or None
 
         i = cls(

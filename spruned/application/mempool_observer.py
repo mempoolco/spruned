@@ -22,6 +22,18 @@ class MempoolObserver:
         self.block_factory = async_block_factory
         self.loop = asyncio.get_event_loop()
         self.delayer = async_delayed_task
+        self.on_transaction_callbacks = []
+        self.on_transaction_hash_callbacks = []
+        self.on_new_block_callbacks = []
+
+    def add_on_new_block_callback(self, callback):
+        self.on_new_block_callbacks.append(callback)
+
+    def add_on_transaction_callback(self, callback):
+        self.on_transaction_callbacks.append(callback)
+
+    def add_on_transaction_hash_callback(self, callback):
+        self.on_transaction_hash_callbacks.append(callback)
 
     async def on_block_header(self, blockheader: dict, i=0):
         try:
@@ -52,6 +64,8 @@ class MempoolObserver:
                     'Block %s not cached, saving', blockheader['block_hash']
                 )
                 self.repository.blockchain.save_block(block)
+            for callback in self.on_new_block_callbacks:
+                self.loop.create_task(callback(block_object))
         except (exceptions.NoPeersException, exceptions.MissingResponseException):
             if i > 10:
                 Logger.mempool.debug(
@@ -70,7 +84,7 @@ class MempoolObserver:
             return
 
     async def on_transaction(self, connection, item):
-        txid = str(item['tx'].w_hash())
+        txid = str(item['tx'].w_id())
         Logger.mempool.debug('New TX %s', txid)
         transaction = {
             "timestamp": int(time.time()),
@@ -80,3 +94,7 @@ class MempoolObserver:
         }
         transaction["size"] = len(transaction["bytes"])
         self.repository.mempool.add_transaction(transaction["txid"], transaction)
+        for callback in self.on_transaction_callbacks:
+            self.loop.create_task(callback(item['tx']))
+        for callback in self.on_transaction_hash_callbacks:
+            self.loop.create_task(callback(item['tx']))

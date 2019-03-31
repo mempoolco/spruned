@@ -26,7 +26,6 @@ class ZeroMQPublisher:
     async def on_event(self, data: bytes, retries=0):
         try:
             await self.socket.send_multipart([self._topic, data])
-            Logger.zmq.debug('Published on topic %s' % self._topic.decode())
         except Exception as e:
             if retries:
                 raise
@@ -133,7 +132,7 @@ def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_st
         zeromq_observer.block_publisher = ctx.zmqpubrawblock and \
                          ZeroMQPublisher(ctx.zmqpubrawblock, BitcoindZMQTopics.BLOCK.value, zmq_ctx)
         if mempool_status:
-            mempool_observer.on_new_block_callback(zeromq_observer.on_raw_block)
+            mempool_observer.add_on_new_block_callback(zeromq_observer.on_raw_block)
         else:
             headers_reactor.add_on_new_header_callback(processblock)
 

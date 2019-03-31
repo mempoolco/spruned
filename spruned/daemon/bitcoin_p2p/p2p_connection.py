@@ -245,7 +245,8 @@ class P2PConnectionPool(BaseConnectionPool):
             batcher_timeout=20,
             ipv6=False,
             servers_storage=save_p2p_peers,
-            context=None
+            context=None,
+            enable_mempool=False
     ):
         super().__init__(
             peers=peers, network_checker=network_checker, delayer=delayer, ipv6=ipv6,
@@ -260,12 +261,13 @@ class P2PConnectionPool(BaseConnectionPool):
         self.servers_storage = servers_storage
         self._storage_lock = asyncio.Lock()
         self._required_connections = connections
-        self._create_bloom_filter()
         self.best_header = None
         self._on_transaction_hash_callback = []
         self._on_transaction_callback = []
         self._on_block_callback = []
         self.context = context
+
+        not enable_mempool and self._create_bloom_filter()  # Mount a dummy filter to avoid receiving tx data
 
     @property
     def proxy(self):

@@ -134,6 +134,12 @@ if sys.version > '3.5.2':  # pragma: no cover
         action='store', dest='zmqpubrawblock', default='',
         help='Enable publish raw block in <address>'
     )
+    parser.add_argument(
+        '--mempool-size',
+        action='store', dest='mempool_size', default=int(ctx.mempool_size),
+        help='Set the mempool size in megabytes (0 = mempool disabled, default) - VERY experimental'
+    )
+
 
     def main():  # pragma: no cover
         args = parser.parse_args()
