@@ -192,7 +192,7 @@ class SprunedVOService(RPCAPIService):
         except ElectrodMissingResponseException as e:
             Logger.electrum.error('Error with peer', exc_info=True)
             retries += 1
-            if retries > 5:
+            if retries > 10:
                 raise e
             return await self._estimatefee(blocks, retries + 1)
         return res

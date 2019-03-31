@@ -8,7 +8,7 @@ from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header, verify_pow
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
 from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
-    EstimateFeeConsensusCollector, NoPeersException
+    EstimateFeeConsensusCollector
 
 
 class ElectrodInterface:
@@ -30,19 +30,18 @@ class ElectrodInterface:
         if not self._collector_bootstrap:
             self._collector_bootstrap = True
 
-            async def bootstrap():
-                consensus = self._network['fees_consensus']
+            async def bootstrap(this):
                 rates = [2, 6, 36, 4, 100]
-                i = 0
-                max_i = 20
-                await self._fees_collector.collect(rates, members=consensus)
-                while 1:
-                    if i > max_i:
-                        break
-                    if all([len(self._fees_collector.get_rates(rate)) >= consensus for rate in rates]):
-                        break
-                    await self._fees_collector.collect(rates, members=consensus)
-            self.loop.create_task(bootstrap())
+                collectors = []
+                for rate in rates:
+                    if not self._fees_collector.get_rates(rate):
+                        collectors.append(this._fees_collector.collect(rate))
+                if collectors:
+                    await asyncio.gather(*collectors)
+                await asyncio.sleep(60)
+                this.loop.create_task(bootstrap(this))
+
+            self.loop.create_task(bootstrap(self))
 
     @property
     def is_pool_online(self):  # pragma: no cover
@@ -158,27 +157,20 @@ class ElectrodInterface:
         return await asyncio.gather(*futures)
 
     async def estimatefee(self, blocks: int):
-        consensus = self._network['fees_consensus']
-        i = 0
-        max_i = 10
-        while 1:
-            i += 1
-            if i > max_i:
-                raise exceptions.ElectrodMissingResponseException
-            try:
-                await self._fees_collector.collect(rates=[blocks], members=consensus)
-            except NoPeersException:
-                self._fees_collector.reset_data()
-            if not len(self._fees_collector.get_rates(blocks)) >= consensus:
-                continue
-            rates_data = self._fees_collector.get_rates(blocks)
-            projection = self._fees_projector.project(rates_data, members=consensus)
+        try:
+            if not self._fees_collector.get_rates(blocks):
+                await self._fees_collector.collect(rate=blocks)
+            rates = self._fees_collector.get_rates(blocks)
+            if not rates:
+                raise exceptions.NoQuorumOnResponsesException
+            projection = self._fees_projector.project(rates)
             for d in projection["disagree"]:
-                self._fees_collector.penalize_peer(d)
+                self.pool.get_peer_for_hostname(d).disconnect()
             if projection["agree"]:
                 return projection
-            else:
-                continue
+        except:
+            Logger.electrum.error('Fee estimation error', exc_info=True)
+            raise exceptions.MissingResponseException
 
     async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
         peer = None

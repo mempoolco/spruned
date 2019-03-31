@@ -2,92 +2,48 @@ import asyncio
 from unittest import TestCase
 from unittest.mock import Mock
 
-from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
-    EstimateFeeConsensusCollector
+from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, EstimateFeeConsensusCollector
+from spruned.daemon.electrod.electrod_interface import ElectrodInterface
+from test.utils import async_coro
 
 
-class TestElectrumFeeEstimator(TestCase):
+class TestFeeEstimation(TestCase):
     def setUp(self):
-        self._servers_responses = {
-            'peer1/s': {
-                2: 0.0002,
-                6: 0.0001,
-                100: 0.00001
-            },
-            'peer2/s': {
-                2: 0.0002,
-                6: 0.0001,
-                100: 0.00001
-            },
-            'peer3/s': {
-                2: 99999,
-                6: 0.0001,
-                100: 0.00001
-            }
-        }
-        self._repo = Mock()
+        self.pool = Mock()
+        self.fees_projector = EstimateFeeConsensusProjector()
+        self.fees_collector = EstimateFeeConsensusCollector()
+        self.fees_collector.add_permanent_connections_pool(self.pool)
+        self.sut = ElectrodInterface(self.pool, fees_collector=self.fees_collector, fees_projector=self.fees_projector)
+        self.loop = asyncio.get_event_loop()
 
-    def _make_peer(self, hostname, protocol, **_):
-        resp = self._servers_responses
+    def load_fee_response(self, target):
+        m = Mock()
+        m.RPC.side_effect = lambda x, y: async_coro(target)
+        return m
 
-        async def _get_data(resp, *a):
-            peer = hostname + '/' + protocol
-            response = resp[peer][a[1]]
-            return response
-
-        async def _connect(*a, **b):
-            peer = hostname + '/' + protocol
-            if peer not in self._servers_responses:
-                raise ConnectionError
-            return True
-        connection = Mock()
-        connection.connect.side_effect = _connect
-        connection.disconnect_return_value = True
-        connection.client.RPC.side_effect = lambda *a, **kw: _get_data(resp, *a, *kw)
-
-        return connection
-
-    def tearDown(self):
-        pass
-
-    def test_collector(self):
-        sut = EstimateFeeConsensusCollector(connectionclass=self._make_peer)
-        peers = list(self._servers_responses.keys())
-        sut.add_peer(peers[0])
-        sut.add_peer(peers[1])
-        sut.add_peer(peers[2])
-        sut.add_peer('meh/s')
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(sut.collect(rates=[2], members=3))
-        if not sut.rates_available(3):
-            loop.run_until_complete(sut.collect(rates=[2], members=3))
-        self.assertTrue(sut.rates_available(3))
-        self.assertFalse(sut.rates_available(4))
-        sut.add_rate(3)
-        self.assertFalse(sut.rates_available(3))
-        return sut
-
-    def test_projection(self):
-        sut = EstimateFeeConsensusProjector()
-        collector = self.test_collector()
-        data = collector.get_rates(2)
-        projection = sut.project(data, members=3)
-        points = projection.pop('points')
+    def test_estimatefee_1(self):
+        disagree = Mock(hostname='peer3', client=self.load_fee_response(0.00005))
+        self.pool.established_connections = [
+            Mock(hostname='peer1', client=self.load_fee_response(0.00003)),
+            Mock(hostname='peer2', client=self.load_fee_response(0.00003)),
+            disagree
+        ]
+        self.pool.get_peer_for_hostname.return_value = disagree
+        x = self.loop.run_until_complete(self.sut.estimatefee(6))
+        int(x.pop('timestamp'))
+        points = x.pop('points')
+        points.remove(5)
+        points.remove(3)
+        points.remove(3)
         self.assertEqual(
+            x,
             {
-                'agree': False,
+                'agree': True,
                 'agreement': 66,
-                'average': 20,
-                'average_satoshi_per_kb': 0.0002,
-                'disagree': ['peer3/s'],
-                'median': 20,
-                'timestamp': data[0]['timestamp']
-            },
-            projection
+                'average': 3,
+                'average_satoshi_per_kb': 0.00003,
+                'disagree': ['peer3'],
+                'median': 3,
+            }
         )
-        self.assertEqual(
-            sorted([20, 20, 9999900000]),
-            sorted(points)
-        )
-        collector.reset_data()
-        self.assertEqual(collector.get_rates(2), [])
+        Mock.assert_called_with(disagree.disconnect)

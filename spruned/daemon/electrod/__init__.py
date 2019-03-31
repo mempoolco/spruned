@@ -50,8 +50,7 @@ def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
         EstimateFeeConsensusCollector
     network = ctx.get_network()
     peers = load_electrum_servers(ctx)
-    fees_collector = EstimateFeeConsensusCollector(proxy=ctx.proxy)
-    _ = [fees_collector.add_peer(peer) for peer in [x[0] + '/' + x[1] for x in peers]]
+    fees_collector = EstimateFeeConsensusCollector(consensus=ctx.get_network()['fees_consensus'])
     electrod_pool = ElectrodConnectionPool(
         connections=network['electrum_concurrency'],
         peers=peers,
