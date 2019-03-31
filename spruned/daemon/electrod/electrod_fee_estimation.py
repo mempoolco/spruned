@@ -1,4 +1,3 @@
-import asyncio
 import time
 from statistics import median
 from spruned.daemon import exceptions

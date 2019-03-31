@@ -48,7 +48,13 @@ class ElectrodInterface:
         return self.pool.is_online()
 
     def _parse_header(self, electrum_header: Dict):
-        header_hex = electrum_header['hex']
+        if electrum_header.get('hex'):
+            header_hex = electrum_header['hex']
+            # protocol 1.4
+        else:
+            header_hex = serialize_header(electrum_header)
+            electrum_header['height'] = electrum_header['block_height']
+            # some servers with protocol 1.4 that answers with 1.2 expected answer :-(
         blockhash_from_header = blockheader_to_blockhash(header_hex)
         if electrum_header['height'] in self._checkpoints:
             if self._checkpoints[electrum_header['height']] != blockhash_from_header:
@@ -93,7 +99,7 @@ class ElectrodInterface:
         try:
             parsed_header = self._parse_header(header)
         except KeyError:
-            Logger.p2p.error('Error with header: %s', header)
+            Logger.p2p.error('Error with header: %s', header, exc_info=True)
             return
         except (exceptions.NetworkHeadersInconsistencyException, InvalidPOWException):
             Logger.electrum.error('Wrong POW for header %s from peer %s. Banning', header, peer)
@@ -154,7 +160,7 @@ class ElectrodInterface:
         futures = []
         for i in chunks_range:
             futures.append(self.get_header(i))
-        return await asyncio.gather(*futures)
+        return [h for h in await asyncio.gather(*futures) if h]
 
     async def estimatefee(self, blocks: int):
         try:
