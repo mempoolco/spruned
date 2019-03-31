@@ -1,6 +1,9 @@
-## sPRUNED
-#### A Bitcoin-without-Blockchain client w/ RPC that can fetch any block or transaction
+#### spruned 
 
+
+
+#### A Bitcoin-without-Blockchain client w/ RPC that can fetch any block or transaction
+********
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
 [![coveralls](https://coveralls.io/repos/github/gdassori/spruned/badge.svg)](https://coveralls.io/github/gdassori/spruned)
 [![rtd](https://readthedocs.org/projects/spruned/badge/?version=latest)](http://spruned.readthedocs.io/en/latest/#)
