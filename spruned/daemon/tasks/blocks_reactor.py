@@ -132,7 +132,7 @@ class BlocksReactor:
         self.loop.create_task(self.interface.start())
 
     async def bootstrap_blocks(self, *a, **kw):
-        while len(self.interface.pool.established_connections) < self.interface.pool.required_connections:
+        while len(self.interface.pool.established_connections) < self.interface.pool.required_connections / 2:
             Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
             await asyncio.sleep(30)
         Logger.p2p.info('Bootstrap: Downloading %s blocks', self._prune)
@@ -148,7 +148,7 @@ class BlocksReactor:
             while 1:
                 i += 1
                 if len(self.interface.pool.established_connections) - len(self.interface.pool._busy_peers) \
-                        < self.interface.pool.required_connections:
+                        < self.interface.pool.required_connections / 2:
                     Logger.p2p.debug('Missing peers. Waiting.')
                     await asyncio.sleep(20)
                     continue
@@ -168,7 +168,7 @@ class BlocksReactor:
 
                 async def save_block(blockhash):
                     block = (await asyncio.gather(
-                        self.interface.get_block(blockhash, peers=1, timeout=20),
+                        self.interface.get_block(blockhash, peers=1, timeout=10),
                         return_exceptions=True
                     ))[0]
                     if block and isinstance(block, dict):
