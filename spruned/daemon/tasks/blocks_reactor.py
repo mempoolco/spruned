@@ -158,9 +158,8 @@ class BlocksReactor:
                 self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
                 _blocks = [
-                    missing_blocks.pop() for _ in
+                    missing_blocks[i] for i in
                     range(0, int(len(self.interface.pool.established_connections)*0.5) or 1)
-                    if missing_blocks
                 ]
                 if not _blocks:
                     Logger.p2p.info('Bootstrap: No blocks to fetch.')
@@ -172,7 +171,8 @@ class BlocksReactor:
                         self.interface.get_block(blockhash, peers=1, timeout=20),
                         return_exceptions=True
                     ))[0]
-                    if isinstance(block, dict):
+                    if block and isinstance(block, dict):
+                        missing_blocks.remove(block['block_hash'])
                         Logger.p2p.info(
                             'Bootstrap: saved block %s (%s/%s)',
                             block['block_hash'],
@@ -181,8 +181,7 @@ class BlocksReactor:
                         )
                         self.repo.blockchain.save_block(block)
                     else:
-                        Logger.p2p.debug('Bootstrap: enqueuing block %s (%s)', blockhash, type(block))
-                        missing_blocks.insert(0, blockhash)
+                        Logger.p2p.debug('Failed downloading block %s, retrying', blockhash)
 
                 futures = [save_block(blockhash) for blockhash in _blocks]
                 await asyncio.gather(*futures, return_exceptions=True)

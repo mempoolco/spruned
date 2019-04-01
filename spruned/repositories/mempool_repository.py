@@ -14,9 +14,12 @@ class MempoolRepository:
         self._outpoints = dict()
         self._projection = {
             "size": 0,
+            "usage": 0,
             "bytes": 0,
             "maxmempool": self._max_mempool_size_bytes,
-            "last_update": int(time.time())
+            "last_update": int(time.time()),
+            "mempoolminfee": 0,
+            "minrelaytxfee": 0
         }
         self._forget_pool = {}
 
@@ -132,17 +135,24 @@ class MempoolRepository:
     def _project_transaction(self, data, action='+'):
         if action == '+':
             self._projection = {
+                "usage": self._projection["bytes"] + data["size"],
                 "size": self._projection["size"] + 1,
                 "bytes": self._projection["bytes"] + data["size"],
                 "maxmempool": self._max_mempool_size_bytes,
-                "last_update": int(time.time())
+                "last_update": int(time.time()),
+                "mempoolminfee": 0,
+                "minrelaytxfee": 0
+
             }
         elif action == '-':
             self._projection = {
+                "usage": self._projection["bytes"] + data["size"],
                 "size": self._projection["size"] - 1,
                 "bytes": self._projection["bytes"] - data["size"],
                 "maxmempool": self._max_mempool_size_bytes,
-                "last_update": int(time.time())
+                "last_update": int(time.time()),
+                "mempoolminfee": 0,
+                "minrelaytxfee": 0
             }
         else:
             raise ValueError

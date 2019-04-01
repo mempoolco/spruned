@@ -92,7 +92,7 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return int(self._get_param('keepblocks') or 1)
+        return int(self._get_param('keep_blocks') or 1)
 
     @property
     def mempool_size(self):
