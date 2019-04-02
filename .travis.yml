@@ -7,6 +7,7 @@ python:
   - 3.5.2
   - 3.5.3
   - 3.6.3
+  - 3.7.2
 before_install:
   - pwd
   - sudo apt-get -qq update
