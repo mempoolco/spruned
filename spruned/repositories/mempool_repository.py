@@ -1,14 +1,15 @@
+import asyncio
 import time
+from typing import Dict
 
 from pycoin.block import Block
 
-from spruned.application.logging_factory import Logger
-
 
 class MempoolRepository:
-    def __init__(self, max_size_bytes=50000):
+    def __init__(self, max_size_bytes: int=50000, loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()):
         self._max_mempool_size_bytes = max_size_bytes
         self._transactions = dict()
+        self._transactions_by_time = dict()
         self._double_spends = dict()
         self._double_spends_by_outpoint = dict()
         self._outpoints = dict()
@@ -21,19 +22,18 @@ class MempoolRepository:
             "mempoolminfee": 0,
             "minrelaytxfee": 0
         }
-        self._forget_pool = {}
+        self._forget_pool = set()
+        self._forget_pool_by_time = dict()
+        self._last_forget_pool_clean = int(time.time())
+        self._clean_lock = asyncio.Lock()
+        self._forget_pool_clean_lock = asyncio.Lock()
+        self.loop = loop
 
     @property
     def transactions(self):
         return self._transactions
 
-    def dump(self, filepointer):
-        pass
-
-    def load(self, filepointer):
-        pass
-
-    def add_seen(self, txid, seen_by) -> bool:
+    def add_seen(self, txid: str, seen_by: str) -> bool:
         if txid in self._transactions or txid in self._double_spends or txid in self._forget_pool:
             return False
         self._transactions[txid] = {
@@ -53,7 +53,7 @@ class MempoolRepository:
     def _is_rbf(data):
         return False  # TODO
 
-    def add_transaction(self, txid, data) -> bool:
+    def add_transaction(self, txid: str, data: Dict) -> bool:
         double_spend = False
         for outpoint in data["outpoints"]:
             double_spend = double_spend or self._outpoints.get(outpoint)
@@ -71,6 +71,8 @@ class MempoolRepository:
                 self._transactions[txid] = tx
             else:
                 self._transactions[txid].update(tx)
+            self._transactions_by_time[data['timestamp']] = \
+                self._transactions_by_time.get(data['timestamp'], set()) | {txid}
             self._project_transaction(data, '+')
         elif self._is_rbf(data):
             raise NotImplementedError()
@@ -78,14 +80,14 @@ class MempoolRepository:
             self._add_double_spend(data)
         return bool(not double_spend)
 
-    def _add_outpoints(self, data):
+    def _add_outpoints(self, data: Dict):
         for outpoint in data["outpoints"]:
             if self._outpoints.get(outpoint):
                 self._outpoints[outpoint].add(data["txid"])
             else:
                 self._outpoints[outpoint] = {data["txid"], }
 
-    def _add_double_spend(self, data):
+    def _add_double_spend(self, data: Dict):
         self._double_spends[data["txid"]] = data
         for outpoint in data["outpoints"]:
             if self._double_spends_by_outpoint.get(outpoint):
@@ -94,7 +96,7 @@ class MempoolRepository:
                 self._double_spends_by_outpoint[outpoint] = {data["txid"], }
         self._transactions.pop(data["txid"])
 
-    def _delete_outpoints(self, data: dict):
+    def _delete_outpoints(self, data: Dict):
         for outpoint in data["outpoints"]:
             if len(self._outpoints[outpoint]) == 1:
                 del self._outpoints[outpoint]
@@ -108,14 +110,14 @@ class MempoolRepository:
                 """
                 self._remove_double_spend(txid)
 
-    def remove_transaction(self, txid):
+    def remove_transaction(self, txid: str):
         data = self._transactions.pop(txid, None)
         if data:
             self._project_transaction(data, '-')
             self._delete_outpoints(data)
         self._add_txids_to_forget_pool(txid)
 
-    def _remove_double_spend(self, txid):
+    def _remove_double_spend(self, txid: str):
         for outpoint in self._double_spends[txid]["outpoints"]:
             if self._double_spends_by_outpoint.get(outpoint):
                 if len(self._double_spends_by_outpoint[outpoint]) == 1:
@@ -129,33 +131,73 @@ class MempoolRepository:
         self._double_spends.pop(txid, None)
         self._add_txids_to_forget_pool(txid)
 
-    def _add_txids_to_forget_pool(self, *txid):
-        self._forget_pool.update({tx: int(time.time()) for tx in txid})
+    def _add_txids_to_forget_pool(self, *txid: str):
+        self._forget_pool_by_time[int(time.time())] = \
+            self._forget_pool_by_time.get(int(time.time()), set()) | {*txid}
+        for _txid in txid:
+            self._forget_pool.add(_txid)
 
-    def _project_transaction(self, data, action='+'):
+    def _project_transaction(self, data: Dict, action: str='+'):
+        now = int(time.time())
         if action == '+':
             self._projection = {
-                "usage": self._projection["bytes"] + data["size"],
+                "usage": self._projection["bytes"] + data["size"] + (32*4*self._projection['size']),
                 "size": self._projection["size"] + 1,
                 "bytes": self._projection["bytes"] + data["size"],
                 "maxmempool": self._max_mempool_size_bytes,
-                "last_update": int(time.time()),
+                "last_update": now,
                 "mempoolminfee": 0,
                 "minrelaytxfee": 0
 
             }
+            if self._projection["bytes"] > self._max_mempool_size_bytes:
+                if not self._clean_lock.locked():
+                    asyncio.wait_for(self._clean_lock.acquire(), timeout=None)
+                    self.loop.create_task(self._clean_mempool())
+
         elif action == '-':
+            usage = self._projection["bytes"] - data["size"] - (32*4*self._projection['size'])
             self._projection = {
-                "usage": self._projection["bytes"] + data["size"],
+                "usage": usage if usage > 0 else 0,
                 "size": self._projection["size"] - 1,
                 "bytes": self._projection["bytes"] - data["size"],
                 "maxmempool": self._max_mempool_size_bytes,
-                "last_update": int(time.time()),
+                "last_update": now,
                 "mempoolminfee": 0,
                 "minrelaytxfee": 0
             }
         else:
             raise ValueError
+        if now - self._last_forget_pool_clean > 60:
+            if not self._forget_pool_clean_lock.locked():
+                asyncio.wait_for(self._forget_pool_clean_lock.acquire(), timeout=None)
+                self.loop.create_task(self._clean_forget_pool())
+
+    async def _clean_mempool(self):
+        try:
+            while self._projection["bytes"] > self._max_mempool_size_bytes * 0.95:
+                if not self._transactions_by_time:
+                    break
+                firsts = min(self._transactions_by_time, key=self._transactions_by_time.get)
+                while self._transactions_by_time[firsts]:
+                    self.remove_transaction(self._transactions_by_time[firsts].pop())
+                del self._transactions_by_time[firsts]
+        finally:
+            self._clean_lock.locked() and self._clean_lock.release()
+
+    async def _clean_forget_pool(self):
+        try:
+            now = int(time.time())
+            min_value = self._forget_pool_by_time and min(self._forget_pool_by_time, key=self._forget_pool_by_time.get)
+            while min_value + 600 < now:
+                for txid in self._forget_pool_by_time[min_value]:
+                    self._forget_pool.remove(txid)
+                del self._forget_pool_by_time[min_value]
+                if not self._forget_pool_by_time:
+                    break
+            self._last_forget_pool_clean = now
+        finally:
+            self._forget_pool_clean_lock.locked() and self._forget_pool_clean_lock.release()
 
     def get_missings(self) -> set():
         items = self._transactions.items()
