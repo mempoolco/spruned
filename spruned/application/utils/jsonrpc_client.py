@@ -7,7 +7,7 @@ import json
 
 
 class JSONClient:
-    def __init__(self, user, password, host, port):
+    def __init__(self, user: bytes, password: bytes, host: str, port: int):
         self.url = "http://{}:{}".format(host, port)
         self._auth = 'Basic %s' % base64.b64encode(user + b':' + password).decode()
 
