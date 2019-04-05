@@ -65,7 +65,16 @@ class TestMempoolRepository(TestCase):
         tx2.w_hash.return_value = 'txid2'
         block = Mock(txs=[tx1, tx2])
         self.sut.on_new_block(block)
-        self.assertEqual(self.sut.get_mempool_info(), {'size': 0, 'bytes': 0, 'maxmempool': 50000, 'last_update': ANY})
+        expected = {
+            'bytes': 0,
+            'last_update': ANY,
+            'maxmempool': 50000,
+            'mempoolminfee': 0,
+            'minrelaytxfee': 0,
+            'size': 0,
+            'usage': 0
+        }
+        self.assertEqual(self.sut.get_mempool_info(), expected)
         self.assertEqual(self.sut._double_spends, {})
         self.assertEqual(self.sut._double_spends_by_outpoint, {})
         self.assertEqual(self.sut._transactions, {})
@@ -118,4 +127,13 @@ class TestMempoolRepository(TestCase):
         self.assertEqual(self.sut._double_spends, {})
         self.assertEqual(self.sut._double_spends_by_outpoint, {})
         self.assertEqual(self.sut._transactions, {})
-        self.assertEqual(self.sut.get_mempool_info(), {'size': 0, 'bytes': 0, 'maxmempool': 50000, 'last_update': ANY})
+        expected = {
+            'bytes': 0,
+            'last_update': ANY,
+            'maxmempool': 50000,
+            'mempoolminfee': 0,
+            'minrelaytxfee': 0,
+            'size': 0,
+            'usage': 0
+        }
+        self.assertEqual(self.sut.get_mempool_info(), expected)

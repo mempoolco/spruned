@@ -157,10 +157,10 @@ class BlocksReactor:
                 status = status if status <= 100 else 100
                 self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
-                _blocks = [
+                _blocks = missing_blocks and [
                     missing_blocks[i] for i in
                     range(0, int(len(self.interface.pool.established_connections)*0.5) or 1)
-                ]
+                ] or []
                 if not _blocks:
                     Logger.p2p.info('Bootstrap: No blocks to fetch.')
                     break
