@@ -1,6 +1,6 @@
 aiohttp==3.5.4
 aiohttp-socks==0.1.6
-async-timeout==2.0.1
+async-timeout==3.0.0
 jsonrpcserver==3.5.3
 plyvel==1.0.5
 pycoin==0.80

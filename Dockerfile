@@ -8,7 +8,7 @@
 # docker run -p=8332:8332 --mount=source=data,target=/root/.spruned spruned
 #
 
-FROM debian:stretch-slim@sha256:d4f7ac076cf641652722c33b026fccd52933bb5c26aa703d3cef2dd5b022422a
+FROM debian:3.7.3-stretch@sha256:d4f7ac076cf641652722c33b026fccd52933bb5c26aa703d3cef2dd5b022422a
 
 RUN apt-get --quiet --quiet update && apt-get --quiet --quiet --no-install-recommends upgrade
 RUN apt-get --quiet --quiet --no-install-recommends install python3 \
