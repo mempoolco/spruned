@@ -14,7 +14,7 @@ class TestBlocksReactory(TestCase):
         self.repo = create_autospec(Repository)
         self.loopmock = Mock()
         self.delayer = Mock()
-        self.sut = BlocksReactor(self.repo, self.interface, self.loopmock, prune=5, delayed_task=self.delayer)
+        self.sut = BlocksReactor(self.repo, self.interface, self.loopmock, keep_blocks=5, delayed_task=self.delayer)
         self.loop = asyncio.get_event_loop()
 
     def test_check_blockchain_local_behind_remote(self):

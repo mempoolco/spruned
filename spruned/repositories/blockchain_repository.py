@@ -41,6 +41,7 @@ class BlockchainRepository:
 
     @ldb_batch
     def save_block(self, block: Dict, tracker=None) -> Dict:
+        Logger.repository.info('Storing block %s' % block['block_hash'])
         saved = self._save_block(block)
         tracker and tracker.track(saved['key'], saved['size'])
         return saved

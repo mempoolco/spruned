@@ -22,7 +22,7 @@ class ElectrodConnection(BaseConnection):
     def __init__(
             self, hostname: str, protocol: str, keepalive=180,
             client=StratumClient, serverinfo=ServerInfo, nickname=None, proxy=False, loop=None,
-            start_score=10, timeout=10, expire_errors_after=180,
+            start_score=10, timeout=30, expire_errors_after=180,
             is_online_checker: callable=None, delayer=async_delayed_task, network=ctx.get_network()
     ):
 

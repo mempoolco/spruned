@@ -15,7 +15,7 @@ class BlocksReactor:
             repository: Repository,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
-            prune=200,
+            keep_blocks=200,
             delayed_task=async_delayed_task
     ):
         self.repo = repository
@@ -24,7 +24,7 @@ class BlocksReactor:
         self.lock = asyncio.Lock()
         self.delayer = delayed_task
         self._last_processed_block = None
-        self._prune = prune
+        self._keep_blocks = keep_blocks
         self._max_per_batch = 10
         self._available = False
         self._fallback_check_interval = 30
@@ -85,11 +85,11 @@ class BlocksReactor:
 
     async def _on_blocks_behind_headers(self, best_header):
         if self._last_processed_block and \
-                best_header['block_height'] - self._last_processed_block['block_height'] < self._prune:
+                best_header['block_height'] - self._last_processed_block['block_height'] < self._keep_blocks:
             height_to_start = self._last_processed_block['block_height']
             urgent = False
         else:
-            height_to_start = best_header['block_height'] - self._prune
+            height_to_start = best_header['block_height'] - self._keep_blocks
             height_to_start = height_to_start if height_to_start >= 0 else 0
             urgent = True
 
@@ -135,11 +135,11 @@ class BlocksReactor:
         while len(self.interface.pool.established_connections) < self.interface.pool.required_connections / 2:
             Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
             await asyncio.sleep(30)
-        Logger.p2p.info('Bootstrap: Downloading %s blocks', self._prune)
+        Logger.p2p.info('Bootstrap: Downloading %s blocks', self._keep_blocks)
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()
-            headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._prune)
+            headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._keep_blocks)
             missing_blocks = []
             for blockheader in headers:
                 if not self.repo.blockchain.get_block(blockheader['block_hash']):
@@ -153,14 +153,12 @@ class BlocksReactor:
                     await asyncio.sleep(20)
                     continue
 
-                status = float(100) / self._prune * (len(headers) - len(missing_blocks))
+                status = float(100) / self._keep_blocks * (len(headers) - len(missing_blocks))
                 status = status if status <= 100 else 100
                 self.interface.set_bootstrap_status(status)
                 missing_blocks = missing_blocks[::-1]
-                _blocks = missing_blocks and [
-                    missing_blocks[i] for i in
-                    range(0, int(len(self.interface.pool.established_connections)*0.5) or 1)
-                ] or []
+                blocks_per_round = min([int(len(self.interface.pool.established_connections)*0.5), len(missing_blocks)])
+                _blocks = missing_blocks and [missing_blocks[i] for i in range(0, blocks_per_round)] or []
                 if not _blocks:
                     Logger.p2p.info('Bootstrap: No blocks to fetch.')
                     break
@@ -176,8 +174,8 @@ class BlocksReactor:
                         Logger.p2p.info(
                             'Bootstrap: saved block %s (%s/%s)',
                             block['block_hash'],
-                            self._prune - len(missing_blocks),
-                            self._prune
+                            self._keep_blocks - len(missing_blocks),
+                            self._keep_blocks
                         )
                         self.repo.blockchain.save_block(block)
                     else:

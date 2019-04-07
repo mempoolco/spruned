@@ -144,7 +144,7 @@ class P2PConnection(BaseConnection):
         return self
 
     async def _verify_peer(self, peer):
-        if self.best_header['block_height'] - peer.version['last_block_index'] > 5:
+        if self.best_header and self.best_header['block_height'] - peer.version['last_block_index'] > 5:
             await self.disconnect()
             raise exceptions.PeerVersionMismatchException
         if self.version_checker and not self.version_checker(peer.version):
