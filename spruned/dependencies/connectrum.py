@@ -252,8 +252,8 @@ class StratumClient:
                 res = await self.RPC('blockchain.scripthash.listunspent', '0' * 64)
                 if isinstance(res, Exception):
                     raise res
-        except Exception:
-            logger.debug('Unsupported protocol version: %s', self.server_info['local_version'], exc_info=True)
+        except Exception as e:
+            logger.debug('Unsupported protocol version: %s (%s)', self.server_info['local_version'], str(e))
             try:
                 self.protocol.close()
             except:

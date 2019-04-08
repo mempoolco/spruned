@@ -2,6 +2,7 @@
   "bc_mainnet": [
     ["134.119.179.55", "s"],
     ["165.227.22.180", "s"],
+    ["173.212.220.183", "s"],
     ["176.9.155.246", "s"],
     ["185.64.116.15", "s"],
     ["46.166.165.18", "s"],
@@ -16,9 +17,11 @@
     ["btc.cihar.com", "s"],
     ["btc.pr0xima.de", "s"],
     ["cryptohead.de", "s"],
+    ["core.de.chatsubo.it", "t"],
     ["daedalus.bauerj.eu", "s"],
     ["e-1.claudioboxx.com", "s"],
     ["e-2.claudioboxx.com", "s"],
+    ["173.212.220.183", "t"],
     ["e-3.claudioboxx.com", "s"],
     ["e.keff.org", "s"],
     ["ele.lightningnetwork.xyz", "s"],
@@ -74,6 +77,7 @@
     ["mooo.not.fyi", "s"],
     ["ndnd.selfhost.eu", "s"],
     ["node.ispol.sk", "s"],
+    ["core.de.chatsubo.it", "s"],
     ["node.xbt.eu", "s"],
     ["noserver4u.de", "s"],
     ["orannis.com", "s"],
@@ -94,6 +98,7 @@
     ["erbium1.sytes.net", "s"],
     ["gh05.geekhosters.com", "s"],
     ["electrum-1.mempool.co", "s"],
+    ["electrum-1.mempool.co", "t"],
     ["2y27fkedpau73lbw.onion", "s"],
     ["3smoooajg7qqac2y.onion", "s"],
     ["3tm3fjg3ds5fcibw.onion", "s"],
@@ -122,5 +127,6 @@
   "bc_testnet": [
     ["electrumx.testnet.mempool.co", "s"],
     ["electrumx.testnet.mempool.co", "t"]
-  ]
+  ],
+  "bc_regtest": []
 }

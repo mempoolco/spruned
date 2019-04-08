@@ -136,7 +136,7 @@ class P2PConnection(BaseConnection):
                 self._setup_events_handler()
         except Exception as e:
             self.peer = None
-            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, e, exc_info=True)
+            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
             self.loop.create_task(self.on_error('connect'))
             return
 
@@ -194,7 +194,6 @@ class P2PConnection(BaseConnection):
 
     def _on_addr(self, event_handler, name, data):  # pragma: no cover
         try:
-            #Logger.p2p.debug('Handle addr: %s, %s,', event_handler, name, data)
             peers = []
             for peer in data['date_address_tuples']:
                 host, port = str(peer[1]).split('/')

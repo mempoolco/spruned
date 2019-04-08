@@ -55,7 +55,7 @@ if sys.version > '3.5.2':  # pragma: no cover
         choices=[
             'bitcoin.mainnet',
             'bitcoin.testnet',
-            # 'bitcoin.regtest'
+            'bitcoin.regtest'
         ],
         help=''
     )

@@ -119,8 +119,10 @@ class SprunedVOService(RPCAPIService):
             dh = deserialize_header(block_header['header_bytes'])
             if not ElectrumMerkleVerify.verify_merkle(txid, merkle_proof, dh):
                 raise exceptions.InvalidPOWException
+
             if transaction.get('confirmations') > 2:
                 self.repository.blockchain.save_json_transaction(txid, transaction)
+
         if verbose:
             if transaction.get('blockhash'):
                 incl_height = block_header and block_header['block_height'] or \

@@ -15,7 +15,7 @@ class MempoolObserver:
     def __init__(self,
                  repository: Repository,
                  p2p_interface: P2PInterface,
-                 async_block_factory=get_block_factory()
+                 async_block_factory=get_block_factory(),
                  ):
         self.repository = repository
         self.p2p = p2p_interface

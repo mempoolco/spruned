@@ -74,9 +74,10 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         i = 0
         servers = []
         while 1:
+            i += 1
             if self.peers:
                 if i > 100:
-                    raise exceptions.NoServersException
+                    return servers
                 server = self._pick_peer()
                 if server in servers:
                     continue

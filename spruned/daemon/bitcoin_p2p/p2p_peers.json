@@ -381,5 +381,6 @@
         ["ep2mjzox3kvb6ax4.onion", 8333],
         ["mn744hbioayn3ojs.onion", 8333]
     ],
-    "bc_testnet": []
+    "bc_testnet": [],
+    "bc_regtest": []
 }
