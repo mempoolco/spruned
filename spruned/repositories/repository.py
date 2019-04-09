@@ -121,6 +121,9 @@ class Repository:
         self.blockchain.set_cache(cache)
 
     def get_extemped_blockhash(self):
+        """
+        avoid to delete headers in range
+        """
         best_header = self.headers.get_best_header()
         _keep_to = best_header and best_header.get('block_height') or 0
         keep_from = _keep_to - self.keep_blocks if _keep_to - self.keep_blocks > 0 else 0

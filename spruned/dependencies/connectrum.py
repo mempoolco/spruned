@@ -137,17 +137,17 @@ class StratumProtocol(asyncio.Protocol):
             try:
                 msg = line.decode('utf-8', "error").strip()
             except UnicodeError:
-                logger.exception("Encoding issue on %r" % line)
+                logger.debug("Encoding issue on %r" % line)
                 continue
             try:
                 msg = json.loads(msg)
             except ValueError:
-                logger.exception("Bad JSON received from server", msg)
+                logger.debug("Bad JSON received from server", msg)
                 continue
             try:
                 self.client.got_response(msg)
             except Exception as e:
-                logger.exception("Trouble handling response! (%s)" % e)
+                logger.debug("Trouble handling response! (%s)" % e)
                 continue
 
     def send_data(self, message):

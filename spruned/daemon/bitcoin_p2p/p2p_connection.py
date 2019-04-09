@@ -60,6 +60,7 @@ class P2PConnection(BaseConnection):
         self.best_header = best_header
         self.starting_height = None
         self.version_checker = version_checker
+        self.failed = False
 
     @property
     def proxy(self):
@@ -136,6 +137,7 @@ class P2PConnection(BaseConnection):
                 self._setup_events_handler()
         except Exception as e:
             self.peer = None
+            self.failed = True
             Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
             self.loop.create_task(self.on_error('connect'))
             return
@@ -162,6 +164,7 @@ class P2PConnection(BaseConnection):
             Logger.p2p.error('Error closing with peer: %s', self.peer.peername())
         finally:
             self.peer = None
+            self.failed = True
 
     def _setup_events_handler(self):
         self.peer_event_handler.set_request_callback('inv', self._on_inv)
@@ -308,9 +311,9 @@ class P2PConnectionPool(BaseConnectionPool):
 
     @property
     def connections(self):
-        lost = [connection for connection in self._connections if not connection.peer]
-        for l in lost:
-            del l
+        for connection in self._connections:
+            if connection.failed:
+                del connection
         return self._connections
 
     async def connect(self):
