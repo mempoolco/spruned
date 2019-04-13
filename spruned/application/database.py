@@ -1,5 +1,5 @@
 import plyvel
-from sqlalchemy import Column, String, Integer, create_engine
+from sqlalchemy import Column, String, Integer, create_engine, BLOB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 import threading
@@ -13,8 +13,8 @@ class Header(Base):
     __tablename__ = 'headers'
     id = Column(Integer, primary_key=True)
     blockheight = Column(Integer, index=True, unique=True)
-    blockhash = Column(String, index=True, unique=True)
-    data = Column(String)
+    blockhash = Column(BLOB, index=True, unique=True)
+    data = Column(BLOB)
 
 
 engine = create_engine('sqlite:///' + settings.SQLITE_DBNAME)

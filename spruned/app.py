@@ -2,6 +2,9 @@
 # Copyright (C) 2018 Guido Dassori <guido.dassori@gmail.com>
 #
 import sys
+
+from spruned.application import migrations
+
 sys.path.insert(0, './')
 
 if sys.version > '3.5.2':  # pragma: no cover
@@ -152,6 +155,9 @@ if sys.version > '3.5.2':  # pragma: no cover
 
         def start():  # pragma: no cover
             from spruned.application.logging_factory import Logger
+            from spruned.application.database import sqlite
+            migrations.run(sqlite)
+
             if args.daemon:
                 MSG = 'Warning! --daemon is deprecated and will be removed in' \
                       ' future versions. Use an init script, instead.\n'
@@ -160,6 +166,7 @@ if sys.version > '3.5.2':  # pragma: no cover
             main_loop = asyncio.get_event_loop()
             main_loop.create_task(main_task(main_loop))
             main_loop.run_forever()
+
         start()
 
 else:  # pragma: no cover

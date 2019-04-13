@@ -59,8 +59,9 @@ class HeadersReactor:
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
             )
-            for callback in self._on_new_best_header_callbacks:
-                self.loop.create_task(callback(self._last_processed_header))
+            if self._last_processed_header:
+                for callback in self._on_new_best_header_callbacks:
+                    self.loop.create_task(callback(self._last_processed_header))
 
     async def on_connected(self):
         if self.store_headers:

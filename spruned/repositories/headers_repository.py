@@ -21,10 +21,10 @@ class HeadersSQLiteRepository(HeadersRepository):
     def _header_model_to_dict(header: database.Header, nextblockhash: (None, str), prevblockhash: (None, str)) -> Dict:
         res = {
             'block_height': header.blockheight,
-            'block_hash': header.blockhash,
+            'block_hash': binascii.hexlify(header.blockhash).decode(),
             'header_bytes': header.data,
-            'next_block_hash': nextblockhash,
-            'prev_block_hash': prevblockhash
+            'next_block_hash': nextblockhash and binascii.hexlify(nextblockhash).decode(),
+            'prev_block_hash': prevblockhash and binascii.hexlify(prevblockhash).decode()
         }
         if not res['prev_block_hash']:
             res.pop('prev_block_hash')
@@ -37,7 +37,7 @@ class HeadersSQLiteRepository(HeadersRepository):
         res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
         if not res:
             return
-        prevblockhash = res.blockheight != 0 and self.get_block_hash(res.blockheight - 1)
+        prevblockhash = res.blockheight != 0 and self.get_block_hash(res.blockheight - 1, decode=False)
         res = self._header_model_to_dict(res, None, prevblockhash)
         return res
 
@@ -55,23 +55,25 @@ class HeadersSQLiteRepository(HeadersRepository):
         return headers and [
             self._header_model_to_dict(
                 h,
-                nextblockhash=self.get_block_hash(h.blockheight+1),
-                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1)
+                nextblockhash=self.get_block_hash(h.blockheight+1, decode=False),
+                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1, decode=False)
             ) for h in headers
         ] or []
 
     def get_headers(self, *blockhashes: str):
+        block_hashes_bytes = [binascii.unhexlify(x) for x in blockhashes]
         session = self.session()
-        headers = session.query(database.Header).filter(database.Header.blockhash.in_(blockhashes))\
+        headers = session.query(database.Header).filter(database.Header.blockhash.in_(block_hashes_bytes))\
             .order_by(database.Header.blockheight.asc()).all()
-        if set([h.blockhash for h in headers]) - set(blockhashes):
+
+        if set([h.blockhash for h in headers]) - set(block_hashes_bytes):
             # not sure if all raises, investigate # FIXME
             raise exceptions.HeadersInconsistencyException
         return headers and [
             self._header_model_to_dict(
                 h,
-                nextblockhash=self.get_block_hash(h.blockheight+1),
-                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1)
+                nextblockhash=self.get_block_hash(h.blockheight+1, decode=False),
+                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1, decode=False)
             ) for h in headers
         ] or []
 
@@ -80,7 +82,11 @@ class HeadersSQLiteRepository(HeadersRepository):
         session = self.session()
 
         def _save():
-            model = database.Header(blockhash=blockhash, blockheight=blockheight, data=headerbytes)
+            model = database.Header(
+                blockhash=binascii.unhexlify(blockhash),
+                blockheight=blockheight,
+                data=headerbytes
+            )
             session.add(model)
             try:
                 session.flush()
@@ -93,7 +99,7 @@ class HeadersSQLiteRepository(HeadersRepository):
             prev_block = None
         else:
             prev_block = session.query(database.Header).filter_by(blockheight=blockheight - 1).one()
-            if prev_block.blockhash != prev_block_hash:
+            if not prev_block or prev_block.blockhash != binascii.unhexlify(prev_block_hash):
                 raise exceptions.HeadersInconsistencyException
 
             model = _save()
@@ -108,11 +114,11 @@ class HeadersSQLiteRepository(HeadersRepository):
             verify_pow(header['header_bytes'], binascii.unhexlify(header['block_hash']))
             if i == 0 and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
-                if prev_block.blockhash != header['prev_block_hash']:
+                if prev_block.blockhash != binascii.unhexlify(header['prev_block_hash']):
                     Logger.repository.exception('Integrity Error on check prev block hash')
                     raise exceptions.HeadersInconsistencyException
             model = database.Header(
-                blockhash=header['block_hash'],
+                blockhash=binascii.unhexlify(header['block_hash']),
                 blockheight=header['block_height'],
                 data=header['header_bytes']
             )
@@ -141,21 +147,25 @@ class HeadersSQLiteRepository(HeadersRepository):
         session.flush()
         return removing_dict
 
-    def get_block_hash(self, blockheight: int):
+    def get_block_hash(self, blockheight: int, decode=True):
         session = self.session()
         header = session.query(database.Header).filter_by(blockheight=blockheight).one_or_none()
-        return header and header.blockhash
+        if not header:
+            return
+        if decode:
+            return binascii.hexlify(header.blockhash).decode()
+        return header.blockhash
 
     def get_block_height(self, blockhash: str):
         session = self.session()
-        header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
+        header = session.query(database.Header).filter_by(blockhash=binascii.unhexlify(blockhash)).one_or_none()
         return header and header.blockheight
 
     def get_block_header(self, blockhash: str):
         session = self.session()
-        header = session.query(database.Header).filter_by(blockhash=blockhash).one_or_none()
+        header = session.query(database.Header).filter_by(blockhash=binascii.unhexlify(blockhash)).one_or_none()
         if not header:
             return
-        nextblockhash = self.get_block_hash(header.blockheight + 1)
-        prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1)
+        nextblockhash = self.get_block_hash(header.blockheight + 1, decode=False)
+        prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1, decode=False)
         return self._header_model_to_dict(header, nextblockhash, prevblockhash)
