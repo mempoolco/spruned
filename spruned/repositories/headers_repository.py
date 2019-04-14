@@ -1,6 +1,8 @@
 from typing import List, Dict
 
 import binascii
+
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from spruned.application.abstracts import HeadersRepository
 from spruned.application.logging_factory import Logger
@@ -34,12 +36,10 @@ class HeadersSQLiteRepository(HeadersRepository):
 
     def get_best_header(self):
         session = self.session()
-        res = session.query(database.Header).order_by(database.Header.blockheight.desc()).limit(1).one_or_none()
-        if not res:
-            return
-        prevblockhash = res.blockheight != 0 and self.get_block_hash(res.blockheight - 1, decode=False)
-        res = self._header_model_to_dict(res, None, prevblockhash)
-        return res
+        _id = session.query(func.max(database.Header.id)).one_or_none()
+        best_header = _id and session.query(database.Header).filter_by(id=_id[0]).one_or_none()
+        best_blockhash = best_header and best_header.blockhash
+        return self.get_block_header(binascii.hexlify(best_blockhash).decode())
 
     def get_header_at_height(self, height: int):
         blockhash = self.get_block_hash(height)
@@ -177,6 +177,11 @@ class HeadersSQLiteRepository(HeadersRepository):
         header = session.query(database.Header).filter_by(blockhash=binascii.unhexlify(blockhash)).one_or_none()
         if not header:
             return
-        nextblockhash = self.get_block_hash(header.blockheight + 1, decode=False)
-        prevblockhash = header.blockheight != 0 and self.get_block_hash(header.blockheight - 1, decode=False)
+        prev_next = session.query(database.Header).filter(database.Header.id.in_((header.id-1, header.id+1))).all()
+        prevblockhash = nextblockhash = None
+        for h in prev_next:
+            if h.id == header.id - 1:
+                prevblockhash = h.blockhash
+            elif h.id == header.id + 1:
+                nextblockhash = h.blockhash
         return self._header_model_to_dict(header, nextblockhash, prevblockhash)
