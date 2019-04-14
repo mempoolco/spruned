@@ -1,5 +1,8 @@
 import asyncio
 import gc
+
+import async_timeout
+
 from spruned.application.tools import async_delayed_task
 from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_server, repository
 
@@ -31,7 +34,8 @@ async def loop_check_integrity(l):  # pragma: no cover
     """
     this task also prune blocks
     """
-    await repository.ensure_integrity()
+    async with async_timeout.timeout(30):
+        await repository.ensure_integrity()
 
 
 async def loop_collect_garbage(l):  # pragma: no cover

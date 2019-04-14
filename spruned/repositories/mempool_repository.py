@@ -171,7 +171,7 @@ class MempoolRepository:
         if now - self._last_forget_pool_clean > 60:
             if not self._forget_pool_clean_lock.locked():
                 asyncio.wait_for(self._forget_pool_clean_lock.acquire(), timeout=None)
-                self.loop.create_task(self._clean_forget_pool())
+                self._forget_pool_by_time and self.loop.create_task(self._clean_forget_pool())
 
     async def _clean_mempool(self):
         try:
@@ -191,7 +191,10 @@ class MempoolRepository:
             min_value = self._forget_pool_by_time and min(self._forget_pool_by_time, key=self._forget_pool_by_time.get)
             while min_value + 600 < now:
                 for txid in self._forget_pool_by_time[min_value]:
-                    self._forget_pool.remove(txid)
+                    try:
+                        self._forget_pool.remove(txid)
+                    except KeyError:
+                        pass
                 del self._forget_pool_by_time[min_value]
                 if not self._forget_pool_by_time:
                     break

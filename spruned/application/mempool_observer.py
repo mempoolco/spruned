@@ -45,14 +45,18 @@ class MempoolObserver:
             )
             block_raw_data = (tx['transaction_bytes'] for tx in block_transactions)
             cached_block = block_transactions and (blockheader['header_bytes'] + b''.join(block_raw_data)) or None
-            if cached_block:
+            try:
+                block_object = Block.from_bin(cached_block)
+            except:
+                block_object = None
+            if block_object:
                 Logger.mempool.debug('Block %s in cache', blockheader['block_hash'])
                 block = {
-                    'block_object': Block.from_bin(block_raw_data),
+                    'block_object': block_object,
                 }
             else:
                 Logger.mempool.debug('Block %s not in cache, fetching', blockheader['block_hash'])
-                block = cached_block or await self.p2p.get_block(blockheader['block_hash'], timeout=15)
+                block = await self.p2p.get_block(blockheader['block_hash'], timeout=15)
                 if not block:
                     raise exceptions.MissingResponseException
                 Logger.mempool.debug(

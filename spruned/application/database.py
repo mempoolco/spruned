@@ -24,8 +24,6 @@ sqlite = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=eng
 for statement in [
     "PRAGMA main.page_size = 4096;",
     "PRAGMA main.cache_size = 10000;",
-    "PRAGMA main.locking_mode = EXCLUSIVE;",
-    "PRAGMA main.journal_mode = WAL;",
 ]:
     sqlite.session_factory().execute(statement)
 
