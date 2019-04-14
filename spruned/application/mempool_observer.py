@@ -72,7 +72,7 @@ class MempoolObserver:
 
             for callback in self.on_new_block_callbacks:
                 self.loop.create_task(callback(block['block_object']))
-        except (exceptions.NoPeersException, exceptions.MissingResponseException):
+        except (exceptions.NoPeersException, exceptions.MissingResponseException) as e:
             if i > 10:
                 Logger.mempool.debug(
                     'Block fetch for %s failed (will NOT retry)', blockheader['block_hash']

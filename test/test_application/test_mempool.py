@@ -22,7 +22,9 @@ class TestMempoolObserver(TestCase):
         self.batcher_factory = Mock()
         self.pool = P2PConnectionPool(batcher=lambda: batcher_factory(self))
         self.connection = Mock(connected=True, score=99)
+        self.connection2 = Mock(connected=True, score=99)
         self.pool.connections.append(self.connection)
+        self.pool.connections.append(self.connection2)
         self.p2p_interface = P2PInterface(self.pool)
         self.sut = MempoolObserver(self.repository, self.p2p_interface)
         self.loop = asyncio.get_event_loop()
@@ -42,17 +44,17 @@ class TestMempoolObserver(TestCase):
         )
         self.loop.run_until_complete(self.sut.on_transaction(connection, {'tx': tx}))
         self.assertEqual(tx.w_id(), [x for x in self.mempool_repository.get_txids()][0])
+        self.repository.blockchain.get_transactions_by_block_hash.return_value = [], None
 
-        self.repository.blockchain.get_block.return_value = False
         block = Block(1, b'0'*32, merkle_root=merkle([tx.hash()]), timestamp=123456789, difficulty=3000000, nonce=1*137)
         block.txs.append(tx)
         as_bin = block.as_bin()
         Block.from_bin(as_bin)
         block_header = {'block_hash': block.id()}
         self.batcher_factory.add_peer.return_value = async_coro(True)
-
         self.batcher_factory.inv_item_to_future.return_value = block.as_bin()
         mempool_response = self.mempool_repository.get_raw_mempool(True)
+
         self.assertEqual(
             {
                 '41867301a6cff5c47951aa1a4eef0be910db0cb5f154eaeb469732e1f9b54548': {
@@ -72,7 +74,8 @@ class TestMempoolObserver(TestCase):
             },
             mempool_response
         )
-
+        self.repository.blockchain.save_block.side_effect = lambda a: {'block_object': Block.from_bin(a['block_bytes'])}
+        self.repository.blockchain.get_transactions_by_block_hash.return_value = [], None
         self.loop.run_until_complete(self.sut.on_block_header(block_header))
         self.assertEqual(self.mempool_repository.get_raw_mempool(True), {})
         self.assertEqual([x for x in self.mempool_repository.get_txids()], [])

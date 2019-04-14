@@ -100,16 +100,9 @@ class TestVOService(unittest.TestCase):
             'header_bytes': binascii.unhexlify(header_hex.encode()),
             'next_block_hash': block_json['nextblockhash']
         }
-        hex_block ='010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe6' \
-                   '80e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e3629901010000000100000000000000' \
-                   '00000000000000000000000000000000000000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a0' \
-                   '100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0' \
-                   'a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000'
-        block_bytes = binascii.unhexlify(hex_block.encode())
-        self.repository.blockchain.get_block.return_value = {
-            'block_hash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
-            'block_bytes': block_bytes
-        }
+        self.repository.blockchain.get_txids_by_block_hash.return_value = [
+            '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098'
+        ], 215
 
         block = self.loop.run_until_complete(
             self.sut.getblock('00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048', 1)
@@ -139,15 +132,17 @@ class TestVOService(unittest.TestCase):
     def test_getblock_non_verbose(self):
         self.repository.headers.get_best_header.return_value = {'block_height': 513980}
         self.repository.headers.get_block_header.return_value = self.header
-        self.repository.blockchain.get_block.return_value = {
-                'block_hash': '000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e',
-                'block_bytes': binascii.unhexlify('cafebabe'.encode())
-            }
+        self.repository.blockchain.get_transactions_by_block_hash\
+            .return_value = [{'transaction_bytes': b'cafebabe'*4}], 16
 
         block = self.loop.run_until_complete(
             self.sut.getblock('000000000000000000376267d342878f869cb68192ff5d73f5f1953ae83e3e1e', 0)
         )
-        self.assertEqual(block, 'cafebabe')
+        self.assertEqual(
+            block, '000000206ad001ecab39a3267ac6db2ccea9e27907b011bc70324c00000000000000000048043a6a574d8d826af'
+                   '9477804d3a4ac116a411d194c0b86d950168163c4d4232364ad5aa38955175cd606956361666562616265636166'
+                   '656261626563616665626162656361666562616265'
+        )
 
     def test_getblock_p2p_non_verbose(self):
         hex_block ='010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe6' \
@@ -159,15 +154,15 @@ class TestVOService(unittest.TestCase):
 
         self.repository.headers.get_best_header.return_value = {'block_height': 513980}
         self.repository.headers.get_block_header.return_value = self.header
-        self.repository.blockchain.get_block.return_value = None
-        self.repository.blockchain.async_save_block.return_value = async_coro(True)
+        self.repository.blockchain.get_transactions_by_block_hash.return_value = [], None
+        self.repository.blockchain.async_save_block.side_effect = [async_coro(True), async_coro(True)]
         self.p2p.get_block.side_effect = [
             async_coro(None),
             async_coro(
                 {
-                'block_hash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
-                'block_bytes': bytes_block,
-                'block_object': Block.parse(io.BytesIO(bytes_block))
+                    'block_hash': '00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048',
+                    'block_bytes': bytes_block,
+                    'block_object': Block.parse(io.BytesIO(bytes_block))
                 }
             )
         ]
@@ -180,7 +175,7 @@ class TestVOService(unittest.TestCase):
     def test_getblock_p2p_non_verbose_network_error(self):
         self.repository.headers.get_best_header.return_value = {'block_height': 513980}
         self.repository.headers.get_block_header.return_value = self.header
-        self.repository.blockchain.get_block.return_value = None
+        self.repository.blockchain.get_transactions_by_block_hash.return_value = [], None
         self.p2p.get_block.side_effect = lambda *a, **kw: async_coro(None)
         with self.assertRaises(ServiceException):
             self.loop.run_until_complete(
@@ -188,7 +183,6 @@ class TestVOService(unittest.TestCase):
             )
 
     def test_getrawtransaction_non_verbose_not_in_block(self):
-        self.repository.blockchain.get_json_transaction.return_value = None
         tx = {
             'hex': '01000000000101531213685738c91df5ceb1537605b4e17d0e623c34ead12b9e285495cd5da9b80000000000ffffffff0248d'
                    '00500000000001976a914fa511ca56ee17f57b8190ad490c4e5bf7ef0e34b88ac951e00000000000016001458e05b9b412c3b'
@@ -198,6 +192,7 @@ class TestVOService(unittest.TestCase):
             'vout': []
         }
         self.electrod.getrawtransaction.return_value = async_coro(tx)
+        self.repository.blockchain.get_transaction.return_value = None
         res = self.loop.run_until_complete(
             self.sut.getrawtransaction(
                 'dbae729fc6cce1bc922e66f4f12eb2b43ef57406bf5a0818eb2e73696b713b91',
@@ -328,7 +323,7 @@ class TestVOService(unittest.TestCase):
             )
 
     def test_getbestblockhash(self):
-        self.repository.headers.get_best_header.return_value = {'block_hash': 'cafebabe'}
+        self.repository.headers.get_best_blockhash.return_value = 'cafebabe'
         res = self.loop.run_until_complete(self.sut.getbestblockhash())
         self.assertEqual(res, 'cafebabe')
 

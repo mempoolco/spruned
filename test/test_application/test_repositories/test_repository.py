@@ -2,7 +2,7 @@ import asyncio
 from unittest import TestCase
 from unittest.mock import Mock
 
-from spruned.repositories.blockchain_repository import BLOCK_PREFIX
+from spruned.repositories.blockchain_repository import BLOCK_INDEX_PREFIX
 from spruned.repositories.repository import Repository
 
 
@@ -33,7 +33,7 @@ class TestRepository(TestCase):
             {'block_height': 16, 'block_hash': 'block16'}
         ]
         self.blocks.storage_name = b'block_prefix'
-        self.blocks.get_key.side_effect = lambda x, y: b'block_prefix.' + BLOCK_PREFIX + b'.' + x.encode()
+        self.blocks.get_key.side_effect = lambda x, y: b'block_prefix.' + BLOCK_INDEX_PREFIX + b'.' + x.encode()
         self.cache.get_index.return_value = {
             'keys': {
                 b'block12': {},
@@ -43,11 +43,11 @@ class TestRepository(TestCase):
             }
         }
         iterator = [
-            (b'block_prefix.block12',),
-            (b'block_prefix.block13',),
-            (b'block_prefix.block14',),
-            (b'block_prefix.block15',),
-            (b'block_prefix.block16',),
+            b'block_prefix.block12',
+            b'block_prefix.block13',
+            b'block_prefix.block14',
+            b'block_prefix.block15',
+            b'block_prefix.block16',
         ]
         self.sut.ldb.iterator.return_value = iterator
         self.loop.run_until_complete(self.sut.ensure_integrity())
@@ -64,6 +64,6 @@ class TestRepository(TestCase):
             {'block_height': 16, 'block_hash': 'block16'}
         ]
         self.blocks.storage_name = b'block_prefix'
-        self.blocks.get_key.side_effect = lambda x, y: b'block_prefix.' + BLOCK_PREFIX + b'.' + x.encode()
+        self.blocks.get_key.side_effect = lambda x, y: b'block_prefix.' + BLOCK_INDEX_PREFIX + b'.' + x.encode()
         self.cache.get_index.return_value = None
         Mock.assert_not_called(self.blocks.remove_block)

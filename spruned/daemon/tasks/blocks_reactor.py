@@ -114,7 +114,7 @@ class BlocksReactor:
                 last_hash = saved_blocks and saved_blocks[-1]['block_hash']
                 Logger.p2p.debug('Saved block %s', saved_blocks)
             except:
-                Logger.p2p.exception('Error saving blocks %s', blocks)
+                Logger.p2p.warning('Error saving blocks %s', blocks)
                 return True
         else:
             urgent = True

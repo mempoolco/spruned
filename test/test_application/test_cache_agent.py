@@ -3,7 +3,7 @@ import pickle
 import time
 
 from unittest import TestCase
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock, create_autospec, call, ANY
 
 from spruned.application.cache import CacheAgent
 from spruned.repositories.repository import Repository
@@ -20,7 +20,7 @@ class TestCacheAgent(TestCase):
         self.delayer = Mock
         self.sut = CacheAgent(
             self.repository,
-            1024,
+            1,
             self.loopmock,
             self.delayer
         )
@@ -99,12 +99,20 @@ class TestCacheAgent(TestCase):
         this is the real naming convention for indexes
         :return:
         """
-        ldump = [[b'\x01.cafe', 123, 512], [b'\x00.bbbb', 123, 128], [b'\x01.babe', 124, 128]]
+        ldump = [[b'\x02.cafe', 123, 512*1024], [b'\x02.babe', 124, 400*1024]]
         self.session.get.side_effect = [pickle.dumps(ldump), True, True, True, True]
         self.sut.init()
-        self.sut.track(b'\x01.ffff', 640)
-        ldump.append([b'\x01.ffff', self.sut.index['keys'][b'\x01.ffff']['saved_at'], 640])
-        ldump = ldump[1:]
+        self.sut.track(b'\x02.ffff', 640*1024)
+        ldump.append([b'\x02.ffff', self.sut.index['keys'][b'\x02.ffff']['saved_at'], 640*1024])
         self.loop.run_until_complete(self.sut.check())
-        Mock.assert_called_once_with(self.repository.blockchain.remove_block, b'cafe')
-        Mock.assert_called_once_with(self.session.put, b'cache_index', pickle.dumps(ldump))
+        Mock.assert_has_calls(
+            self.session.put,
+            calls=[
+                call(b'cache_index', ANY),
+                call(b'cache_index', ANY)
+            ]
+        )
+        Mock.assert_has_calls(
+            self.repository.blockchain.remove_block,
+            calls=[call(b'cafe')]
+        )
