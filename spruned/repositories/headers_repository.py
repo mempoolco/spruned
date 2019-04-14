@@ -34,12 +34,16 @@ class HeadersSQLiteRepository(HeadersRepository):
             res.pop('next_block_hash')
         return res
 
-    def get_best_header(self):
+    def get_best_blockhash(self) -> str:
         session = self.session()
         _id = session.query(func.max(database.Header.id)).one_or_none()
         best_header = _id and session.query(database.Header).filter_by(id=_id[0]).one_or_none()
         best_blockhash = best_header and best_header.blockhash
-        return self.get_block_header(binascii.hexlify(best_blockhash).decode())
+        return best_blockhash and binascii.hexlify(best_blockhash).decode()
+
+    def get_best_header(self):
+        best_blockhash = self.get_best_blockhash()
+        return best_blockhash and self.get_block_header(best_blockhash)
 
     def get_header_at_height(self, height: int):
         blockhash = self.get_block_hash(height)
@@ -70,23 +74,6 @@ class HeadersSQLiteRepository(HeadersRepository):
                 )
             )
         return res
-
-    def get_headers(self, *blockhashes: str):
-        block_hashes_bytes = [binascii.unhexlify(x) for x in blockhashes]
-        session = self.session()
-        headers = session.query(database.Header).filter(database.Header.blockhash.in_(block_hashes_bytes))\
-            .order_by(database.Header.blockheight.asc()).all()
-
-        if set([h.blockhash for h in headers]) - set(block_hashes_bytes):
-            # not sure if all raises, investigate # FIXME
-            raise exceptions.HeadersInconsistencyException
-        return headers and [
-            self._header_model_to_dict(
-                h,
-                nextblockhash=self.get_block_hash(h.blockheight+1, decode=False),
-                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1, decode=False)
-            ) for h in headers
-        ] or []
 
     @database.atomic
     def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
