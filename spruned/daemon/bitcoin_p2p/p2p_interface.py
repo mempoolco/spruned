@@ -2,6 +2,7 @@ import asyncio
 from typing import Dict
 from pycoin.serialize import h2b_rev
 from spruned.application.context import ctx
+from spruned.application.logging_factory import Logger
 
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_BLOCK
 from spruned.dependencies.pycoinnet.networks import MAINNET
@@ -28,6 +29,7 @@ class P2PInterface:
             self.loop.create_task(callback())
 
     async def get_block(self, blockhash: str, peers=None, timeout=None, privileged_peers=False, segwit=True) -> Dict:
+        Logger.p2p.debug('Downloading block %s' % blockhash)
         block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
         inv_item = InvItem(block_type, h2b_rev(blockhash))
         response = await self.pool.get(inv_item, peers=peers, timeout=timeout, privileged=privileged_peers)
@@ -42,6 +44,7 @@ class P2PInterface:
         I have to work on pycoinnet to understand how the invbatcher can handle a more efficient 'getblocks'.
         Meanwhile, parallelize getblocks. This may be dirty, let's try it....
         """
+        Logger.p2p.debug('Downloading blocks %s' % ', '.join(blockhash))
         sorted_hash = [x for x in blockhash]
         blocks = {}
         r, max_retry = 0, 100

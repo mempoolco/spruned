@@ -85,7 +85,7 @@ class BlockchainRepository:
         key = self.get_key(blockhash, prefix=BLOCK_PREFIX)
         data = self.session.get(self.storage_name + b'.' + key)
         if not data:
-            Logger.leveldb.debug('%s not found under key %s', blockhash, key)
+            Logger.leveldb.debug('%s not found in storage' % blockhash)
             return
         header = deserialize_header(data[:80])
         return {

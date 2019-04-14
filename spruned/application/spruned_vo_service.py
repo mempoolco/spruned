@@ -13,9 +13,17 @@ from spruned.dependencies.pybitcointools import deserialize
 
 
 class SprunedVOService(RPCAPIService):
-    def __init__(self, electrod, p2p, cache: CacheAgent=None, repository=None,
-                 loop=asyncio.get_event_loop(), context=None, fallback_non_segwit_blocks=False):
-        self.cache = cache
+    def __init__(
+            self,
+            electrod,
+            p2p,
+            cache_agent: CacheAgent=None,
+            repository=None,
+            loop=asyncio.get_event_loop(),
+            context=None,
+            fallback_non_segwit_blocks=False
+    ):
+        self.cache_agent = cache_agent
         self.p2p = p2p
         self.electrod = electrod
         self.repository = repository
@@ -60,7 +68,7 @@ class SprunedVOService(RPCAPIService):
                 res = block['verbose']
             else:
                 res = self._make_verbose_block(block, block_header)
-                self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
+                self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache_agent))
             best_header = self.repository.headers.get_best_header()
             res['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
         else:
@@ -90,7 +98,7 @@ class SprunedVOService(RPCAPIService):
         if verbose and not block.get('verbose'):
             block['verbose'] = await self._make_verbose_block(block, blockheader)
         if not storedblock:
-            self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache))
+            self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache_agent))
         return block
 
     async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):

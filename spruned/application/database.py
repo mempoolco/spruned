@@ -21,6 +21,13 @@ engine = create_engine('sqlite:///' + settings.SQLITE_DBNAME)
 Base.metadata.create_all(engine)
 
 sqlite = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
+for statement in [
+    "PRAGMA main.page_size = 4096;",
+    "PRAGMA main.cache_size = 10000;",
+    "PRAGMA main.locking_mode = EXCLUSIVE;",
+    "PRAGMA main.journal_mode = WAL;",
+]:
+    sqlite.session_factory().execute(statement)
 
 if not settings.TESTING:
     storage_ldb = plyvel.DB(settings.LEVELDB_BLOCKCHAIN_ADDRESS, create_if_missing=True)

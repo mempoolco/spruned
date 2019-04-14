@@ -21,7 +21,7 @@ def builder(ctx: Context):  # pragma: no cover
         electrod_interface,
         p2p_interface,
         repository=repository,
-        cache=cache,
+        cache_agent=cache,
         context=ctx,
         fallback_non_segwit_blocks=True
     )

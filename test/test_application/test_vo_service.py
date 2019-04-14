@@ -25,7 +25,7 @@ class TestVOService(unittest.TestCase):
         self.repository = Mock()
         self.cache = create_autospec(CacheAgent)
         self.sut = SprunedVOService(
-            self.electrod, self.p2p, cache=self.cache, repository=self.repository
+            self.electrod, self.p2p, cache_agent=self.cache, repository=self.repository
         )
         hb = '000000206ad001ecab39a3267ac6db2ccea9e27907b011bc70324c00000000000000000048043a6a' \
              '574d8d826af9477804d3a4ac116a411d194c0b86d950168163c4d4232364ad5aa38955175cd60695'
