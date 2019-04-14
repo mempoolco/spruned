@@ -80,7 +80,7 @@ class Repository:
         index = [self.blockchain.storage_name + b'.' + k for k in index.get('keys', {}).keys()]
         if not index:
             Logger.cache.debug('Empty index found')
-        iterator = self.ldb.iterator()
+        iterator = self.ldb.iterator(prefix=keypref, include_value=False)
         purged = 0
         txs = 0
         cached = 0
@@ -88,24 +88,24 @@ class Repository:
         kept = 0
         for x in iterator:
             tot += 1
-            if keypref not in x[0]:
-                if x[0] in (
+            if keypref not in x:
+                if x in (
                         self.cache.cache_name,
                         self.blockchain.storage_name + b'.' + DB_VERSION
                 ):
                     continue
-                elif self.blockchain.storage_name + b'.' + TRANSACTION_PREFIX in x[0]:
+                elif self.blockchain.storage_name + b'.' + TRANSACTION_PREFIX in x:
                     txs += 1
                     continue
-            if x[0] in keep_keys:
+            if x in keep_keys:
                 kept += 1
                 continue
-            elif x[0] in index:
+            elif x in index:
                 cached += 1
                 continue
-            elif x[0] not in index:
-                Logger.repository.debug('Purging block %s' % x[0])
-                self.blockchain.remove_block(x[0].replace(keypref + b'.', b''))
+            elif x not in index:
+                Logger.repository.debug('Purging block %s' % x)
+                self.blockchain.remove_block(x.replace(keypref + b'.', b''))
                 purged += 1
             else:
                 raise ValueError(x)

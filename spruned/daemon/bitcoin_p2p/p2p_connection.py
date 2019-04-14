@@ -61,6 +61,7 @@ class P2PConnection(BaseConnection):
         self.starting_height = None
         self.version_checker = version_checker
         self.failed = False
+        self._antispam = []
 
     @property
     def proxy(self):
@@ -280,7 +281,7 @@ class P2PConnectionPool(BaseConnectionPool):
 
     def _create_bloom_filter(self):
         element_count = 1
-        false_positive_probability = 0.00001
+        false_positive_probability = 0.00000000001
         filter_size = filter_size_required(element_count, false_positive_probability)
         hash_function_count = hash_function_count_required(filter_size, element_count)
         self._pool_filter = BloomFilter(filter_size, hash_function_count=hash_function_count, tweak=1)
@@ -387,8 +388,8 @@ class P2PConnectionPool(BaseConnectionPool):
         future = None
         try:
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
-                connections = privileged and self._pick_privileged_connections(peers if peers is not None else 1) or []
-                connections = connections or self._pick_multiple_connections(peers if peers is not None else 1)
+                connections = privileged and self._pick_privileged_connections(peers if peers is not None else 2) or []
+                connections = connections or self._pick_multiple_connections(peers if peers is not None else 2)
                 for connection in connections:
                     Logger.p2p.debug('Adding connection %s to batcher', connection.hostname)
                     await batcher.add_peer(connection.peer_event_handler)

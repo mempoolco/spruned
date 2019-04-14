@@ -52,13 +52,24 @@ class HeadersSQLiteRepository(HeadersRepository):
         if limit is not None:
             query = query.limit(limit)
         headers = query.all()
-        return headers and [
-            self._header_model_to_dict(
-                h,
-                nextblockhash=self.get_block_hash(h.blockheight+1, decode=False),
-                prevblockhash=h.blockheight != 0 and self.get_block_hash(h.blockheight-1, decode=False)
-            ) for h in headers
-        ] or []
+        res = []
+        howmany = len(headers)
+        for i, h in enumerate(headers):
+            if not i:
+                prevblockhash = h.blockheight != 0 and self.get_block_hash(h.blockheight-1, decode=False)
+            else:
+                prevblockhash = headers[i-1].blockhash
+            nextblockhash = i + 1 < howmany and headers[i + 1].blockhash or self.get_block_hash(
+                h.blockheight + 1, decode=False
+            )
+            res.append(
+                self._header_model_to_dict(
+                    h,
+                    nextblockhash=nextblockhash,
+                    prevblockhash=prevblockhash
+                )
+            )
+        return res
 
     def get_headers(self, *blockhashes: str):
         block_hashes_bytes = [binascii.unhexlify(x) for x in blockhashes]

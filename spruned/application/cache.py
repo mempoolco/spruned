@@ -15,7 +15,7 @@ class CacheAgent:
         self.repository.blockchain.set_cache(self)
         self.cache_name = b'cache_index'
         self.index = None
-        self.limit = limit * 1024
+        self.limit = limit * 1024000
         self._last_dump_size = None
         self.loop = loop
         self.lock = asyncio.Lock()
