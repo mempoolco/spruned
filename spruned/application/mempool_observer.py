@@ -1,6 +1,8 @@
 import asyncio
 import time
 
+from pycoin.block import Block
+
 from spruned.application.logging_factory import Logger
 
 from spruned.application.tools import async_delayed_task
@@ -38,20 +40,28 @@ class MempoolObserver:
     async def on_block_header(self, blockheader: dict, i=0):
         try:
             Logger.mempool.debug('New block request: %s', blockheader['block_hash'])
-            cached_block = self.repository.blockchain.get_block(blockheader['block_hash'])
-            cached_block and Logger.mempool.debug(
-                'Block %s in cache', blockheader['block_hash']
+            block_transactions, size = self.repository.blockchain.get_transactions_by_block_hash(
+                blockheader['block_hash']
             )
-            not cached_block and Logger.mempool.debug(
-                'Block %s not in cache, fetching', blockheader['block_hash']
-            )
-            block = cached_block or await self.p2p.get_block(blockheader['block_hash'], timeout=15)
-            if not block:
-                raise exceptions.MissingResponseException
+            block_raw_data = (tx['transaction_bytes'] for tx in block_transactions)
+            cached_block = block_transactions and (blockheader['header_bytes'] + b''.join(block_raw_data)) or None
+            if cached_block:
+                Logger.mempool.debug('Block %s in cache', blockheader['block_hash'])
+                block = {
+                    'block_object': Block.from_bin(block_raw_data),
+                }
+            else:
+                Logger.mempool.debug('Block %s not in cache, fetching', blockheader['block_hash'])
+                block = cached_block or await self.p2p.get_block(blockheader['block_hash'], timeout=15)
+                if not block:
+                    raise exceptions.MissingResponseException
+                Logger.mempool.debug(
+                    'Block %s not cached, saving', blockheader['block_hash']
+                )
+                block = self.repository.blockchain.save_block(block)
 
-            block_object = await self.block_factory.get(block['block_bytes'])
             Logger.mempool.debug('Block %s, fetch done', blockheader['block_hash'])
-            block_txids, removed_txids = self.repository.mempool.on_new_block(block_object)
+            block_txids, removed_txids = self.repository.mempool.on_new_block(block['block_object'])
             Logger.mempool.debug(
                 'Block %s parsed by mempool repository, removed %s transactions' % (
                     blockheader['block_hash'], len(removed_txids)
@@ -59,13 +69,9 @@ class MempoolObserver:
             )
             blockheader.update({"txs": block_txids})
             block.update({"verbose": blockheader})
-            if not cached_block:
-                Logger.mempool.debug(
-                    'Block %s not cached, saving', blockheader['block_hash']
-                )
-                self.repository.blockchain.save_block(block)
+
             for callback in self.on_new_block_callbacks:
-                self.loop.create_task(callback(block_object))
+                self.loop.create_task(callback(block['block_object']))
         except (exceptions.NoPeersException, exceptions.MissingResponseException):
             if i > 10:
                 Logger.mempool.debug(

@@ -94,29 +94,38 @@ class BlocksReactor:
             urgent = True
 
         headers = self.repo.headers.get_headers_since_height(height_to_start, limit=self._max_per_batch)
-        _local_blocks = {h['block_hash']: self.repo.blockchain.get_block(h['block_hash']) for h in headers}
-        _local_hblocks = {k: v for k, v in _local_blocks.items() if v is not None}
-        _request = [x['block_hash'] for x in headers if x['block_hash'] not in _local_hblocks]
-        blocks = _request and await self.interface.get_blocks(*_request)
-        _hheaders = {v['block_hash']: v for v in headers}
-        if blocks:
+
+        _local_blocks_indexes = {
+            k: v for k, v in {
+                h['block_hash']: self.repo.blockchain.get_block_index(h['block_hash'])
+                for h in headers
+            }.items() if v is not None
+        }
+
+        _request = [
+            x['block_hash'] for x in headers if x['block_hash'] not in _local_blocks_indexes.keys()
+        ]
+        if _request:
+            blocks = await self.interface.get_blocks(*_request)
             urgent = urgent or False
             try:
                 sorted_values = sorted(blocks.values(), key=lambda x: x['block_hash'])
                 saved_blocks = self.repo.blockchain.save_blocks(*sorted_values)
+                last_hash = saved_blocks and saved_blocks[-1]['block_hash']
                 Logger.p2p.debug('Saved block %s', saved_blocks)
             except:
                 Logger.p2p.exception('Error saving blocks %s', blocks)
                 return True
         else:
             urgent = True
-            saved_blocks = [_local_hblocks[headers[-1]['block_hash']]]
+            last_hash = headers[-1]['block_hash']
 
-        if saved_blocks:
+        if last_hash:
+            _headers_by_block_hash = {v['block_hash']: v for v in headers}
             self.set_last_processed_block(
                 {
-                    'block_hash': saved_blocks[-1]['block_hash'],
-                    'block_height': _hheaders[saved_blocks[-1]['block_hash']]['block_height']
+                    'block_hash': last_hash,
+                    'block_height': _headers_by_block_hash[last_hash]['block_height']
                 }
             )
         else:
@@ -142,7 +151,7 @@ class BlocksReactor:
             headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._keep_blocks)
             missing_blocks = []
             for blockheader in headers:
-                if not self.repo.blockchain.get_block(blockheader['block_hash']):
+                if not self.repo.blockchain.get_block_index(blockheader['block_hash']):
                     missing_blocks.append(blockheader['block_hash'])
             i = 0
             while 1:

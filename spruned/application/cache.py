@@ -5,7 +5,7 @@ import time
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.repositories.blockchain_repository import BLOCK_PREFIX
+from spruned.repositories.blockchain_repository import BLOCK_INDEX_PREFIX
 
 
 class CacheAgent:
@@ -59,7 +59,7 @@ class CacheAgent:
     def _load_index(self):
         index = self.session.get(self.cache_name)
         if not index:
-            Logger.cache.warning('Cache not found. Ok if is the first time')
+            Logger.cache.debug('Cache not found. Ok if is the first time')
             return
         Logger.cache.debug('Loaded index')
         index and self._deserialize_index(index)
@@ -74,6 +74,7 @@ class CacheAgent:
             'key': key
         }
         self.index['total'] += size
+        self._save_index()
 
     async def check(self):
         if self.index and self.index.get('keys') and not self._last_dump_size:
@@ -91,9 +92,8 @@ class CacheAgent:
             self._purge_stales()
         if self.index['total'] > self.limit:
             Logger.cache.info('Purging cache, size: %s, limit: %s', self.index['total'], self.limit)
-            blockfirst = {0: 2, 1: 1}
             index_sorted = sorted(
-                self.index['keys'].values(), key=lambda x: ((blockfirst[x['key'][0]] ** 33) + x['saved_at'])
+                self.index['keys'].values(), key=lambda x: x['saved_at']
             )
             i = 0
             while self.index['total'] * 1.1 > self.limit:
@@ -113,7 +113,7 @@ class CacheAgent:
             self._save_index()
 
     def delete(self, item):
-        if item['key'][0] == int.from_bytes(BLOCK_PREFIX, 'little'):
+        if item['key'][0] == int.from_bytes(BLOCK_INDEX_PREFIX, 'little'):
             Logger.leveldb.debug('Deleting block %s', item)
             self.repository.blockchain.remove_block(item['key'][2:])
         else:

@@ -18,11 +18,11 @@ def blockheader_to_blockhash(header: (bytes, str), fmt=None) -> (bytes, str):
     return fmt == 'hex' and binascii.hexlify(bytes_blockhash).decode() or bytes_blockhash
 
 
-def deserialize_header(header: (str, bytes)):
+def deserialize_header(header: (str, bytes), fmt=None):
     if isinstance(header, bytes):
-        h, fmt = header, 'bin'
+        h, fmt = header, (fmt or 'bin')
     else:
-        h, fmt = binascii.unhexlify(header.encode()), 'hex'
+        h, fmt = binascii.unhexlify(header.encode()), (fmt or 'hex')
     blockhash = bin_sha256(bin_sha256(h))[::-1]
     data = {
         "version": decode(h[:4][::-1], 256),

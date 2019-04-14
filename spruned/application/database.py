@@ -29,15 +29,32 @@ for statement in [
 ]:
     sqlite.session_factory().execute(statement)
 
-if not settings.TESTING:
-    storage_ldb = plyvel.DB(settings.LEVELDB_BLOCKCHAIN_ADDRESS, create_if_missing=True)
-else:
-    from unittest.mock import Mock
-    storage_ldb = Mock()
-
 _local = threading.local()
 _local.session = sqlite
-_local.storage_ldb = storage_ldb
+
+
+def init_ldb_storage():
+    if not settings.TESTING:
+        storage_ldb = plyvel.DB(settings.LEVELDB_BLOCKCHAIN_ADDRESS, create_if_missing=True)
+    else:
+        from unittest.mock import Mock
+        storage_ldb = Mock()
+    _local.storage_ldb = storage_ldb
+    _local.in_ldb_batch = False
+    return _local.storage_ldb
+
+
+init_ldb_storage()
+storage_ldb = _local.storage_ldb
+
+
+def erase_ldb_storage():
+    assert _local.storage_ldb.closed
+    path = settings.LEVELDB_BLOCKCHAIN_ADDRESS
+    import os
+    for f in os.listdir(path):
+        os.remove(path + '/' + f)
+    os.rmdir(path)
 
 
 def atomic(fun):

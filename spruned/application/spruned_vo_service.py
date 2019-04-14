@@ -57,27 +57,53 @@ class SprunedVOService(RPCAPIService):
         block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
-        try:
-            block = await self._get_block(block_header, verbose=mode == 1)
-        except exceptions.ServiceException:
-            if not self._fallback_non_segwit_blocks:
-                raise
-            block = await self._get_block(block_header, verbose=mode == 1, segwit=False)
         if mode == 1:
-            if block.get('verbose'):
-                res = block['verbose']
-            else:
-                res = self._make_verbose_block(block, block_header)
-                self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache_agent))
-            best_header = self.repository.headers.get_best_header()
-            res['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
+            txids, size = self.repository.blockchain.get_txids_by_block_hash(block_header['block_hash'])
+            if txids:
+                block = self._serialize_header(block_header)
+                block.update({
+                    'tx': txids,
+                    'size': size
+                })
+                best_header = self.repository.headers.get_best_header()
+                block['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
+                Logger.p2p.info(
+                    'Verbose block %s (%s) provided from local storage in %ss)',
+                    block_header['block_height'],
+                    blockhash,
+                    '{:.4f}'.format(time.time() - start)
+                )
+                return block
+            p2p_block = await self._get_block(block_header, verbose=True)
+            Logger.p2p.info(
+                'Verbose block %s (%s) provided from P2P in %ss)',
+                block_header['block_height'],
+                blockhash,
+                '{:.4f}'.format(time.time() - start)
+            )
+            return p2p_block['verbose']
         else:
-            bb = block['block_bytes']
-            res = binascii.hexlify(bb).decode()
-        Logger.p2p.info(
-            'Block {} ({}) provided in {:.4f}s)'.format(block_header['block_height'], blockhash, time.time() - start)
-        )
-        return res
+            transactions, size = self.repository.blockchain.get_transactions_by_block_hash(blockhash)
+            if transactions:
+                Logger.p2p.info(
+                    'Raw block %s (%s) provided from local storage in %ss)',
+                    block_header['block_height'],
+                    blockhash,
+                    '{:.4f}'.format(time.time() - start)
+                )
+                return binascii.hexlify(
+                    block_header['header_bytes'] + b''.join((t['transaction_bytes'] for t in transactions))
+                ).decode()
+            p2p_block = await self._get_block(block_header)
+            Logger.p2p.info(
+                'Raw block %s (%s) provided from P2P in %ss)',
+                block_header['block_height'],
+                blockhash,
+                '{:.4f}'.format(time.time() - start)
+            )
+            return binascii.hexlify(
+                p2p_block['block_bytes']
+            ).decode()
 
     async def _make_verbose_block(self, block: dict, block_header) -> dict:
         block_object = await self.block_factory.get(block['block_bytes'])
@@ -88,8 +114,8 @@ class SprunedVOService(RPCAPIService):
 
     async def _get_block(self, blockheader, retries=0, verbose=False, segwit=True):
         blockhash = blockheader['block_hash']
-        storedblock = self.repository.blockchain.get_block(blockhash)
-        block = storedblock or await self.p2p.get_block(blockhash, privileged_peers=retries > 3, segwit=segwit)
+
+        block = await self.p2p.get_block(blockhash, privileged_peers=retries > 3, segwit=segwit)
         if not block:
             if retries > 3:
                 raise exceptions.ServiceException
@@ -97,8 +123,9 @@ class SprunedVOService(RPCAPIService):
                 block = await self._get_block(blockheader, retries + 1, segwit=segwit)
         if verbose and not block.get('verbose'):
             block['verbose'] = await self._make_verbose_block(block, blockheader)
-        if not storedblock:
-            self.loop.create_task(self.repository.blockchain.async_save_block(block, tracker=self.cache_agent))
+        self.loop.create_task(
+            self.repository.blockchain.async_save_block(block, tracker=self.cache_agent)
+        )
         return block
 
     async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):
@@ -118,19 +145,19 @@ class SprunedVOService(RPCAPIService):
             return await self._get_electrum_transaction(txid, verbose=verbose, retries=retries + 1)
 
     async def getrawtransaction(self, txid: str, verbose=False):
-        repo_tx = self.repository.blockchain.get_json_transaction(txid)
-        transaction = repo_tx or await self._get_electrum_transaction(txid, verbose=True)
+        if not verbose:
+            tx = self.repository.blockchain.get_transaction(txid)
+            if tx:
+                return binascii.hexlify(tx['transaction_bytes']).decode()
+
+        transaction = await self._get_electrum_transaction(txid, verbose=True)
         block_header = None
-        if not repo_tx and transaction.get('blockhash'):
+        if transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])
             merkle_proof = await self.electrod.get_merkleproof(txid, block_header['block_height'])
             dh = deserialize_header(block_header['header_bytes'])
             if not ElectrumMerkleVerify.verify_merkle(txid, merkle_proof, dh):
                 raise exceptions.InvalidPOWException
-
-            if transaction.get('confirmations') > 2:
-                self.repository.blockchain.save_json_transaction(txid, transaction)
-
         if verbose:
             if transaction.get('blockhash'):
                 incl_height = block_header and block_header['block_height'] or \
@@ -169,7 +196,7 @@ class SprunedVOService(RPCAPIService):
 
     @staticmethod
     def _serialize_header(header):
-        _deserialized_header = deserialize_header(binascii.hexlify(header['header_bytes']).decode())
+        _deserialized_header = deserialize_header(header['header_bytes'], fmt='hex')
         return {
             "hash": _deserialized_header['hash'],
             "height": header['block_height'],

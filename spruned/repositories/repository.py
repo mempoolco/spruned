@@ -4,7 +4,8 @@ from spruned import settings
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
-from spruned.repositories.blockchain_repository import BlockchainRepository, BLOCK_PREFIX, TRANSACTION_PREFIX
+from spruned.repositories.blockchain_repository import BlockchainRepository, TRANSACTION_PREFIX, BLOCK_INDEX_PREFIX, \
+    DB_VERSION
 from spruned.repositories.mempool_repository import MempoolRepository
 
 
@@ -69,7 +70,7 @@ class Repository:
     @ldb_batch
     def _ensure_no_stales_in_blockchain_repository(self):
         Logger.leveldb.debug('Ensuring no stales in blockchain repository')
-        keypref = self.blockchain.storage_name + b'.' + BLOCK_PREFIX
+        keypref = self.blockchain.storage_name + b'.' + BLOCK_INDEX_PREFIX
         extemp = self.get_extemped_blockhash()
         keep_keys = [self.blockchain.get_key(e, keypref) for e in extemp]
         index = self.cache.get_index()
@@ -83,12 +84,15 @@ class Repository:
         purged = 0
         txs = 0
         cached = 0
-        tot = -1  # skip cache index
+        tot = -2  # skip cache index & db_version
         kept = 0
         for x in iterator:
             tot += 1
             if keypref not in x[0]:
-                if x[0] == self.cache.cache_name:
+                if x[0] in (
+                        self.cache.cache_name,
+                        self.blockchain.storage_name + b'.' + DB_VERSION
+                ):
                     continue
                 elif self.blockchain.storage_name + b'.' + TRANSACTION_PREFIX in x[0]:
                     txs += 1
@@ -100,6 +104,7 @@ class Repository:
                 cached += 1
                 continue
             elif x[0] not in index:
+                Logger.repository.debug('Purging block %s' % x[0])
                 self.blockchain.remove_block(x[0].replace(keypref + b'.', b''))
                 purged += 1
             else:

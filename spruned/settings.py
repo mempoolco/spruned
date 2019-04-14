@@ -20,8 +20,8 @@ CHECK_NETWORK_HOST = [
 ]
 SQLITE_DBNAME = ''
 LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/%s-test.ldb' % binascii.hexlify(os.urandom(8))
-LEVELDB_BLOCKCHAIN_SLUG = b'blockchain'
-LEVELDB_CACHE_SLUG = b'cache'
+LEVELDB_BLOCKCHAIN_SLUG = b'b'
+LEVELDB_CACHE_SLUG = b'c'
 
 if not TESTING:
     STORAGE_ADDRESS = '%s/storage/' % ctx.datadir

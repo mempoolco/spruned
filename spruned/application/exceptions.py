@@ -28,3 +28,7 @@ class MempoolDisabledException(SprunedException):
 
 class ItemNotFoundException(SprunedException):
     pass
+
+
+class StorageErrorException(SprunedException):
+    pass
