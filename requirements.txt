@@ -5,4 +5,4 @@ jsonrpcserver==3.5.3
 plyvel==1.0.5
 pycoin==0.80
 pyzmq==18.0.1
-sqlalchemy==1.2.6
+sqlalchemy==1.3.0
