@@ -1,7 +1,12 @@
 import asyncio
 import binascii
+import io
 import itertools
 import time
+
+from pycoin.block import Block
+from pycoin.tx.Tx import Tx
+
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify, is_address
@@ -91,9 +96,12 @@ class SprunedVOService(RPCAPIService):
                     blockhash,
                     '{:.4f}'.format(time.time() - start)
                 )
-                return binascii.hexlify(
-                    block_header['header_bytes'] + b''.join((t['transaction_bytes'] for t in transactions))
-                ).decode()
+                try:
+                    block = Block.parse(io.BytesIO(block_header['header_bytes']), include_transactions=False)
+                    block.set_txs([Tx.from_bin(t['transaction_bytes']) for t in transactions])
+                    return block.as_hex()
+                except:
+                    Logger.repository.error('Error loading block %s from repository, falling back to P2P' % blockhash)
             p2p_block = await self._get_block(block_header)
             Logger.p2p.info(
                 'Raw block %s (%s) provided from P2P in %ss)',

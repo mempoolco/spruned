@@ -49,8 +49,9 @@ def builder(ctx: Context):  # pragma: no cover
         )
     blocks_reactor = BlocksReactor(repository, p2p_interface, keep_blocks=int(ctx.keep_blocks))
     headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
+    return jsonrpc_server, headers_reactor, blocks_reactor, repository, \
+           cache, zmq_context, zmq_observer, p2p_connectionpool
 
-    return jsonrpc_server, headers_reactor, blocks_reactor, repository, cache, zmq_context, zmq_observer
 
-
-jsonrpc_server, headers_reactor, blocks_reactor, repository, cache, zmq_context, zmq_observer = builder(_ctx)
+jsonrpc_server, headers_reactor, blocks_reactor, repository, \
+cache, zmq_context, zmq_observer, p2p_connectionpool = builder(_ctx)

@@ -5,6 +5,7 @@ from pycoin.block import Block
 
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
+from spruned.daemon import exceptions
 from spruned.repositories.abstracts import BlockchainRepositoryAbstract
 
 TRANSACTION_PREFIX = b'\x00'
@@ -106,6 +107,8 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         while 1:
             txid = binascii.hexlify(block_index[i:i + 32]).decode()
             if not txid:
+                if i != len(block_index):
+                    raise exceptions.BrokenDataException
                 break
             txids.append(txid)
             i += 32

@@ -59,7 +59,7 @@ class HeadersReactor:
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
             )
-            if self._last_processed_header:
+            if self._last_processed_header and self.synced:
                 for callback in self._on_new_best_header_callbacks:
                     self.loop.create_task(callback(self._last_processed_header))
 
@@ -176,7 +176,7 @@ class HeadersReactor:
                 if not await self.on_inconsistent_header_received(peer, network_best_header, block_hash):
                     return
             self.set_last_processed_header(network_best_header)
-            self.synced = True
+            #self.synced = True
         except (
                 exceptions.NoQuorumOnResponsesException,
                 exceptions.NoPeersException,

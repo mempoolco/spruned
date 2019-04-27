@@ -4,7 +4,7 @@ import gc
 import async_timeout
 
 from spruned.application.tools import async_delayed_task
-from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_server, repository
+from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_server, repository, p2p_connectionpool
 
 
 async def main_task(loop):  # pragma: no cover
@@ -24,6 +24,7 @@ async def main_task(loop):  # pragma: no cover
         headers_reactor.add_on_new_header_callback(blocks_reactor.start)
         headers_reactor.add_on_best_height_hit_volatile_callbacks(blocks_reactor.bootstrap_blocks)
         loop.create_task(headers_reactor.start())
+        loop.create_task(p2p_connectionpool.connect())
         loop.create_task(async_delayed_task(cache.lurk(), 600))
         loop.create_task(async_delayed_task(loop_collect_garbage(loop), 300))
     finally:

@@ -10,7 +10,7 @@ from spruned.repositories.blockchain_repository import BLOCK_INDEX_PREFIX
 
 class CacheAgent:
     def __init__(self, repository, limit, loop=asyncio.get_event_loop(), delayer=async_delayed_task):
-        self.session = repository.ldb
+        self._session = repository.blockchain.session
         self.repository = repository
         self.repository.blockchain.set_cache(self)
         self.cache_name = b'cache_index'
@@ -20,6 +20,15 @@ class CacheAgent:
         self.loop = loop
         self.lock = asyncio.Lock()
         self.delayer = delayer
+
+    @property
+    def session(self):
+        from spruned.application.database import init_ldb_storage
+        if not self._session:
+            self._session = init_ldb_storage()
+        if self._session.closed:
+            self._session = init_ldb_storage()
+        return self._session
 
     def init(self):
         self._load_index()
