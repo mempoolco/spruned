@@ -12,9 +12,9 @@ from spruned.repositories.repository import Repository
 class TestCacheAgent(TestCase):
     def setUp(self):
         self.loop = asyncio.get_event_loop()
-        self.session = Mock()
+        self.session = Mock(closed=False)
         self.repository = create_autospec(Repository)
-        self.repository.ldb = self.session
+        self.repository.blockchain.session = self.session
         self.repository.blockchain.set_cache.return_value = None
         self.loopmock = Mock()
         self.delayer = Mock
