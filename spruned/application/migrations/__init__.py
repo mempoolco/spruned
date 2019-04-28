@@ -3,8 +3,13 @@ import os
 
 def get_version(sql):
     table_info = "PRAGMA table_info('migrations')"
-    if not sql.execute(table_info).fetchall():
-        return 0
+    from sqlalchemy.exc import ResourceClosedError
+    try:
+        if not sql.execute(table_info).fetchall():
+            return 0
+    except ResourceClosedError as e:
+        if 'does not return rows' in e:
+            return 0
     version_query = "SELECT version from migrations"
     version = sql.execute(version_query).fetchone()
     return version and version[0] or 0
