@@ -162,7 +162,6 @@ if sys.version > '3.5.2':  # pragma: no cover
 
             version = repository.blockchain.get_db_version()
             if version != repository.blockchain.current_version and version != None:
-                print (version, repository.blockchain.current_version)
                 Logger.root.debug('Erasing database because of wrong version')
                 repository.blockchain.erase()
 
