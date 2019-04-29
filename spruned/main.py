@@ -16,6 +16,7 @@ async def main_task(loop):  # pragma: no cover
             await loop_check_integrity(loop)
         except asyncio.TimeoutError:
             Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
+
         Logger.leveldb.debug('Checking cache limits')
         try:
             await asyncio.wait_for(asyncio.gather(cache.check()), timeout=30)
