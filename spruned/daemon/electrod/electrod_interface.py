@@ -133,12 +133,13 @@ class ElectrodInterface:
     async def getaddresshistory(self, scripthash: str):
         return await self.pool.call('blockchain.address.get_history', scripthash)
 
-    async def get_chunk(self, chunks_index: int, get_peer=False):
-        return await self.pool.call('blockchain.block.get_chunk', chunks_index, get_peer=get_peer)
+    async def get_headers(self, height: int, count=2016, get_peer=False):
+        return await self.pool.call('blockchain.block.headers', height, count, get_peer=get_peer)
 
     async def get_merkleproof(self, txid: str, block_height: int):
         return await self.pool.call('blockchain.transaction.get_merkle', txid, block_height)
 
+            
     async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int, get_peer=False):
         futures = []
         for chunk_index in range(starts_from, ends_to):
@@ -181,12 +182,16 @@ class ElectrodInterface:
     async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
         peer = None
         if get_peer:
-            res = await self.get_chunk(chunk_index, get_peer=get_peer)
+            res = await self.get_headers(chunk_index * 2016, get_peer=get_peer)
             peer, chunk = res if res else (None, None)
         else:
-            chunk = await self.get_chunk(chunk_index, get_peer=get_peer)
-        if not chunk:
+            chunk = await self.get_headers(chunk_index * 2016, get_peer=get_peer)
+
+        if not chunk or not 'hex' in chunk:
             return
+
+        chunk = chunk['hex']
+
         try:
             hex_headers = [chunk[i:i + 160] for i in range(0, len(chunk), 160)]
         except TypeError as e:

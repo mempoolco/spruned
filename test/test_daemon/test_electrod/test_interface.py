@@ -153,19 +153,19 @@ class TestElectrodInterface(unittest.TestCase):
 
     def test_get_headers_in_range(self):
 
-        async def get_chunk(method, chunk, get_peer=False):
-            self.assertEqual(method, 'blockchain.block.get_chunk')
+        async def get_headers(method, chunk, get_peer=False):
+            self.assertEqual(method, 'blockchain.block.headers')
             bitcoind_header = "00000020fe52010fa7c798b97621508b772142dfc7b594df7a3a3200000000000000000097db2dc9" \
                               "4e2799bcdd7259f0876467b379fe44b69342df38a8ec2f350722f9a73367a95aa38955173732b883"
             i = {1: 2016, 2: 1024}
             return bitcoind_header * i[chunk]
 
-        self.connectionpool.call.side_effect = get_chunk
+        self.connectionpool.call.side_effect = get_headers
         res = self.loop.run_until_complete(self.sut.get_headers_in_range_from_chunks(1, 3))
         Mock.assert_has_calls(
             self.connectionpool.call,
-            calls=[call('blockchain.block.get_chunk', 1, get_peer=False),
-                   call('blockchain.block.get_chunk', 2, get_peer=False)],
+            calls=[call('blockchain.block.headers', 1 * 2016, get_peer=False),
+                   call('blockchain.block.headers', 2 * 2016, get_peer=False)],
             any_order=True
         )
         i = 0
