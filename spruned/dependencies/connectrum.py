@@ -459,7 +459,7 @@ class ServerInfo(dict):
                 port = int(rv[1:])
             except:
                 pass
-        port = type(port) == int or DEFAULT_PORTS[for_protocol]
+        port = isinstance(port, int) or DEFAULT_PORTS[for_protocol]
         use_ssl = for_protocol in ('s', 'g')
         return self['hostname'], port, use_ssl
 

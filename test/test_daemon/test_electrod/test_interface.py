@@ -135,7 +135,7 @@ class TestElectrodInterface(unittest.TestCase):
         self.connectionpool.on_peer_error.return_value = async_coro(lambda x: x.close())
         self.loop.run_until_complete(self.sut.getrawtransaction('cafebabe'))
         self.loop.run_until_complete(self.sut.getrawtransaction('cafebabe', verbose=True))
-        self.loop.run_until_complete(self.sut.get_chunk(1))
+        self.loop.run_until_complete(self.sut.get_headers(1))
         self.loop.run_until_complete(self.sut.listunspents_by_address('address'))
         self.loop.run_until_complete(self.sut.getaddresshistory('scripthash'))
         self.loop.run_until_complete(self.sut.handle_peer_error(peer))
@@ -144,7 +144,7 @@ class TestElectrodInterface(unittest.TestCase):
             calls=[
                 call('blockchain.transaction.get', 'cafebabe', 0),
                 call('blockchain.transaction.get', 'cafebabe', 1),
-                call('blockchain.block.get_chunk', 1, get_peer=False),
+                call('blockchain.block.headers', 1, 2016, get_peer=False),
                 call('blockchain.address.listunspent', 'address'),
                 call('blockchain.address.get_history', 'scripthash'),
             ]
@@ -153,19 +153,20 @@ class TestElectrodInterface(unittest.TestCase):
 
     def test_get_headers_in_range(self):
 
-        async def get_headers(method, chunk, get_peer=False):
+        async def get_headers(method, height, count, get_peer=False):
+
             self.assertEqual(method, 'blockchain.block.headers')
             bitcoind_header = "00000020fe52010fa7c798b97621508b772142dfc7b594df7a3a3200000000000000000097db2dc9" \
                               "4e2799bcdd7259f0876467b379fe44b69342df38a8ec2f350722f9a73367a95aa38955173732b883"
-            i = {1: 2016, 2: 1024}
-            return bitcoind_header * i[chunk]
+            i = {1: 2016, 2: 4032}
+            return bitcoind_header * i[height / 2016]
 
         self.connectionpool.call.side_effect = get_headers
         res = self.loop.run_until_complete(self.sut.get_headers_in_range_from_chunks(1, 3))
         Mock.assert_has_calls(
             self.connectionpool.call,
-            calls=[call('blockchain.block.headers', 1 * 2016, get_peer=False),
-                   call('blockchain.block.headers', 2 * 2016, get_peer=False)],
+            calls=[call('blockchain.block.headers', 1 * 2016, 2016, get_peer=False),
+                   call('blockchain.block.headers', 2 * 2016, 2016, get_peer=False)],
             any_order=True
         )
         i = 0
