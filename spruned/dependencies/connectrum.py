@@ -395,7 +395,7 @@ class ServerInfo(dict):
         # Keep version and pruning limit separate
         #
         if isinstance(ports, int):
-            ports = ['t%d' % ports]
+            ports = ['s%d' % ports]
         elif isinstance(ports, str):
             ports = ports.split()
 
@@ -419,6 +419,7 @@ class ServerInfo(dict):
         self['pruning_limit'] = int(pruning_limit or 0)
 
         self['seen_at'] = time.time()
+
 
     @classmethod
     def from_dict(cls, d):
@@ -449,7 +450,8 @@ class ServerInfo(dict):
         Return (hostname, port number, ssl) pair for the protocol.
         Assuming only one port per host.
         """
-        assert len(for_protocol) == 1, "expect single letter code"
+        for_protocol = for_protocol[0]
+
         rv = [i[0] for i in self['ports'] if i[0] == for_protocol]
         port = None
         if len(rv) >= 2:
@@ -457,8 +459,8 @@ class ServerInfo(dict):
                 port = int(rv[1:])
             except:
                 pass
-        port = port or DEFAULT_PORTS[for_protocol]
-        use_ssl = for_protocol in ('s', 'g') or (type(port) == int and port % 2 == 0)
+        port = type(port) == int or DEFAULT_PORTS[for_protocol]
+        use_ssl = for_protocol in ('s', 'g')
         return self['hostname'], port, use_ssl
 
     @property
