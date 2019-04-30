@@ -125,6 +125,9 @@
     ["y4td57fxytoo5ki7.onion", "s"]
   ],
   "bc_testnet": [
+    ["tn.not.fyi", 5502],
+    ["testnet.hsmiths.com", 53012],
+    ["testnet1.bauerj.eu", 50002],
     ["electrumx.testnet.mempool.co", "s"],
     ["electrumx.testnet.mempool.co", "t"]
   ],
