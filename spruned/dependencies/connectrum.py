@@ -458,7 +458,7 @@ class ServerInfo(dict):
             except:
                 pass
         port = port or DEFAULT_PORTS[for_protocol]
-        use_ssl = for_protocol in ('s', 'g')
+        use_ssl = for_protocol in ('s', 'g') or (type(port) == int and port % 2 == 0)
         return self['hostname'], port, use_ssl
 
     @property
