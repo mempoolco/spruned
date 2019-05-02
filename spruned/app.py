@@ -161,7 +161,7 @@ if sys.version > '3.5.2':  # pragma: no cover
             migrations.run(sqlite)
 
             version = repository.blockchain.get_db_version()
-            if version != repository.blockchain.current_version and version != None:
+            if version != repository.blockchain.current_version:
                 Logger.root.debug('Erasing database because of wrong version')
                 repository.blockchain.erase()
 
