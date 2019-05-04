@@ -126,7 +126,10 @@
   ],
   "bc_testnet": [
     ["electrumx.testnet.mempool.co", "s"],
-    ["electrumx.testnet.mempool.co", "t"]
+    ["electrumx.testnet.mempool.co", "t"],
+    ["tn.not.fyi", 5502],
+    ["testnet.hsmiths.com", 53012],
+    ["testnet1.bauerj.eu", 50002]
   ],
   "bc_regtest": []
 }

@@ -157,10 +157,12 @@ if sys.version > '3.5.2':  # pragma: no cover
             from spruned.application.logging_factory import Logger
             from spruned.application.database import sqlite
             from spruned.builder import repository
+
             migrations.run(sqlite)
 
             version = repository.blockchain.get_db_version()
             if version != repository.blockchain.current_version:
+                Logger.root.debug('Erasing database because of wrong version')
                 repository.blockchain.erase()
 
             if args.daemon:
