@@ -25,9 +25,13 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
 
     def erase(self):
         from spruned.application.database import init_ldb_storage, erase_ldb_storage
+        from spruned.application.tools import inject_attribute
+        from spruned.builder import cache
         self.session.close()
         erase_ldb_storage()
-        self.session = init_ldb_storage()
+        inject_attribute(
+            init_ldb_storage(), 'session', self, cache
+        )
         self.save_db_version()
 
     def save_db_version(self):

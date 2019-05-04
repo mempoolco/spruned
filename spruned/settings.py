@@ -19,7 +19,7 @@ CHECK_NETWORK_HOST = [
     'm.root-servers.net'
 ]
 SQLITE_DBNAME = ''
-LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/%s-test.ldb' % binascii.hexlify(os.urandom(8))
+LEVELDB_BLOCKCHAIN_ADDRESS = '/tmp/%s-test.session' % binascii.hexlify(os.urandom(8))
 LEVELDB_BLOCKCHAIN_SLUG = b'b'
 LEVELDB_CACHE_SLUG = b'c'
 
@@ -27,4 +27,4 @@ if not TESTING:
     STORAGE_ADDRESS = '%s/storage/' % ctx.datadir
     LOGFILE = '%s/spruned.log' % ctx.datadir
     SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
-    LEVELDB_BLOCKCHAIN_ADDRESS = '%sdatabase.ldb' % STORAGE_ADDRESS
+    LEVELDB_BLOCKCHAIN_ADDRESS = '%sdatabase.session' % STORAGE_ADDRESS

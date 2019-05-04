@@ -14,14 +14,14 @@ class TestRepository(TestCase):
         self.cache = Mock(cache_name=b'cache_prefix')
         self.sut = Repository(self.headers, self.blocks, self.mempool, keep_blocks=5)
         self.sut.set_cache(self.cache)
-        self.sut.ldb = Mock()
+        self.sut.session = Mock()
         self.loop = asyncio.get_event_loop()
 
     def tearDown(self):
         self.headers.reset_mock()
         self.blocks.reset_mock()
         self.cache.reset_mock()
-        self.sut.ldb.reset_mock()
+        self.sut.session.reset_mock()
 
     def test_check_stales(self):
         self.headers.get_best_header.return_value = {'block_height': 16, 'block_hash': 'block10'}
@@ -49,7 +49,7 @@ class TestRepository(TestCase):
             b'block_prefix.block15',
             b'block_prefix.block16',
         ]
-        self.sut.ldb.iterator.return_value = iterator
+        self.sut.session.iterator.return_value = iterator
         self.loop.run_until_complete(self.sut.ensure_integrity())
         Mock.assert_called_once_with(self.blocks.remove_block, b'block_prefix.block16')
 

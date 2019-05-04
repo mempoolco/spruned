@@ -2,6 +2,9 @@ import asyncio
 import socket
 import time
 import re
+
+import typing
+
 from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
 from spruned.application import exceptions
 import hashlib
@@ -179,3 +182,8 @@ class ElectrumMerkleVerify:
 def is_address(addr, prefix):
     ADDR_RE = re.compile("^[%s][a-km-zA-HJ-NP-Z0-9]{26,33}$" % prefix)
     return bool(ADDR_RE.match(addr))
+
+
+def inject_attribute(obj: callable, attr_name: str, *objects: object):
+    for o in objects:
+        setattr(o, attr_name, obj)

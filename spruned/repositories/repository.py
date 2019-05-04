@@ -14,7 +14,7 @@ class Repository:
         self._headers_repository = headers
         self._blockchain_repository = blocks
         self._mempool_repository = mempool
-        self.ldb = None
+        self.session = None
         self.sqlite = None
         self.cache = None
         self.keep_blocks = keep_blocks
@@ -57,7 +57,7 @@ class Repository:
             keep_blocks=ctx.keep_blocks
         )
         i.sqlite = database.sqlite
-        i.ldb = database.storage_ldb
+        i.session = database.storage_ldb
         return i
 
     async def ensure_integrity(self):
@@ -80,7 +80,7 @@ class Repository:
         index = [self.blockchain.storage_name + b'.' + k for k in index.get('keys', {}).keys()]
         if not index:
             Logger.cache.debug('Empty index found')
-        iterator = self.ldb.iterator(prefix=keypref, include_value=False)
+        iterator = self.session.iterator(prefix=keypref, include_value=False)
         purged = 0
         txs = 0
         cached = 0

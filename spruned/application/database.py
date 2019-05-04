@@ -33,23 +33,23 @@ _local.session = sqlite
 
 def init_ldb_storage():
     if not settings.TESTING:
-        storage_ldb = plyvel.DB(settings.LEVELDB_BLOCKCHAIN_ADDRESS, create_if_missing=True)
+        _storage_ldb = plyvel.DB(settings.LEVELDB_BLOCKCHAIN_ADDRESS, create_if_missing=True)
     else:
         from unittest.mock import Mock
-        storage_ldb = Mock()
-    _local.storage_ldb = storage_ldb
+        _storage_ldb = Mock()
     _local.in_ldb_batch = False
-    return _local.storage_ldb
+    _local.ldb = _storage_ldb
+    return _storage_ldb
 
 
-init_ldb_storage()
-storage_ldb = _local.storage_ldb
+storage_ldb = init_ldb_storage()
 
 
 def erase_ldb_storage():
-    assert _local.storage_ldb.closed
     path = settings.LEVELDB_BLOCKCHAIN_ADDRESS
     import os
+    if os.environ.get('TESTING'):
+        raise ValueError('cannot delete a db in a test env')
     for f in os.listdir(path):
         os.remove(path + '/' + f)
     os.rmdir(path)
@@ -88,7 +88,7 @@ def ldb_batch(fun):
         if _local.leveldb_counter == 1:
             try:
                 if not _local.in_ldb_batch:
-                    _local.storage_ldb = storage_ldb.write_batch()
+                    _local.storage_ldb = _local.ldb.write_batch()
                     _local.in_ldb_batch = True
             except AttributeError:
                 _local.in_ldb_batch = True
@@ -99,7 +99,7 @@ def ldb_batch(fun):
             if _local.in_ldb_batch:
                 _local.in_ldb_batch = False
                 del _local.storage_ldb
-                _local.storage_ldb = storage_ldb
+                _local.storage_ldb = _local.ldb
         _local.leveldb_counter -= 1
         return r
     return decorator
