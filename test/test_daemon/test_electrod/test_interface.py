@@ -154,12 +154,13 @@ class TestElectrodInterface(unittest.TestCase):
     def test_get_headers_in_range(self):
 
         async def get_headers(method, height, count, get_peer=False):
+            # This test is about a range of headers that can be fulfilled only partially on the second round.
 
             self.assertEqual(method, 'blockchain.block.headers')
             bitcoind_header = "00000020fe52010fa7c798b97621508b772142dfc7b594df7a3a3200000000000000000097db2dc9" \
                               "4e2799bcdd7259f0876467b379fe44b69342df38a8ec2f350722f9a73367a95aa38955173732b883"
-            i = {1: 2016, 2: 4032}
-            return bitcoind_header * i[height / 2016]
+            i = {1: 2016, 2: 1024}
+            return {'hex': bitcoind_header * i[height / 2016]}
 
         self.connectionpool.call.side_effect = get_headers
         res = self.loop.run_until_complete(self.sut.get_headers_in_range_from_chunks(1, 3))
