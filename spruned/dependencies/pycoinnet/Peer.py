@@ -66,19 +66,18 @@ class Peer:
         self._bytes_writ += len(packet)
         self._writer.write(packet)
 
-    @asyncio.coroutine
-    def next_message(self, unpack_to_dict=True):
+    async def next_message(self, unpack_to_dict=True):
         header_size = len(self._magic_header)
-        with (yield from self._msg_lock):
+        with await self._msg_lock:
             # read magic header
             reader = self._reader
-            blob = yield from reader.readexactly(header_size)
+            blob = await reader.readexactly(header_size)
             self._bytes_read += header_size
             if blob != self._magic_header:
                 raise ProtocolError("bad magic: got %s" % binascii.hexlify(blob))
 
             # read message name
-            message_size_hash_bytes = yield from reader.readexactly(20)
+            message_size_hash_bytes = await reader.readexactly(20)
             self._bytes_read += 20
             message_name_bytes = message_size_hash_bytes[:12]
             message_name = message_name_bytes.replace(b"\0", b"").decode("utf8")
@@ -91,33 +90,33 @@ class Peer:
 
             # read the hash, then the message
             transmitted_hash = message_size_hash_bytes[16:20]
-            message_data = yield from reader.readexactly(size)
+            message_data = await reader.readexactly(size)
             self._bytes_read += size
 
-        # check the hash
-        actual_hash = double_sha256(message_data)[:4]
-        if actual_hash != transmitted_hash:
-            raise ProtocolError("checksum is WRONG: %s instead of %s" % (
-                binascii.hexlify(actual_hash), binascii.hexlify(transmitted_hash)))
-        logger.debug("message %s: %s (%d byte payload)", self, message_name, len(message_data))
-        if unpack_to_dict:
-            message_data = self._parse_from_data(message_name, message_data)
-        return message_name, message_data
+            # check the hash
+            actual_hash = double_sha256(message_data)[:4]
+            if actual_hash != transmitted_hash:
+                raise ProtocolError("checksum is WRONG: %s instead of %s" % (
+                    binascii.hexlify(actual_hash), binascii.hexlify(transmitted_hash)))
+            logger.debug("message %s: %s (%d byte payload)", self, message_name, len(message_data))
+            if unpack_to_dict:
+                message_data = self._parse_from_data(message_name, message_data)
+            return message_name, message_data
 
-    @asyncio.coroutine
-    def perform_handshake(self, **version_msg):
+
+    async def perform_handshake(self, **version_msg):
         # "version"
         try:
             self.send_msg("version", **version_msg)
         except Exception:
             logger.exception('Exception on handshake')
 
-        msg, version_data = yield from self.next_message()
+        msg, version_data = await self.next_message()
         assert msg == 'version'
 
         # "verack"
         self.send_msg("verack")
-        msg, verack_data = yield from self.next_message()
+        msg, verack_data = await self.next_message()
         assert msg == 'verack'
         return version_data
 

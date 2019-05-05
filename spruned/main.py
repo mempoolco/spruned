@@ -19,7 +19,8 @@ async def main_task(loop):  # pragma: no cover
 
         Logger.leveldb.debug('Checking cache limits')
         try:
-            await asyncio.wait_for(asyncio.gather(cache.check()), timeout=30)
+            async with async_timeout.timeout(30):
+                await cache.check()
         except asyncio.TimeoutError:
             Logger.cache.error('There must be an error in cache, 30 seconds to check are too many')
         headers_reactor.add_on_new_header_callback(blocks_reactor.start)

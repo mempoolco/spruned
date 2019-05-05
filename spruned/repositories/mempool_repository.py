@@ -73,7 +73,7 @@ class MempoolRepository:
                 self._transactions[txid].update(tx)
             self._transactions_by_time[data['timestamp']] = \
                 self._transactions_by_time.get(data['timestamp'], set()) | {txid}
-            self._project_transaction(data, '+')
+            self.loop.create_task(self._project_transaction(data, '+'))
         elif self._is_rbf(data):
             raise NotImplementedError()
         else:
@@ -113,7 +113,7 @@ class MempoolRepository:
     def remove_transaction(self, txid: str):
         data = self._transactions.pop(txid, None)
         if data:
-            self._project_transaction(data, '-')
+            self.loop.create_task(self._project_transaction(data, '-'))
             self._delete_outpoints(data)
         self._add_txids_to_forget_pool(txid)
 
@@ -137,7 +137,7 @@ class MempoolRepository:
         for _txid in txid:
             self._forget_pool.add(_txid)
 
-    def _project_transaction(self, data: Dict, action: str='+'):
+    async def _project_transaction(self, data: Dict, action: str='+'):
         now = int(time.time())
         if action == '+':
             self._projection = {
@@ -152,7 +152,7 @@ class MempoolRepository:
             }
             if self._projection["bytes"] > self._max_mempool_size_bytes:
                 if not self._clean_lock.locked():
-                    asyncio.wait_for(self._clean_lock.acquire(), timeout=None)
+                    await self._clean_lock.acquire()
                     self.loop.create_task(self._clean_mempool())
 
         elif action == '-':
@@ -170,7 +170,7 @@ class MempoolRepository:
             raise ValueError
         if now - self._last_forget_pool_clean > 60:
             if not self._forget_pool_clean_lock.locked():
-                asyncio.wait_for(self._forget_pool_clean_lock.acquire(), timeout=None)
+                await self._forget_pool_clean_lock.acquire()
                 self._forget_pool_by_time and self.loop.create_task(self._clean_forget_pool())
 
     async def _clean_mempool(self):

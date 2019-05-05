@@ -24,7 +24,6 @@
 #
 
 import asyncio
-import weakref
 
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_TX, ITEM_TYPE_BLOCK, \
     ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_SEGWIT_TX
@@ -46,7 +45,7 @@ class InvFetcher:
         """
         self._peer = peer
         self._request_q = asyncio.Queue()
-        self._futures = dict() #weakref.WeakValueDictionary()
+        self._futures = dict()
         self._batch_size = batch_size
         self._send_getdata_lock = asyncio.Lock()
         self._is_closed = False
@@ -95,18 +94,18 @@ class InvFetcher:
         """
         return self._request_q.qsize()
 
-    @asyncio.coroutine
-    def _send_getdata(self):
+
+    async def _send_getdata(self):
         """
         This is the task that sends a message to the peer requesting objects
         that have been requested. It coalesces requests for multiple objects
         into one message.
         """
-        with (yield from self._send_getdata_lock):
+        with await self._send_getdata_lock:
             while self._request_q.qsize() > 0:
                 so_far = []
                 while self._request_q.qsize() > 0:
-                    inv_item = yield from self._request_q.get()
+                    inv_item = await self._request_q.get()
                     so_far.append(inv_item)
                     if len(so_far) >= self._batch_size:
                         break
@@ -127,8 +126,8 @@ class InvFetcher:
         segwit_block=ITEM_TYPE_SEGWIT_BLOCK
     )
 
-    @asyncio.coroutine
-    def handle_msg(self, msg_name, msg_data):
+
+    async def handle_msg(self, msg_name, msg_data):
         """
         This method must be invoked for each message that comes from the peer
         (or at least, those of type tx, block, merkleblock and notfound).
