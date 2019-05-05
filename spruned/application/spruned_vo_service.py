@@ -193,6 +193,8 @@ class SprunedVOService(RPCAPIService):
 
     async def getblockheader(self, blockhash: str, verbose=True):
         header = self.repository.headers.get_block_header(blockhash)
+        if not header:
+            return
         if verbose:
             _best_header = self.repository.headers.get_best_header()
             res = self._serialize_header(header)
