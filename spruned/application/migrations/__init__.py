@@ -8,7 +8,7 @@ def get_version(sql):
         if not sql.execute(table_info).fetchall():
             return 0
     except ResourceClosedError as e:
-        if 'does not return rows' in e:
+        if 'does not return rows' in str(e):
             return 0
     version_query = "SELECT version from migrations"
     version = sql.execute(version_query).fetchone()
