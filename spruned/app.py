@@ -2,12 +2,10 @@
 # Copyright (C) 2018 Guido Dassori <guido.dassori@gmail.com>
 #
 import sys
-
+sys.path.insert(0, './')
 import spruned
-
 from spruned.application import migrations
 
-sys.path.insert(0, './')
 
 if sys.version > '3.5.2':  # pragma: no cover
     import argparse
