@@ -3,6 +3,9 @@ from unittest import TestCase
 from unittest.mock import Mock
 
 import time
+
+from spruned.application.networks.bitcoin import mainnet, testnet, regtest
+
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
 
 from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnection
@@ -96,3 +99,21 @@ class TestP2PConnection(TestCase):
         self.sut.peer = Mock()
         self.sut._on_ping('ping', 'ping', {'nonce': 'cafe'})
         Mock.assert_called_once_with(self.sut.peer.send_msg, 'pong', nonce='cafe')
+
+    def test_version_checker(self):
+        versions = [
+            [{'subversion': b'/Satoshi:0.1', 'version': 70000}, False],
+            [{'subversion': b'/Shibetoshi:0.18', 'version': 70050}, False],
+            [{'subversion': b'/Satoshi:0.18', 'version': 60050}, False],
+            [{'subversion': b'/Satoshi:0.18', 'version': 70050}, True],
+        ]
+        for vers in versions:
+            self.assertEqual(
+                vers[1], mainnet['evaluate_peer_version'](vers[0]), msg=str(vers)
+            )
+            self.assertEqual(
+                vers[1], testnet['evaluate_peer_version'](vers[0]), msg=str(vers)
+            )
+            self.assertEqual(
+                vers[1], regtest['evaluate_peer_version'](vers[0]), msg=str(vers)
+            )

@@ -288,7 +288,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._pool_filter.add_address('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
 
     def version_checker(self, peer_version):
-        return peer_version['version'] >= self.context.get_network()['min_bitcoin_protocol_version']
+        return self.context.get_network()['evaluate_peer_version'](peer_version)
 
     @property
     def required_connections(self):

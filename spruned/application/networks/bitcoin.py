@@ -1,4 +1,17 @@
+from pkg_resources import parse_version
 from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
+
+
+def _evaluate_bitcoin_subversion(peer_version: dict) -> bool:
+    subversion = peer_version and peer_version.get('subversion', b'').decode()
+    subversion = subversion and subversion.strip('/').split(':')
+    subversion_ok = subversion \
+           and len(subversion) == 2 \
+           and subversion[0] == 'Satoshi' \
+           and parse_version(subversion[1]) >= parse_version("0.14")
+    protocol_version_ok = peer_version and peer_version.get('version') >= 70012
+    return subversion_ok and protocol_version_ok
+
 
 mainnet = {
     'pycoin': MAINNET,
@@ -7,7 +20,6 @@ mainnet = {
     'regex_legacy_addresses_prefix': '1',
     'electrum_concurrency': 4,
     'fees_consensus': 3,
-    'min_bitcoin_protocol_version': 70012,
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',
     'checkpoints': {
@@ -29,7 +41,8 @@ mainnet = {
         478559: "00000000000000000019f112ec0a9982926f1258cdcc558dd7c3b7e5dc7fa148",
         568150: "00000000000000000001ae8ead7f279a3f7038967a147a0fb35acb83ff16fd82"
     },
-    'rpc_port': 8332
+    'rpc_port': 8332,
+    'evaluate_peer_version': _evaluate_bitcoin_subversion
 }
 
 testnet = {
@@ -38,7 +51,6 @@ testnet = {
     'chain': 'test',
     'electrum_concurrency': 1,
     'fees_consensus': 1,
-    'min_bitcoin_protocol_version': 70012,
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': 'f0315ffc38709d70ad5647e22048358dd3745f3ce3874223c80a7c92fab0c8ba',
     'checkpoints': {
@@ -48,7 +60,8 @@ testnet = {
         1000000: "0000000000478e259a3eda2fafbeeb0106626f946347955e99278fe6cc848414",
         1485500: "000000000000000deb21d7f38f845864f6b57167b3a64cb88d05c664f370363a"
     },
-    'rpc_port': 18332
+    'rpc_port': 18332,
+    'evaluate_peer_version': _evaluate_bitcoin_subversion
 }
 
 regtest = {
@@ -57,7 +70,6 @@ regtest = {
     'chain': 'regtest',
     'electrum_concurrency': 1,
     'fees_consensus': 1,
-    'min_bitcoin_protocol_version': 70012,
     'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     'tx1': 'f0315ffc38709d70ad5647e22048358dd3745f3ce3874223c80a7c92fab0c8ba',
     'checkpoints': {
@@ -67,5 +79,6 @@ regtest = {
         1000000: "0000000000478e259a3eda2fafbeeb0106626f946347955e99278fe6cc848414",
         1485500: "000000000000000deb21d7f38f845864f6b57167b3a64cb88d05c664f370363a"
     },
-    'rpc_port': 18334
+    'rpc_port': 18334,
+    'evaluate_peer_version': _evaluate_bitcoin_subversion
 }
