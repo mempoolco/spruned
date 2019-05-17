@@ -14,7 +14,7 @@ DB_VERSION = b'\x04'
 
 
 class BlockchainRepository(BlockchainRepositoryAbstract):
-    current_version = 2
+    current_version = 3
 
     def __init__(self, session, storage_name, dbpath):
         self.storage_name = storage_name
