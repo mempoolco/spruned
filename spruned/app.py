@@ -3,6 +3,8 @@
 #
 import sys
 
+import spruned
+
 from spruned.application import migrations
 
 sys.path.insert(0, './')
@@ -142,10 +144,18 @@ if sys.version > '3.5.2':  # pragma: no cover
         action='store', dest='mempool_size', default=int(ctx.mempool_size),
         help='Set the mempool size in megabytes (0 = mempool disabled, default) - VERY experimental'
     )
+    parser.add_argument(
+        '--version',
+        action='store_true', dest='version', default=False,
+        help='Return the version and exit'
+    )
 
 
     def main():  # pragma: no cover
         args = parser.parse_args()
+        if args.version:
+            print('spruned %s, emulating bitcoind %s' % (spruned.__version__, spruned.__bitcoind_version_emulation__))
+            sys.exit(0)
         ctx.load_args(args)
         from spruned import settings
         from spruned.application.tools import create_directory
