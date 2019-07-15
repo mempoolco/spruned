@@ -223,7 +223,10 @@ class SprunedVOService(RPCAPIService):
         }
 
     async def getblockcount(self) -> int:
-        return self.repository.headers.get_best_header().get('block_height')
+        try:
+            return self.repository.headers.get_best_header().get('block_height')
+        except:
+            return 0
 
     async def estimatefee(self, blocks: int):
         try:
