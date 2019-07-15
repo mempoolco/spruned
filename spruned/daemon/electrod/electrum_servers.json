@@ -129,7 +129,15 @@
     ["electrumx.testnet.mempool.co", "t"],
     ["tn.not.fyi", 5502],
     ["testnet.hsmiths.com", 53012],
-    ["testnet1.bauerj.eu", 50002]
+    ["testnetnode.arihanc.com", "s"],
+    ["btc-testnet.theblains.org", 50008],
+    ["bitcoin-test.networkingfanatic.com", 50004],
+    ["bitcoin.cluelessperson.com", 51002],
+    ["electrum-testnet-unlimited.criptolayer.net", 50102],
+    ["testnet.qtornado.com", 51002],
+    ["14.3.140.101", "s"],
+    ["electrum.akinbo.org", "s"],
+    ["ELEX05.blackpole.online", 52002]
   ],
   "bc_regtest": []
 }
