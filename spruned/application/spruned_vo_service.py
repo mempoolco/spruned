@@ -263,7 +263,7 @@ class SprunedVOService(RPCAPIService):
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": self.p2p.bootstrap_status,
             "pruned": False,
-
+            "initialblockdownload": False
         }
 
     async def gettxout(self, txid: str, index: int):
