@@ -20,7 +20,7 @@ class TestMempoolObserver(TestCase):
         self.mempool_repository = MempoolRepository()
         self.repository.mempool = self.mempool_repository
         self.batcher_factory = Mock()
-        self.pool = P2PConnectionPool(batcher=lambda: batcher_factory(self))
+        self.pool = P2PConnectionPool(batcher=lambda *_: batcher_factory(self))
         self.connection = Mock(connected=True, score=99)
         self.connection2 = Mock(connected=True, score=99)
         self.pool.connections.append(self.connection)
