@@ -153,7 +153,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
             delayer=async_delayed_task,
             loop=asyncio.get_event_loop(),
             proxy=False,
-            connections=3,
+            connections=4,
             sleep_no_internet=30,
             rpc_call_timeout=30,
             servers_storage=save_electrum_servers,

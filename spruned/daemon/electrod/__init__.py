@@ -52,7 +52,7 @@ def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
     peers = load_electrum_servers(ctx)
     fees_collector = EstimateFeeConsensusCollector(consensus=ctx.get_network()['fees_consensus'])
     electrod_pool = ElectrodConnectionPool(
-        connections=network['electrum_concurrency'],
+        connections=min(network['electrum_concurrency'], ctx.max_electrum_connections),
         peers=peers,
         ipv6=False,
         proxy=ctx.proxy,

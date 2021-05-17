@@ -10,27 +10,24 @@ from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_serv
 async def main_task(loop):  # pragma: no cover
     from spruned.application.logging_factory import Logger
     loop.create_task(jsonrpc_server.start())
+    Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
     try:
-        Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
-        try:
-            await loop_check_integrity(loop)
-        except asyncio.TimeoutError:
-            Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
+        await loop_check_integrity(loop)
+    except asyncio.TimeoutError:
+        Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
 
-        Logger.leveldb.debug('Checking cache limits')
-        try:
-            async with async_timeout.timeout(30):
-                await cache.check()
-        except asyncio.TimeoutError:
-            Logger.cache.error('There must be an error in cache, 30 seconds to check are too many')
-        headers_reactor.add_on_new_header_callback(blocks_reactor.start)
-        headers_reactor.add_on_best_height_hit_volatile_callbacks(blocks_reactor.bootstrap_blocks)
-        loop.create_task(headers_reactor.start())
-        loop.create_task(p2p_interface.start())
-        loop.create_task(async_delayed_task(cache.lurk(), 600))
-        loop.create_task(async_delayed_task(loop_collect_garbage(loop), 300))
-    finally:
-        pass
+    Logger.leveldb.debug('Checking cache limits')
+    try:
+        async with async_timeout.timeout(30):
+            await cache.check()
+    except asyncio.TimeoutError:
+        Logger.cache.error('There must be an error in cache, 30 seconds to check are too many')
+    headers_reactor.add_on_new_header_callback(blocks_reactor.start)
+    headers_reactor.add_on_best_height_hit_volatile_callbacks(blocks_reactor.bootstrap_blocks)
+    loop.create_task(headers_reactor.start())
+    loop.create_task(p2p_interface.start())
+    loop.create_task(async_delayed_task(cache.lurk(), 600))
+    loop.create_task(async_delayed_task(loop_collect_garbage(loop), 300))
 
 
 async def loop_check_integrity(l):  # pragma: no cover
