@@ -245,7 +245,7 @@ class P2PConnectionPool(BaseConnectionPool):
             sleep_no_internet=30,
             batcher=InvBatcher,
             network=MAINNET,
-            batcher_timeout=20,
+            batcher_timeout=60,
             ipv6=False,
             servers_storage=save_p2p_peers,
             context=None,
@@ -322,7 +322,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._keepalive = True
         while not self._peers:
             Logger.p2p.warning('Peers not loaded yet')
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
 
         while self._keepalive:
             if not self.is_online():
@@ -350,7 +350,7 @@ class P2PConnectionPool(BaseConnectionPool):
             for connection in self._connections:
                 if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
-            await asyncio.sleep(10)
+            await asyncio.sleep(1)
 
     async def _disconnect_peer(self, peer):
         await peer.disconnect()
@@ -381,7 +381,7 @@ class P2PConnectionPool(BaseConnectionPool):
             connection.add_on_blocks_callback(callback)
 
     async def get(self, inv_item: InvItem, peers=None, timeout=None, privileged=False):
-        batcher = self._batcher_factory()
+        batcher = self._batcher_factory(target_batch_time=self._batcher_timeout)
         connections = []
         s = time.time()
         Logger.p2p.debug('Fetching InvItem %s', inv_item)
@@ -389,10 +389,10 @@ class P2PConnectionPool(BaseConnectionPool):
         try:
             async with async_timeout.timeout(timeout if timeout is not None else self._batcher_timeout):
                 connections = privileged and self._pick_privileged_connections(
-                    peers if peers is not None else (2 if len(self.established_connections) >= 2 else 1)
+                    peers if peers is not None else (len(self.established_connections))
                 ) or []
                 connections = connections or self._pick_multiple_connections(
-                    peers if peers is not None else (2 if len(self.established_connections) >= 2 else 1)
+                    peers if peers is not None else (len(self.established_connections))
                 )
                 for connection in connections:
                     Logger.p2p.debug('Adding connection %s to batcher', connection.hostname)

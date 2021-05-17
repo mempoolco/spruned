@@ -56,7 +56,7 @@ class MempoolObserver:
                 }
             else:
                 Logger.mempool.debug('Block %s not in cache, fetching', blockheader['block_hash'])
-                block = await self.p2p.get_block(blockheader['block_hash'], timeout=15)
+                block = await self.p2p.get_block(blockheader['block_hash'])
                 if not block:
                     raise exceptions.MissingResponseException
                 Logger.mempool.debug(

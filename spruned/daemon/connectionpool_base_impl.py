@@ -115,7 +115,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                     i += 1
                     if i > 100:
                         if len(connections) >= accept:
-                            return connection
+                            return [connection]
                         raise exceptions.NoPeersException
                     continue
                 connections.append(connection)

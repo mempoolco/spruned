@@ -15,7 +15,7 @@ class BlocksReactor:
             repository: Repository,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
-            keep_blocks=200,
+            keep_blocks=50,
             delayed_task=async_delayed_task
     ):
         self.repo = repository
