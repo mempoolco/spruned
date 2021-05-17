@@ -52,16 +52,19 @@ def verify_pow(header, blockhash):
 
 
 def serialize_header(inp):
-    o = encode(inp['version'], 256, 4)[::-1] + \
-        binascii.unhexlify(inp['prev_block_hash'])[::-1] + \
-        binascii.unhexlify(inp['merkle_root'])[::-1] + \
-        encode(inp['timestamp'], 256, 4)[::-1] + \
-        encode(inp['bits'], 256, 4)[::-1] + \
-        encode(inp['nonce'], 256, 4)[::-1]
-    h = binascii.hexlify(bin_sha256(bin_sha256(o))[::-1]).decode()
-    if inp.get('hash'):
-        assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
-    return binascii.hexlify(o).decode()
+    try:
+        o = encode(inp['version'], 256, 4)[::-1] + \
+            binascii.unhexlify(inp['prev_block_hash'])[::-1] + \
+            binascii.unhexlify(inp['merkle_root'])[::-1] + \
+            encode(inp['timestamp'], 256, 4)[::-1] + \
+            encode(inp['bits'], 256, 4)[::-1] + \
+            encode(inp['nonce'], 256, 4)[::-1]
+        h = binascii.hexlify(bin_sha256(bin_sha256(o))[::-1]).decode()
+        if inp.get('hash'):
+            assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
+        return binascii.hexlify(o).decode()
+    except:
+        raise exceptions.InvalidElectrumNodeException
 
 
 def get_nearest_parent(number: int, divisor: int):

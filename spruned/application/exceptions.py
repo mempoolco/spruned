@@ -32,3 +32,7 @@ class ItemNotFoundException(SprunedException):
 
 class StorageErrorException(SprunedException):
     pass
+
+
+class InvalidElectrumNodeException(SprunedException):
+    pass
