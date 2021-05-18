@@ -55,3 +55,7 @@ class PeerVersionMismatchException(SprunedException):
 
 class BrokenDataException(SprunedException):
     pass
+
+
+class BootstrapException(SprunedException):
+    pass

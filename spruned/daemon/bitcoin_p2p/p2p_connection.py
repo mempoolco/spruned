@@ -33,7 +33,7 @@ class P2PConnection(BaseConnection):
     def __init__(
             self, hostname, port, peer=Peer, network=MAINNET, loop=asyncio.get_event_loop(),
             proxy=None, start_score=2,
-            is_online_checker: callable=None,
+            is_online_checker: callable = None,
             timeout=3, delayer=async_delayed_task, expire_errors_after=180,
             call_timeout=5, connector=connector_f,
             bloom_filter=None, best_header=None, version_checker=None):
@@ -100,51 +100,57 @@ class P2PConnection(BaseConnection):
     def add_success(self):
         self._score += 1
 
+    async def _handle_connect(self):
+        reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
+        peer = self._peer_factory(
+            reader,
+            writer,
+            self._peer_network.magic_header,
+            self._peer_network.parse_from_data,
+            self._peer_network.pack_from_data
+        )
+        version_data = version_data_for_peer(
+            peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS
+        )
+        peer.version = await peer.perform_handshake(**version_data)
+        await self._verify_peer(peer)
+        self.starting_height = peer.version['last_block_index']
+        if self._bloom_filter:
+            filter_bytes, hash_function_count, tweak = self._bloom_filter.filter_load_params()
+            flags = 0
+            peer.send_msg(
+                "filterload", filter=filter_bytes, hash_function_count=hash_function_count,
+                tweak=tweak, flags=flags
+            )
+
+        self._event_handler = PeerEvent(peer)
+        self._version = peer.version
+
+        Logger.p2p.info(
+            'Connected to peer %s:%s (%s)', self.hostname, self.port,
+            self.version and self.version.get('subversion', b'').decode().strip('/')
+        )
+        Logger.p2p.debug('Peer raw response %s', self.version)
+        self.peer = peer
+        self.connected_at = int(time.time())
+        self._setup_events_handler()
+
     async def connect(self):
         try:
             async with async_timeout.timeout(self._timeout):
-                reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
-                peer = self._peer_factory(
-                    reader,
-                    writer,
-                    self._peer_network.magic_header,
-                    self._peer_network.parse_from_data,
-                    self._peer_network.pack_from_data
-                )
-                version_data = version_data_for_peer(
-                    peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS
-                )
-                peer.version = await peer.perform_handshake(**version_data)
-                await self._verify_peer(peer)
-                self.starting_height = peer.version['last_block_index']
-                if self._bloom_filter:
-                    filter_bytes, hash_function_count, tweak = self._bloom_filter.filter_load_params()
-                    flags = 0
-                    peer.send_msg(
-                        "filterload", filter=filter_bytes, hash_function_count=hash_function_count,
-                        tweak=tweak, flags=flags
-                    )
+                await self._handle_connect()
+            self.loop.create_task(self.on_connect())
+            return self
+        except Exception:
+            Logger.bitcoind.exception('Exception connecting')
+            self._on_connection_failed()
 
-                self._event_handler = PeerEvent(peer)
-                self._version = peer.version
-
-                Logger.p2p.info(
-                    'Connected to peer %s:%s (%s)', self.hostname, self.port,
-                    self.version and self.version.get('subversion', b'').decode().strip('/')
-                )
-                Logger.p2p.debug('Peer raw response %s', self.version)
-                self.peer = peer
-                self.connected_at = int(time.time())
-                self._setup_events_handler()
-        except Exception as e:
-            self.peer = None
-            self.failed = True
-            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
-            self.loop.create_task(self.on_error('connect'))
-            return
-
-        self.loop.create_task(self.on_connect())
-        return self
+    def _on_connection_failed(self):
+        self.peer = None
+        self.failed = True
+        Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
+        self.loop.create_task(self.on_error('connect'))
+        return
 
     async def _verify_peer(self, peer):
         if self.best_header and self.best_header['block_height'] - peer.version['last_block_index'] > 5:
@@ -162,7 +168,7 @@ class P2PConnection(BaseConnection):
         try:
             self.peer and self.peer.close()
         except:
-            Logger.p2p.error('Error closing with peer: %s', self.peer.peername())
+            Logger.p2p.exception('Error closing with peer: %s', self.peer.peername())
         finally:
             self.peer = None
             self.failed = True
@@ -185,16 +191,11 @@ class P2PConnection(BaseConnection):
             self.loop.create_task(callback(self, data))
 
     def _on_inv(self, event_handler, name, data):
-        try:
-            self.loop.create_task(self._process_inv(event_handler, name, data))
-        except:
-            Logger.p2p.exception('Exception on inv')
+        self.loop.create_task(self._process_inv(event_handler, name, data))
 
-    def _on_alert(self, event_handler, name, data):  # pragma: no cover
-        try:
-            Logger.p2p.debug('Handle alert: %s, %s, %s', event_handler, name, data)
-        except:
-            Logger.p2p.exception('Exception on alert')
+    @staticmethod
+    def _on_alert(event_handler, name, data):  # pragma: no cover
+        Logger.p2p.debug('Handle alert: %s, %s, %s', event_handler, name, data)
 
     def _on_addr(self, event_handler, name, data):  # pragma: no cover
         try:
@@ -273,6 +274,10 @@ class P2PConnectionPool(BaseConnectionPool):
         not enable_mempool and self._create_bloom_filter()  # Mount a dummy filter to avoid receiving tx data
 
     @property
+    def busy_peers(self):
+        return self._busy_peers
+
+    @property
     def proxy(self):
         return self._proxy
 
@@ -281,7 +286,7 @@ class P2PConnectionPool(BaseConnectionPool):
 
     def _create_bloom_filter(self):
         element_count = 1
-        false_positive_probability = 0.00000000001
+        false_positive_probability = 0
         filter_size = filter_size_required(element_count, false_positive_probability)
         hash_function_count = hash_function_count_required(filter_size, element_count)
         self._pool_filter = BloomFilter(filter_size, hash_function_count=hash_function_count, tweak=1)
@@ -334,9 +339,9 @@ class P2PConnectionPool(BaseConnectionPool):
                 await asyncio.sleep(self._sleep_on_no_internet_connectivity)
                 await self._check_internet_connectivity()
                 continue
-            missings = self._required_connections - len(self.established_connections)
-            if missings > 0:
-                peers = self._pick_multiple_peers(missings)
+            missing = self._required_connections - len(self.established_connections)
+            if missing > 0:
+                peers = self._pick_multiple_peers(missing)
                 for peer in peers:
                     host, port = peer
                     self.loop.create_task(self._connect_peer(host, port))
@@ -344,15 +349,13 @@ class P2PConnectionPool(BaseConnectionPool):
                 Logger.p2p.warning('Too many connections')
                 connection = self._pick_connection()
                 self.loop.create_task(connection.disconnect())
-            #Logger.p2p.debug(
-            #    'P2PConnectionPool: Sleeping %ss, connected to %s peers', 10, len(self.established_connections)
-            #)
             for connection in self._connections:
                 if connection.score <= 0:
                     self.loop.create_task(self._disconnect_peer(connection))
             await asyncio.sleep(1)
 
-    async def _disconnect_peer(self, peer):
+    @staticmethod
+    async def _disconnect_peer(peer):
         await peer.disconnect()
 
     async def _connect_peer(self, host: str, port: int):
@@ -413,22 +416,16 @@ class P2PConnectionPool(BaseConnectionPool):
             )
             future and future.cancel()
         finally:
+            self._clean_connections(connections)
+
+    def _clean_connections(self, connections):
+        for connection in connections:
             try:
-                _ = [self._busy_peers.remove(connection.hostname) for connection in connections]
-                del connections
+                self._busy_peers.remove(connection.hostname)
             except KeyError as e:
                 Logger.p2p.debug('Peer %s already removed from busy peers', str(e))
 
-            def del_batcher(_b):
-                try:
-                    _b.stop()
-                    del _b._inv_item_future_queue
-                    del _b._inv_item_hash_to_future[str(inv_item)]
-                except:
-                    del _b
-
-            self.loop.run_in_executor(None, lambda: del_batcher(batcher))
-
+    @staticmethod
     async def on_peer_connected(self, peer):
         Logger.p2p.debug('on_peer_connected: %s', peer.hostname)
         await peer.getaddr()
