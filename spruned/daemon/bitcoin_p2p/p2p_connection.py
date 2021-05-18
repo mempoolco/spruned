@@ -133,7 +133,8 @@ class P2PConnection(BaseConnection):
             self._peer_network.pack_from_data
         )
         version_msg = version_data_for_peer(
-            peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS
+            peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS,
+            relay=self.current_pool.enable_mempool
         )
         version_data = await self._verify_peer(await peer.perform_handshake(**version_msg))
         self.starting_height = version_data['last_block_index']
@@ -317,8 +318,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._on_transaction_callback = []
         self._on_block_callback = []
         self.context = context
-
-        not enable_mempool and self._create_bloom_filter()  # Mount a dummy filter to avoid receiving tx data
+        self.enable_mempool = enable_mempool
 
     @property
     def busy_peers(self):
@@ -333,7 +333,7 @@ class P2PConnectionPool(BaseConnectionPool):
 
     def _create_bloom_filter(self):
         element_count = 1
-        false_positive_probability = 0.000000001
+        false_positive_probability = 0.00001
         filter_size = filter_size_required(element_count, false_positive_probability)
         hash_function_count = hash_function_count_required(filter_size, element_count)
         self._pool_filter = BloomFilter(filter_size, hash_function_count=hash_function_count, tweak=1)

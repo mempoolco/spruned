@@ -47,8 +47,8 @@ class MempoolObserver:
                 block_header['block_hash']
             )
             block_raw_data = (tx['transaction_bytes'] for tx in block_transactions)
-            cached_block = block_transactions and (block_header['header_bytes'] + b''.join(block_raw_data)) or None
             try:
+                cached_block = block_transactions and (block_header['header_bytes'] + b''.join(block_raw_data)) or None
                 block_object = Block.from_bin(cached_block)
             except:
                 block_object = None
