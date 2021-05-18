@@ -72,7 +72,7 @@ class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
         pass
 
     @abc.abstractmethod
-    def add_error(self, *a):
+    def add_error(self, *a: int, origin: str = None):
         pass
 
     @abc.abstractmethod

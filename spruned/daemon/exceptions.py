@@ -1,6 +1,10 @@
 from spruned.application.exceptions import SprunedException
 
 
+class ConfigurationException(SprunedException):
+    pass
+
+
 class HeadersInconsistencyException(SprunedException):
     pass
 

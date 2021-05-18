@@ -12,10 +12,14 @@ from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
 
 
 class P2PInterface:
-    def __init__(self,
-                 connection_pool: P2PConnectionPool, loop=asyncio.get_event_loop(),
-                 network=MAINNET, peers_bootstrapper=utils.dns_bootstrap_servers,
-                 mempool_repository=None):
+    def __init__(
+            self,
+            connection_pool: P2PConnectionPool,
+            loop=asyncio.get_event_loop(),
+            network=MAINNET,
+            peers_bootstrapper=utils.dns_bootstrap_servers,
+            mempool_repository=None
+    ):
         self.pool = connection_pool
         self._on_connect_callbacks = []
         self.loop = loop
@@ -28,24 +32,24 @@ class P2PInterface:
         for callback in self._on_connect_callbacks:
             self.loop.create_task(callback())
 
-    async def get_block(self, blockhash: str, peers=None, timeout=None, privileged_peers=False, segwit=True) -> Dict:
-        Logger.p2p.debug('Downloading block %s' % blockhash)
+    async def get_block(self, block_hash: str, peers=None, timeout=None, privileged_peers=False, segwit=True) -> Dict:
+        Logger.p2p.debug('Downloading block %s' % block_hash)
         block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
-        inv_item = InvItem(block_type, h2b_rev(blockhash))
+        inv_item = InvItem(block_type, h2b_rev(block_hash))
         response = await self.pool.get(inv_item, peers=peers, timeout=timeout, privileged=privileged_peers)
         return response and {
-            "block_hash": str(blockhash),
+            "block_hash": str(block_hash),
             "header_bytes": response[:80],
             "block_bytes": response
         }
 
-    async def get_blocks(self, *blockhash: str) -> Dict:
+    async def get_blocks(self, *block_hash: str) -> Dict:
         """
         I have to work on pycoinnet to understand how the invbatcher can handle a more efficient 'getblocks'.
         Meanwhile, parallelize getblocks. This may be dirty, let's try it....
         """
-        Logger.p2p.debug('Downloading blocks %s' % ', '.join(blockhash))
-        sorted_hash = [x for x in blockhash]
+        Logger.p2p.debug('Downloading blocks %s' % ', '.join(block_hash))
+        sorted_hash = [x for x in block_hash]
         blocks = {}
         r, max_retry = 0, 100
         while sorted_hash:
@@ -59,7 +63,7 @@ class P2PInterface:
             sorted_hash = [h for h in sorted_hash if h not in blocks]
         return blocks
 
-    def add_on_connect_callback(self, callback):
+    def add_on_connect_callback(self, callback: callable):
         self._on_connect_callbacks.append(callback)
 
     async def start(self):

@@ -6,3 +6,4 @@ plyvel==1.0.5
 pycoin==0.80
 pyzmq==18.0.1
 sqlalchemy==1.3.0
+coloredlogs

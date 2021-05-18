@@ -27,9 +27,9 @@ class CacheAgent:
     def dump(self):
         self._save_index()
 
-    def _deserialize_index(self, rawdata):
+    def _deserialize_index(self, raw_data: bytes):
         index = {'keys': {}}
-        data = pickle.loads(rawdata)
+        data = pickle.loads(raw_data)
         s = 0
         for d in data:
             s += d[2]

@@ -1,6 +1,9 @@
 import asyncio
 from typing import Dict
 import time
+
+import typing
+
 from spruned.application.abstracts import HeadersRepository
 from spruned.daemon.electrod.electrod_connection import ElectrodConnection
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
@@ -42,16 +45,16 @@ class HeadersReactor:
         self.on_best_height_hit_persistent_callbacks = []
         self._on_new_best_header_callbacks = []
 
-    def add_on_new_header_callback(self, callback):
+    def add_on_new_header_callback(self, callback: callable):
         self._on_new_best_header_callbacks.append(callback)
 
-    def add_on_best_height_hit_volatile_callbacks(self, callback):
+    def add_on_best_height_hit_volatile_callbacks(self, callback: callable):
         self.on_best_height_hit_volatile_callbacks.append(callback)
 
-    def add_on_best_height_hit_persistent_callbacks(self, callback):
+    def add_on_best_height_hit_persistent_callbacks(self, callback: callable):
         self.on_best_height_hit_persistent_callbacks.append(callback)
 
-    def set_last_processed_header(self, last):
+    def set_last_processed_header(self, last: typing.Optional[typing.Dict]):
         if last != self._last_processed_header:
             self._last_processed_header = last
             Logger.electrum.info(
@@ -145,7 +148,7 @@ class HeadersReactor:
                 self.new_headers_fallback_poll_interval
             )
 
-    async def on_new_header(self, peer, network_best_header: Dict, retries=0):
+    async def on_new_header(self, peer: ElectrodConnection, network_best_header: Dict, retries: int = 0):
         if not network_best_header:
             Logger.electrum.warning('Weird. No best header received on call')
             return
@@ -170,13 +173,12 @@ class HeadersReactor:
             if block_hash and block_hash != network_best_header['block_hash']:
                 await self.interface.handle_peer_error(peer)
                 Logger.electrum.error('Inconsistency error with peer %s: (%s), %s',
-                                      peer.server_info, network_best_header, block_hash
+                                      peer.hostname, network_best_header, block_hash
                                       )
                 await asyncio.sleep(self.sleep_time_on_inconsistency)
                 if not await self.on_inconsistent_header_received(peer, network_best_header, block_hash):
                     return
             self.set_last_processed_header(network_best_header)
-            #self.synced = True
         except (
                 exceptions.NoQuorumOnResponsesException,
                 exceptions.NoPeersException,
@@ -294,7 +296,12 @@ class HeadersReactor:
         self.set_last_processed_header(network_best_header)
         self.synced = True
 
-    async def _fetch_headers_chunks(self, chunks_at_time, local_best_header, network_best_header):
+    async def _fetch_headers_chunks(
+            self,
+            chunks_at_time: int,
+            local_best_header: typing.Dict,
+            network_best_header: typing.Dict
+    ):
         """
         fetch chunks from local height to network best height, download <chunks_at_time> (>1 is unstable)
         """
@@ -302,6 +309,8 @@ class HeadersReactor:
         current_height = local_best_header and local_best_header['block_height'] or 0
         saving_headers = []
         while 1:
+            peer: typing.Optional[ElectrodConnection] = None
+            headers: typing.List[typing.Dict] = []
             Logger.electrum.debug(
                 '%s headers behind, downloading',
                 network_best_header['block_height'] - current_height - len(saving_headers)
@@ -318,7 +327,9 @@ class HeadersReactor:
                 self.synced = True
                 return
             res = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
-            peer, headers = res if res else (None, [])
+            if res:
+                peer: ElectrodConnection = res[0]
+                headers = res[1]
             if not headers:
                 raise exceptions.NoHeadersException
             if local_best_height:
@@ -333,7 +344,7 @@ class HeadersReactor:
                     saved_headers = []
 
             except exceptions.HeadersInconsistencyException:
-                await peer.disconnect()
+                peer and await peer.disconnect()
                 raise
             Logger.electrum.debug(
                 'Fetched %s headers (chunk %s/%s), tot. %s',
@@ -347,7 +358,7 @@ class HeadersReactor:
             i += 1
 
     @database.atomic
-    async def on_network_headers_behind(self, network_best_header: Dict, peer=None):
+    async def on_network_headers_behind(self, network_best_header: Dict, peer: ElectrodConnection = None):
         Logger.electrum.warning('Network headers behind current, closing with peer in 3s')
         await asyncio.sleep(3)
         await self.ensure_consistency(network_best_header, peer)

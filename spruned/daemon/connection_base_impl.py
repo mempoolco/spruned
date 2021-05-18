@@ -43,9 +43,9 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
     def hostname(self):
         return self._hostname
 
-    def add_error(self, *a):
-        if len(a) and isinstance(a[0], int):
-            self._errors.append(a[0])
+    def add_error(self, *a, origin=None):
+        if len(a):
+            self._errors.append(int(a[0]))
         else:
             self._errors.append(int(time.time()))
 
@@ -84,7 +84,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
     async def on_error(self, error):
         if not self.is_online:
             return
-        self.add_error()
+        self.add_error(origin='on_error')
         for callback in self._on_errors_callbacks:
             self.loop.create_task(callback(self, error_type=error))
 

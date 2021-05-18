@@ -18,7 +18,7 @@ class BlocksReactor:
             repository: Repository,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
-            keep_blocks=50,
+            keep_blocks=6,
             delayed_task=async_delayed_task
     ):
         self.repo = repository
@@ -32,8 +32,8 @@ class BlocksReactor:
         self._available = False
         self._fallback_check_interval = 30
 
-    def set_last_processed_block(self, last):
-        if last != self._last_processed_block:
+    def set_last_processed_block(self, last: typing.Optional[typing.Dict]):
+        if last and last != self._last_processed_block:
             self._last_processed_block = last
             Logger.p2p.info(
                 'Last processed block: %s (%s)',
@@ -41,7 +41,7 @@ class BlocksReactor:
                 self._last_processed_block and self._last_processed_block['block_hash'],
             )
 
-    def on_header(self, best_header):
+    def on_header(self, best_header: typing.Dict):
         Logger.p2p.debug('BlocksReactor.on_header: %s', best_header)
         self.loop.create_task(self._check_blockchain(best_header))
 
@@ -58,7 +58,7 @@ class BlocksReactor:
                 self.delayer(self.check(), 0 if urgent else self._fallback_check_interval)
             )
 
-    async def _check_blockchain(self, best_header):
+    async def _check_blockchain(self, best_header: typing.Dict):
         urgent = False
         try:
             await self.lock.acquire()
@@ -86,7 +86,7 @@ class BlocksReactor:
             self.lock.release()
             return urgent
 
-    async def _on_blocks_behind_headers(self, best_header):
+    async def _on_blocks_behind_headers(self, best_header: typing.Dict):
         if self._last_processed_block and \
                 best_header['block_height'] - self._last_processed_block['block_height'] < self._keep_blocks:
             height_to_start = self._last_processed_block['block_height']
@@ -117,7 +117,7 @@ class BlocksReactor:
                 last_hash = saved_blocks and saved_blocks[-1]['block_hash']
                 Logger.p2p.debug('Saved block %s', saved_blocks)
             except:
-                Logger.p2p.warning('Error saving blocks %s', blocks)
+                Logger.p2p.exception('Error saving blocks %s', blocks)
                 return True
         else:
             urgent = True
@@ -154,7 +154,7 @@ class BlocksReactor:
             try:
                 block = await self.interface.get_block(blockhash, timeout=10)
             except Exception:
-                Logger.p2p.debug('Failed downloading block %s, retrying', blockhash)
+                Logger.p2p.exception('Failed downloading block %s, retrying', blockhash)
                 raise
             missing_blocks.remove(block['block_hash'])
             Logger.p2p.info(
@@ -187,6 +187,7 @@ class BlocksReactor:
                 if e > 100 and e > i * 0.9:  # 90% errors hit. stop.
                     Logger.p2p.error('Error on blocks bootstrap: %s/%s', e, i)
                     raise exceptions.BootstrapException
+                await asyncio.sleep(10)
         finally:
             self.lock.release()
 

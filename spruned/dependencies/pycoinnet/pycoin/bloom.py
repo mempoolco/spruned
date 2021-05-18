@@ -32,7 +32,7 @@ from pycoin.tx import Tx
 LOG_2 = math.log(2)
 
 
-def filter_size_required(element_count: int, false_positive_probability: int):
+def filter_size_required(element_count: int, false_positive_probability: float):
     # The size S of the filter in bytes is given by
     # (-1 / pow(log(2), 2) * N * log(P)) / 8
     # Of course you must ensure it does not go over the maximum size

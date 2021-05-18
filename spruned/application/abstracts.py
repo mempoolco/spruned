@@ -37,7 +37,7 @@ class RPCAPIService(metaclass=abc.ABCMeta):
             from aiohttp import ClientResponseError
             cause = e.__cause__
             if isinstance(cause, ClientResponseError):
-                if cause.code in self.throttling_error_codes:
+                if cause.status in self.throttling_error_codes:
                     Logger.third_party.warning('throttling %s' % self.__class__.__name__)
                 else:
                     Logger.third_party.exception('Error on %s: %s' % (self.__class__.__name__, e.__cause__))

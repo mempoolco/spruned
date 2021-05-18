@@ -8,7 +8,7 @@ import asyncio
 from spruned.application.logging_factory import Logger
 
 
-async def dns_bootstrap_servers(network=TESTNET, howmany=50):  # pragma: no cover
+async def dns_bootstrap_servers(network=TESTNET):  # pragma: no cover
     host_q = dns_bootstrap_host_port_q(network)
     ad = []
     while 1:
@@ -41,16 +41,9 @@ class AsyncBlockFactory:
             q = queue.Queue()
             thread = threading.Thread(target=self.getblock, args=(block_bytes, q))
             thread.start()
-            try:
-                while 1:
-                    try:
-                        data = q.get(block=False)
-                        return data
-                    except:
-                        pass
-                    await asyncio.sleep(0.1)
-            finally:
-                del thread
+            thread.join()
+            data = q.get(block=False)
+            return data
 
 
 def get_block_factory():

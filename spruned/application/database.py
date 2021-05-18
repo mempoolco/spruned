@@ -1,5 +1,5 @@
 import plyvel
-from sqlalchemy import Column, String, Integer, create_engine, BLOB
+from sqlalchemy import Column, Integer, create_engine, BLOB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 import threading

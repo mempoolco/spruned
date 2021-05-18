@@ -10,7 +10,7 @@ from spruned.repositories.mempool_repository import MempoolRepository
 
 
 class Repository:
-    def __init__(self, headers, blocks, mempool, keep_blocks=200):
+    def __init__(self, headers, blocks, mempool, keep_blocks=6):
         self._headers_repository = headers
         self._blockchain_repository = blocks
         self._mempool_repository = mempool

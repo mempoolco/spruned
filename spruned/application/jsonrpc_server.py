@@ -2,6 +2,7 @@ import asyncio
 import base64
 import binascii
 import gc
+import itertools
 
 import re
 
@@ -424,8 +425,10 @@ class JSONRPCServer:
             "localrelay": False,
             "timeoffset": 0,
             "networkactive": False,
-            "connections": len(self.vo_service.p2p.pool.established_connections) +
-                           len(self.vo_service.electrod.pool.established_connections),
+            "connections": sum(map(len, itertools.chain(
+                self.vo_service.p2p.pool.established_connections,
+                self.vo_service.electrod.pool.established_connections
+            ))),
             "networks": [
                 {
                     "name": "ipv4",

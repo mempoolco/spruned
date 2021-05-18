@@ -97,13 +97,11 @@ class EstimateFeeConsensusCollector:
                 "timestamp": int(time.time()),
                 "value": int((float(res) * 10**8)/1000)
             }
-        try:
-            response = await estimatefee(connection, rate)
-            if not self._data.get(rate):
-                self._data[rate] = {}
-            self._data[rate][connection.hostname] = response
-        except:
-            pass
+
+        response = await estimatefee(connection, rate)
+        if not self._data.get(rate):
+            self._data[rate] = {}
+        self._data[rate][connection.hostname] = response
 
     def get_rates(self, target: int):
         res = []

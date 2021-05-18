@@ -4,6 +4,7 @@ import binascii
 import time
 from typing import Dict
 import async_timeout
+import typing
 
 from spruned.dependencies.connectrum import ElectrumErrorResponse
 from spruned.dependencies.connectrum import StratumClient
@@ -20,23 +21,38 @@ from spruned.daemon.electrod import save_electrum_servers
 
 class ElectrodConnection(BaseConnection):
     def __init__(
-            self, hostname: str, protocol: str, keepalive=180,
-            client=StratumClient, serverinfo=ServerInfo, nickname=None, proxy=False, loop=None,
-            start_score=10, timeout=30, expire_errors_after=180,
-            is_online_checker: callable=None, delayer=async_delayed_task, network=ctx.get_network()
+            self,
+            hostname: str,
+            protocol: str,
+            keepalive: int = 180,
+            client=StratumClient,
+            serverinfo=ServerInfo,
+            nickname: str = None,
+            proxy: str = False,
+            loop=None,
+            start_score: int = 10,
+            timeout: int = 30,
+            expire_errors_after: int = 180,
+            is_online_checker: typing.Optional[callable] = None,
+            delayer: callable = async_delayed_task,
+            network: typing.Dict = ctx.get_network()
     ):
 
         self.protocol = protocol
         self.port = self.protocol
         self.keepalive = keepalive
-        self.client = client()
+        self.client = client(loop)
         self.serverinfo_factory = serverinfo
         self.client.keepalive_interval = keepalive
         self.nickname = nickname or binascii.hexlify(os.urandom(8)).decode()
         self.network = network
         super().__init__(
-            hostname=hostname, proxy=proxy, loop=loop, start_score=start_score,
-            is_online_checker=is_online_checker, timeout=timeout, delayer=delayer,
+            hostname=hostname,
+            proxy=proxy, loop=loop,
+            start_score=start_score,
+            is_online_checker=is_online_checker,
+            timeout=timeout,
+            delayer=delayer,
             expire_errors_after=expire_errors_after
         )
         self.starting_height = None
@@ -57,7 +73,9 @@ class ElectrodConnection(BaseConnection):
         try:
             with async_timeout.timeout(self._timeout):
                 await self.client.connect(
-                    self.serverinfo_factory(self.nickname, hostname=self.hostname, ports=self.protocol, version="1.4"),
+                    self.serverinfo_factory(
+                        self.nickname, hostname=self.hostname, ports=self.protocol, version="1.4"
+                    ),
                     disconnect_callback=not disable_callbacks and self.on_connectrum_disconnect,
                     disable_cert_verify=True,
                     proxy=self.proxy,

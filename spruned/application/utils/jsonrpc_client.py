@@ -26,7 +26,7 @@ class JSONClient:
             )
         if jsonRes:
             try:
-                return (await response.json())
+                return await response.json()
             except JSONDecodeError as e:
                 raise e
         else:

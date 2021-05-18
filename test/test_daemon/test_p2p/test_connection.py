@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import time
 
-from spruned.application.networks.bitcoin import mainnet, testnet, regtest
+from spruned.application.networks.bitcoin import mainnet, testnet
 
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
 
@@ -113,7 +113,4 @@ class TestP2PConnection(TestCase):
             )
             self.assertEqual(
                 vers[1], testnet['evaluate_peer_version'](vers[0]), msg=str(vers)
-            )
-            self.assertEqual(
-                vers[1], regtest['evaluate_peer_version'](vers[0]), msg=str(vers)
             )

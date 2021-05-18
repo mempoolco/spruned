@@ -235,6 +235,7 @@ class StratumClient:
                     host=hostname, port=port, server_hostname=hostname)
             else:
                 logger.debug("Error: want to use proxy, but no aiosocks module.")
+                raise exceptions.ConfigurationException
         else:
             transport, protocol = await self.loop.create_connection(
                 StratumProtocol, host=hostname,
@@ -349,7 +350,6 @@ class StratumClient:
                 rv.set_result(result)
             except asyncio.InvalidStateError as e:
                 raise exceptions.ElectrodMissingResponseException
-
 
     def RPC(self, method, *params):
         assert '.' in method

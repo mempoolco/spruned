@@ -26,7 +26,7 @@ class Context(dict):
                     'network': 'bitcoin.mainnet',
                     'debug': False,
                     'cache_size': 50,
-                    'keep_blocks': 50,
+                    'keep_blocks': 6,
                     'proxy': None,
                     'tor': False,
                     'no_dns_seed': False,
@@ -92,7 +92,7 @@ class Context(dict):
 
     @property
     def keep_blocks(self):
-        return int(self._get_param('keep_blocks') or 1)
+        return int(self._get_param('keep_blocks') or 6)
 
     @property
     def mempool_size(self):

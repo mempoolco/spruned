@@ -103,14 +103,9 @@ class Peer:
                 message_data = self._parse_from_data(message_name, message_data)
             return message_name, message_data
 
-
     async def perform_handshake(self, **version_msg):
         # "version"
-        try:
-            self.send_msg("version", **version_msg)
-        except Exception:
-            logger.exception('Exception on handshake')
-
+        self.send_msg("version", **version_msg)
         msg, version_data = await self.next_message()
         assert msg == 'version'
 

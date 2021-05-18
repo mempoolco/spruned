@@ -14,7 +14,7 @@ def build(ctx: Context):  # pragma: no cover
     peers = load_p2p_peers()
     pool = P2PConnectionPool(
         connections=32,
-        batcher_timeout=60,
+        batcher_timeout=30,
         network=network['pycoin'],
         ipv6=False,
         proxy=str(ctx.proxy),

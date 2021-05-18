@@ -29,10 +29,10 @@ import asyncio
 def _add_stop(q):
 
     def stop():
-        if not q._is_stopping_future.done():
-            q._is_stopping_future.set_result(None)
+        if not q.is_stopping_future.done():
+            q.is_stopping_future.set_result(None)
 
-    q._is_stopping_future = asyncio.Future()
+    q.is_stopping_future = asyncio.Future()
     q.stop = stop
 
 
@@ -49,10 +49,12 @@ def _make_repeated_f(input_q, callback_f, output_q):
 
         # if all items are put, fall through to the second loop which
         # does get_nowait
-        while not input_q._is_stopping_future.done():
+        while not input_q.is_stopping_future.done():
             input_q_get = asyncio.ensure_future(input_q.get())
             done, pending = await asyncio.wait(
-                [input_q._is_stopping_future, input_q_get], return_when=asyncio.FIRST_COMPLETED)
+                (input_q.is_stopping_future, input_q_get),
+                return_when=asyncio.FIRST_COMPLETED
+            )
             if input_q_get.done():
                 item = input_q_get.result()
                 await callback_f(item, output_q)
@@ -108,6 +110,7 @@ class MappingQueue:
         def prior_cancel_f(x):
             return None
 
+        task_group = None
         for _, d in enumerate(args):
             input_q, output_q = queues[_:_+2]
             callback_f = d.get("callback_f")
@@ -120,10 +123,10 @@ class MappingQueue:
             task_group = asyncio.gather(*(loop.create_task(repeated_f()) for _ in range(worker_count)))
             task_group.add_done_callback(prior_cancel_f)
 
-            def _make_cancel(task_group):
+            def _make_cancel(_task_group):
 
                 def _cancel(f):
-                    task_group.cancel()
+                    _task_group.cancel()
 
                 return _cancel
 
@@ -132,18 +135,17 @@ class MappingQueue:
         self._loop = loop
         self._in_q = queues[0]
         self._out_q = queues[-1]
-        self._cancel_function = task_group.cancel
+        self._cancel_function = task_group and task_group.cancel
 
     def stop(self):
         self._in_q.stop()
 
     async def wait(self):
-        await self._out_q._is_stopping_future
+        await self._out_q.is_stopping_future
 
     def cancel(self):
-        if getattr(self, "_cancel_function", None):
-            self._cancel_function()
-            self._cancel_function = None
+        self._cancel_function and self._cancel_function()
+        self._cancel_function = None
 
     def __del__(self):
         self.cancel()
@@ -155,7 +157,7 @@ class MappingQueue:
         self._in_q.put_nowait(item)
 
     async def get(self):
-        return (await self._out_q.get())
+        return await self._out_q.get()
 
     def empty(self):
         return self._out_q.empty()

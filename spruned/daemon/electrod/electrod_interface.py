@@ -13,13 +13,13 @@ from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensus
 
 class ElectrodInterface:
     def __init__(self,
-                 connectionpool: ElectrodConnectionPool,
+                 connection_pool: ElectrodConnectionPool,
                  loop=asyncio.get_event_loop(),
                  fees_projector: EstimateFeeConsensusProjector = None,
                  fees_collector: EstimateFeeConsensusCollector = None
                  ):
         self._network = ctx.get_network()
-        self.pool = connectionpool
+        self.pool = connection_pool
         self._checkpoints = self._network['checkpoints']
         self.loop = loop
         self._fees_projector = fees_projector
@@ -71,7 +71,7 @@ class ElectrodInterface:
             'timestamp': header_data['timestamp']
         }
 
-    def add_header_subscribe_callback(self, callback):
+    def add_header_subscribe_callback(self, callback: callable):
         async def parse_and_go(peer, res):
             try:
                 header = self._parse_header(res)
@@ -81,7 +81,7 @@ class ElectrodInterface:
                 self.loop.create_task(peer.disconnect())
         self.pool.add_header_observer(parse_and_go)
 
-    def add_on_connected_callback(self, callback):
+    def add_on_connected_callback(self, callback: callable):
         self.pool.add_on_connected_observer(callback)
 
     async def get_header(self, height: int, fail_silent_out_of_range=False, get_peer=False):
@@ -110,10 +110,10 @@ class ElectrodInterface:
             return parsed_header
         return peer, parsed_header
 
-    async def handle_peer_error(self, peer):
+    async def handle_peer_error(self, peer: ElectrodConnection):
         await self.pool.on_peer_error(peer)
 
-    async def getrawtransaction(self, txid: str, verbose=False):
+    async def getrawtransaction(self, txid: str, verbose: bool = False):
         if txid == self._network['tx0']:
             raise exceptions.GenesisTransactionRequestedException
         response = await self.pool.call('blockchain.transaction.get', txid, int(verbose))
@@ -139,7 +139,7 @@ class ElectrodInterface:
     async def get_merkleproof(self, txid: str, block_height: int):
         return await self.pool.call('blockchain.transaction.get_merkle', txid, block_height)
 
-    async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int, get_peer=False):
+    async def get_headers_in_range_from_chunks(self, starts_from: int, ends_to: int, get_peer: bool = False):
         futures = []
         for chunk_index in range(starts_from, ends_to):
             futures.append(self.get_headers_from_chunk(chunk_index, get_peer=get_peer))
@@ -175,18 +175,19 @@ class ElectrodInterface:
             if projection["agree"]:
                 return projection
         except:
-            Logger.electrum.error('Fee estimation error', exc_info=True)
+            Logger.electrum.exception('Fee estimation error')
             raise exceptions.MissingResponseException
 
-    async def get_headers_from_chunk(self, chunk_index: int, get_peer=True):
-        peer = None
+    async def get_headers_from_chunk(self, chunk_index: int, get_peer: bool = True):
+        chunk = peer = None
         if get_peer:
             res = await self.get_headers(chunk_index * 2016, get_peer=get_peer)
-            peer, chunk = res if res else (None, None)
+            if res:
+                peer, chunk = res
         else:
             chunk = await self.get_headers(chunk_index * 2016, get_peer=get_peer)
 
-        if not chunk or not 'hex' in chunk:
+        if not chunk or 'hex' not in chunk:
             return
 
         chunk = chunk['hex']
@@ -203,7 +204,7 @@ class ElectrodInterface:
             header['block_hash'] = header.pop('hash')
             if header['block_height'] in self._checkpoints:
                 if self._checkpoints[header['block_height']] != header['block_hash']:
-                    await peer.disconnect()
+                    peer and await peer.disconnect()
                     raise exceptions.NetworkHeadersInconsistencyException(
                         'Checkpoint failure. Expected: %s, Failure: %s',
                         self._checkpoints[header['block_height']], header['block_hash']
@@ -217,7 +218,7 @@ class ElectrodInterface:
     async def disconnect_from_peer(self, peer: ElectrodConnection):
         self.loop.create_task(peer.disconnect())
 
-    async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
+    async def sendrawtransaction(self, rawtx: str, allowhighfees: bool = False):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
 
     def get_peers(self):

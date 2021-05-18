@@ -12,7 +12,7 @@ async def main_task(loop):  # pragma: no cover
     loop.create_task(jsonrpc_server.start())
     Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
     try:
-        await loop_check_integrity(loop)
+        await loop_check_integrity()
     except asyncio.TimeoutError:
         Logger.cache.error('There must be an error in storage, 30 seconds to check are too many')
 
@@ -30,7 +30,7 @@ async def main_task(loop):  # pragma: no cover
     loop.create_task(async_delayed_task(loop_collect_garbage(loop), 300))
 
 
-async def loop_check_integrity(l):  # pragma: no cover
+async def loop_check_integrity():  # pragma: no cover
     """
     this task also prune blocks
     """
@@ -38,6 +38,6 @@ async def loop_check_integrity(l):  # pragma: no cover
         await repository.ensure_integrity()
 
 
-async def loop_collect_garbage(l):  # pragma: no cover
+async def loop_collect_garbage(_loop):  # pragma: no cover
     gc.collect()
-    l.create_task(async_delayed_task(loop_collect_garbage(l), 300))
+    _loop.create_task(async_delayed_task(loop_collect_garbage(_loop), 300))

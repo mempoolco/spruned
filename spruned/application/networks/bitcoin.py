@@ -1,8 +1,9 @@
+import typing
 from pkg_resources import parse_version
 from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
 
 
-def _evaluate_bitcoin_subversion(peer_version: dict) -> bool:
+def _evaluate_bitcoin_subversion(peer_version: typing.Dict) -> bool:
     subversion = peer_version and peer_version.get('subversion', b'').decode()
     subversion = subversion and subversion.strip('/').split(':')
     subversion_ok = subversion \
@@ -61,24 +62,5 @@ testnet = {
         1485500: "000000000000000deb21d7f38f845864f6b57167b3a64cb88d05c664f370363a"
     },
     'rpc_port': 18332,
-    'evaluate_peer_version': _evaluate_bitcoin_subversion
-}
-
-regtest = {
-    'pycoin': REGTEST,
-    'alias': 'bc_regtest',
-    'chain': 'regtest',
-    'electrum_concurrency': 1,
-    'fees_consensus': 1,
-    'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
-    'tx1': 'f0315ffc38709d70ad5647e22048358dd3745f3ce3874223c80a7c92fab0c8ba',
-    'checkpoints': {
-        0: "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943",
-        1: "00000000b873e79784647a6c82962c70d228557d24a747ea4d1b8bbe878e1206",
-        500000: "000000000001a7c0aaa2630fbb2c0e476aafffc60f82177375b2aaa22209f606",
-        1000000: "0000000000478e259a3eda2fafbeeb0106626f946347955e99278fe6cc848414",
-        1485500: "000000000000000deb21d7f38f845864f6b57167b3a64cb88d05c664f370363a"
-    },
-    'rpc_port': 18334,
     'evaluate_peer_version': _evaluate_bitcoin_subversion
 }
