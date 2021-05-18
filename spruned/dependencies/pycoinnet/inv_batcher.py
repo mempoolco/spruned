@@ -41,7 +41,7 @@ class InvBatcher:
 
         self._peer_batch_queue = MappingQueue(
             dict(callback_f=self._batch_getdata_fetches),
-            dict(callback_f=self._fetch_batch, input_q_maxsize=2),
+            dict(callback_f=self._fetch_batch, input_q_maxsize=6),
         )
 
         self._inv_item_hash_to_future = dict()
@@ -50,7 +50,6 @@ class InvBatcher:
         peer, desired_batch_size = peer_batch_tuple
         batch = []
         skipped = []
-        logger.info("peer %s trying to build batch up to size %d", peer, desired_batch_size)
         while len(batch) == 0 or (
                 len(batch) < desired_batch_size and not self._inv_item_future_queue.empty()):
             item = await self._inv_item_future_queue.get()
@@ -95,21 +94,17 @@ class InvBatcher:
         await self._peer_batch_queue.put((peer, initial_batch_size))
         await self._peer_batch_queue.put((peer, initial_batch_size))
 
+    def drop_inv_item_to_future(self, inv_item: InvItem):
+        if str(inv_item) in self._inv_item_hash_to_future:
+            del self._inv_item_hash_to_future[str(inv_item)]
+
     async def inv_item_to_future(self, inv_item: InvItem, priority=0):
         f = self._inv_item_hash_to_future.get(str(inv_item))
+        assert not f
         if not f:
             f = asyncio.Future()
             self._inv_item_hash_to_future[str(inv_item)] = f
 
-            #def remove_later(f):
-            #
-            #    def remove():
-            #        if str(inv_item) in self._inv_item_hash_to_future:
-            #            del self._inv_item_hash_to_future[str(inv_item)]
-            #
-            #    asyncio.get_event_loop().call_later(5, remove)
-            #
-            #f.add_done_callback(remove_later)
             item = (priority, inv_item, f, set())
             await self._inv_item_future_queue.put(item)
         return f
@@ -118,7 +113,7 @@ class InvBatcher:
         block_fp = data["block" if name == "block" else "header"]
         block_bytes = block_fp.read()
         block_hash = blockheader_to_blockhash(block_bytes[:80])
-
+        logger.debug('Received block with blockhash: %s', block_hash.hex())
         if name == "block":
             inv_item = InvItem(ITEM_TYPE_BLOCK, block_hash[::-1])
         elif name == "header":

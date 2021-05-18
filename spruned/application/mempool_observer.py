@@ -103,7 +103,8 @@ class MempoolObserver:
             "timestamp": int(time.time()),
             "txid": txid,
             "outpoints": ["{}:{}".format(x.previous_hash, x.previous_index) for x in transaction["tx"].txs_in],
-            "bytes": transaction['tx'].as_bin()
+            "bytes": transaction['tx'].as_bin(),
+            "tx": transaction['tx']
         }
         transaction["size"] = len(transaction["bytes"])
         self.repository.mempool.add_transaction(transaction["txid"], transaction)

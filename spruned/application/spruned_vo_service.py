@@ -46,14 +46,8 @@ class SprunedVOService(RPCAPIService):
         block_header = self.repository.headers.get_block_header(blockhash)
         if not block_header:
             return
-        try:
-            block = await self._get_block(block_header)
-        except exceptions.ServiceException:
-            if not self._fallback_non_segwit_blocks:
-                raise
-            block = await self._get_block(block_header, segwit=False)
-        block_object = await self.block_factory.get(block['block_bytes'])
-        return block_object
+        block = await self._get_block(block_header)
+        return await self.block_factory.get(block['block_bytes'])
 
     async def getblock(self, blockhash: str, mode: int = 1):
         start = time.time()
@@ -120,15 +114,13 @@ class SprunedVOService(RPCAPIService):
         serialized['size'] = len(block['block_bytes'])
         return serialized
 
-    async def _get_block(self, blockheader, retries=0, verbose=False, segwit=True):
+    async def _get_block(self, blockheader, verbose=False):
         blockhash = blockheader['block_hash']
 
-        block = await self.p2p.get_block(blockhash, privileged_peers=retries > 3, segwit=segwit)
+        block = await self.p2p.get_block(blockhash, privileged_peers=1, segwit=True)
         if not block:
-            if retries > 3:
-                raise exceptions.ServiceException
-            else:
-                block = await self._get_block(blockheader, retries + 1, segwit=segwit)
+            raise exceptions.ServiceException
+
         if verbose and not block.get('verbose'):
             block['verbose'] = await self._make_verbose_block(block, blockheader)
         self.loop.create_task(

@@ -25,7 +25,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._on_peers_callbacks = []
         self.loop = loop or asyncio.get_event_loop()
         self._start_score = start_score
-        self._score = 0
+        self._score = start_score
         self._last_header = None
         self._subscriptions = []
         self._timeout = timeout
@@ -34,6 +34,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._expire_errors_after = expire_errors_after
         self._is_online_checker = is_online_checker
         self.delayer = delayer
+        self.failed = False
 
     @property
     def proxy(self):
@@ -84,7 +85,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
     async def on_error(self, error):
         if not self.is_online:
             return
-        self.add_error(origin='on_error')
+        self.add_error(origin='on_error: %s' % error)
         for callback in self._on_errors_callbacks:
             self.loop.create_task(callback(self, error_type=error))
 

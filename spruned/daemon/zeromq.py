@@ -78,23 +78,20 @@ class ZeroMQObserver:
     async def on_transaction(self, tx: Tx):
         self.transaction_publisher and await self.transaction_publisher.on_event(tx.as_bin())
 
-    async def on_transaction_hash(self, txhash: bytes):
-        self.transaction_hash_publisher and await self.transaction_hash_publisher.on_event(txhash)
+    async def on_transaction_hash(self, tx: Tx):
+        self.transaction_hash_publisher and await self.transaction_hash_publisher.on_event(tx.hash())
 
     async def on_block_hash(self, data):
         block_hash = binascii.unhexlify(data['block_hash'].encode())
         self.blockhash_publisher and await self.blockhash_publisher.on_event(block_hash)
 
     async def on_raw_block(self, block: Block):
-        _futures = []
-        if not self.transaction_publisher and not self.transaction_hash_publisher and not self.block_publisher:
-            return
-        self.transaction_publisher and _futures.extend([self.on_transaction(tx) for tx in block.txs])
-        self.transaction_hash_publisher and _futures.extend(
-            [self.on_transaction_hash(tx.w_hash()) for tx in block.txs]
-        )
-        self.block_publisher and _futures.append(self.block_publisher.on_event(block.as_bin()))
-        _futures and await asyncio.gather(*_futures)
+        tx_pub = self.transaction_publisher and map(self.on_transaction, block.txs) or ()
+        tx_hash_pub = self.transaction_hash_publisher and \
+            map(lambda tx: self.on_transaction_hash(tx.w_hash()), block.txs) or ()
+        block_pub = self.block_publisher and (self.block_publisher.on_event(block.as_bin()), ) or ()
+        _f = (*tx_pub, *tx_hash_pub, *block_pub)
+        any(_f) and await asyncio.gather(*_f)
 
     def close_zeromq(self):
         for socket in self.sockets:

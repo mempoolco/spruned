@@ -47,15 +47,11 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     @property
     def connections(self):
-        connections = []
-        for c in self._connections:
-            if c.connected and c.score >= 0:
-                connections.append(c)
-        return connections
+        return list(filter(lambda connection: not connection.failed and connection.score > 0, self._connections))
 
     @property
     def established_connections(self):
-        return [connection for connection in self.connections if connection.connected]
+        return list(filter(lambda connection: connection.connected, self.connections))
 
     def _pick_peer(self):
         i = 0
