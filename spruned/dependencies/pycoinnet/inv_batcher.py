@@ -33,7 +33,7 @@ from spruned.dependencies.pycoinnet import logger
 
 
 class InvBatcher:
-    def __init__(self, target_batch_time=10, max_batch_size=500, inv_item_future_q_maxsize=1000):
+    def __init__(self, target_batch_time=60, max_batch_size=500, inv_item_future_q_maxsize=1000):
         self.target_batch_time = target_batch_time
         self.max_batch_size = max_batch_size
         self._is_closing = False
@@ -43,7 +43,7 @@ class InvBatcher:
             dict(callback_f=self._batch_getdata_fetches),
             dict(callback_f=self._fetch_batch, input_q_maxsize=6),
         )
-
+        self._f_lock = asyncio.Lock()
         self._inv_item_hash_to_future = dict()
 
     async def _batch_getdata_fetches(self, peer_batch_tuple, q):
@@ -94,19 +94,21 @@ class InvBatcher:
         await self._peer_batch_queue.put((peer, initial_batch_size))
         await self._peer_batch_queue.put((peer, initial_batch_size))
 
-    def drop_inv_item_to_future(self, inv_item: InvItem):
-        if str(inv_item) in self._inv_item_hash_to_future:
-            del self._inv_item_hash_to_future[str(inv_item)]
+    async def _get_f(self, inv_item):
+        try:
+            await self._f_lock.acquire()
+            f = self._inv_item_hash_to_future.get(str(inv_item))
+            if not f:
+                f = asyncio.Future()
+            return f
+        finally:
+            self._f_lock.release()
 
     async def inv_item_to_future(self, inv_item: InvItem, priority=0):
-        f = self._inv_item_hash_to_future.get(str(inv_item))
-        assert not f
-        if not f:
-            f = asyncio.Future()
-            self._inv_item_hash_to_future[str(inv_item)] = f
-
-            item = (priority, inv_item, f, set())
-            await self._inv_item_future_queue.put(item)
+        f = await self._get_f(inv_item)
+        self._inv_item_hash_to_future[str(inv_item)] = f
+        item = (priority, inv_item, f, set())
+        await self._inv_item_future_queue.put(item)
         return f
 
     def handle_block_event(self, peer, name, data):

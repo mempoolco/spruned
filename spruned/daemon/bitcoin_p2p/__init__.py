@@ -13,7 +13,7 @@ def build(ctx: Context):  # pragma: no cover
     from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
     peers = load_p2p_peers()
     pool = P2PConnectionPool(
-        connections=16,
+        connections =16,
         batcher_timeout=30,
         network=network['pycoin'],
         ipv6=False,

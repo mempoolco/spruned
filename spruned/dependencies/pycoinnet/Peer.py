@@ -53,7 +53,6 @@ class Peer:
         self._bytes_writ = 0
 
     def send_msg(self, message_name, **kwargs):
-
         message_data = self._pack_from_data(message_name, **kwargs)
         message_type = message_name.encode("utf8")
         message_type_padded = (message_type+(b'\0'*12))[:12]

@@ -10,7 +10,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
     def __init__(
             self, hostname: str, proxy=False, loop=None,
             start_score=10, timeout=10, expire_errors_after=180,
-            is_online_checker: callable=None, delayer=async_delayed_task
+            is_online_checker: callable = None, delayer=async_delayed_task
     ):
         self._is_online_checker = is_online_checker
         self._hostname = hostname
@@ -35,6 +35,26 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._is_online_checker = is_online_checker
         self.delayer = delayer
         self.failed = False
+        self._busy = False
+        self._busy_lock = asyncio.Lock()
+
+    @property
+    def busy(self):
+        return self._busy
+
+    async def mark_busy(self):
+        try:
+            await self._busy_lock.acquire()
+            self._busy = True
+        finally:
+            self._busy_lock.release()
+
+    async def mark_free(self):
+        try:
+            await self._busy_lock.acquire()
+            self._busy = False
+        finally:
+            self._busy_lock.release()
 
     @property
     def proxy(self):

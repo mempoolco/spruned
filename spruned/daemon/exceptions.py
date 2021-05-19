@@ -1,4 +1,4 @@
-from spruned.application.exceptions import SprunedException
+from spruned.application.exceptions import SprunedException, RetryException
 
 
 class ConfigurationException(SprunedException):
@@ -62,4 +62,12 @@ class BrokenDataException(SprunedException):
 
 
 class BootstrapException(SprunedException):
+    pass
+
+
+class InvalidConnectionPickedException(RetryException):
+    pass
+
+
+class MissingPeerResponseException(RetryException):
     pass

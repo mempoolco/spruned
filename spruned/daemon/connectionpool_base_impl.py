@@ -10,6 +10,7 @@ from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
 from spruned.daemon import exceptions
 from spruned.daemon.abstracts import ConnectionPoolAbstract, ConnectionAbstract
+from spruned.utils import async_retry
 
 
 class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
@@ -40,6 +41,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._keepalive = True
         self._ipv6 = ipv6
         self.starting_height = None
+        self.connectionpicker_lock = asyncio.Lock()
 
     @property
     def peers(self):
@@ -47,11 +49,15 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     @property
     def connections(self):
-        return list(filter(lambda connection: not connection.failed and connection.score > 0, self._connections))
+        return list(filter(lambda c: not c.failed and c.score > 0, self._connections))
 
     @property
     def established_connections(self):
-        return list(filter(lambda connection: connection.connected, self.connections))
+        return list(filter(lambda c: c.connected, self.connections))
+
+    @property
+    def free_connections(self):
+        return list(filter(lambda c: c.score > 0 and not c.busy and c.connected, self.connections))
 
     def _pick_peer(self):
         i = 0
@@ -86,46 +92,30 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
             else:
                 raise exceptions.NoServersException
 
-    def _pick_connection(self, fail_silent: bool = False):
-        i = 0
-        while 1:
-            if self.established_connections:
-                connection = random.choice(self.established_connections)
-                if connection.connected and connection.score > 0:
-                    return connection
-                if ':' in connection.hostname and not self._ipv6:
-                    i += 1
-                    continue
-                i += 1
-                if i < 100:
-                    continue
-            if not fail_silent:
+    @async_retry(retries=100, wait=0.01, on_exception=exceptions.InvalidConnectionPickedException)
+    async def _pick_connection(self, fail_silent: bool = False):
+        connection = random.choice(self.free_connections)
+        if ':' in connection.hostname and not self._ipv6 or connection.score < 1:
+            raise exceptions.InvalidConnectionPickedException(fail_silent=fail_silent)
+        return connection
+
+    async def _pick_multiple_connections(self, count: int, accept: int = 2) -> List:
+        assert count >= 1
+        try:
+            await self.connectionpicker_lock.acquire()
+            connections = []
+            for x in range(0, 100):
+                conn = await self._pick_connection(fail_silent=True)
+                conn and connections.append(conn)
+                if len(connections) == count:
+                    break
+            if len(connections) < accept:
                 raise exceptions.NoPeersException
-            return
+            return connections
+        finally:
+            self.connectionpicker_lock.release()
 
-    def _pick_multiple_connections(self, how_many: int, accept: int = 2) -> List[ConnectionAbstract]:
-        assert how_many >= 1
-        i = 0
-        connections = []
-        while 1:
-            if self.established_connections:
-                connection = self._pick_connection()
-                if connection in connections:
-                    i += 1
-                    if i > 100:
-                        if len(connections) >= accept:
-                            return [connection]
-                        raise exceptions.NoPeersException
-                    continue
-                connections.append(connection)
-                if len(connections) == how_many:
-                    return connections
-            i += 1
-            if i < 100:
-                continue
-            raise exceptions.NoPeersException
-
-    def _pick_privileged_connections(self, how_many: int, accept: int = 1) -> List[ConnectionAbstract]:
+    async def _pick_privileged_connections(self, how_many: int, accept: int = 1) -> List[ConnectionAbstract]:
         connection = sorted([x for x in self.established_connections], key=lambda x: getattr(x, 'score'))
         if len(connection) >= accept:
             return connection[:how_many]

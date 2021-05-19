@@ -1,11 +1,13 @@
 import asyncio
-from asyncio import IncompleteReadError
+from asyncio import IncompleteReadError, FIRST_COMPLETED
 
 import aiohttp_socks
 import async_timeout
 import time
 
 import typing
+
+from pycoin.block import Block
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
@@ -22,6 +24,7 @@ from spruned.dependencies.pycoinnet.pycoin import InvItem
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
 from spruned.dependencies.pycoinnet.pycoin.bloom import BloomFilter, filter_size_required, hash_function_count_required
 from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_NONE, NODE_WITNESS
+from spruned.utils import async_retry
 
 
 def connector_f(host: str = None, port: int = None, proxy: str = None):
@@ -31,9 +34,6 @@ def connector_f(host: str = None, port: int = None, proxy: str = None):
 
 
 class P2PConnection(BaseConnection):
-    def ping(self, timeout=None):
-        self.peer.send_msg('ping', int(time.time()))
-
     def __init__(
             self,
             hostname: str,
@@ -84,6 +84,9 @@ class P2PConnection(BaseConnection):
         self.failed = False
         self._antispam = []
         self.current_pool = None
+
+    def ping(self, timeout=None):
+        self.peer.send_msg('ping', int(time.time()))
 
     @property
     def proxy(self):
@@ -321,8 +324,8 @@ class P2PConnectionPool(BaseConnectionPool):
         self.enable_mempool = enable_mempool
 
     @property
-    def busy_peers(self):
-        return self._busy_peers
+    def busy_peers(self) -> typing.Iterable[P2PConnection]:
+        return filter(lambda c: c.busy, self.connections)
 
     @property
     def proxy(self):
@@ -366,7 +369,10 @@ class P2PConnectionPool(BaseConnectionPool):
     def connections(self):
         for connection in self._connections:
             if connection.failed:
-                del connection
+                try:
+                    self.connections.remove(connection)
+                except ValueError:
+                    pass
         return self._connections
 
     async def connect(self):
@@ -394,7 +400,7 @@ class P2PConnectionPool(BaseConnectionPool):
                     self.loop.create_task(self._connect_peer(host, port))
             elif len(self.established_connections) > self._required_connections:
                 Logger.p2p.warning('Too many connections')
-                connection = self._pick_connection()
+                connection = await self._pick_connection()
                 self.loop.create_task(connection.disconnect())
             for connection in self._connections:
                 if connection.score <= 0:
@@ -431,47 +437,38 @@ class P2PConnectionPool(BaseConnectionPool):
         for callback in self._on_block_callback:
             connection.add_on_blocks_callback(callback)
 
-    async def get(self, inv_item: InvItem, peers=None, timeout=None, privileged=False):
-        batcher = self._batcher_factory(target_batch_time=self._batcher_timeout)
+    @async_retry(retries=3, wait=0.01, on_exception=exceptions.MissingPeerResponseException)
+    async def _get(self, inv_item: InvItem):
+        s = int(time.time())
+        connection = await self._pick_connection()
+        try:
+            return await connection.peer_event_handler.getblock(inv_item)
+        except:
+            Logger.p2p.exception(
+                'Error in get InvItem %s, failed in %ss from peers %s',
+                inv_item, round(time.time() - s, 4), connection.hostname
+            )
+            connection.add_error(origin='get InvItem')
+            raise exceptions.MissingPeerResponseException(fail_silent=True)
+        finally:
+            await connection.mark_free()
+
+    async def get(self, inv_item: InvItem, timeout=None) -> bytes:
         connections = []
-        s = time.time()
         Logger.p2p.debug('Fetching InvItem %s', inv_item)
         try:
-            connections = privileged and self._pick_privileged_connections(
-                peers if peers is not None else (min(self.max_peers_per_request, len(self.established_connections)))
-            ) or []
-            connections = connections or self._pick_multiple_connections(
-                peers if peers is not None else (min(self.max_peers_per_request, len(self.established_connections)))
+            futures = list(map(lambda _: self._get(inv_item), range(0, 3)))
+            done, pending = await asyncio.wait(
+                futures, return_when=FIRST_COMPLETED, timeout=timeout
             )
-            for connection in connections:
-                await batcher.add_peer(connection.peer_event_handler)
-            future = await batcher.inv_item_to_future(inv_item)
-            while not future.done():
-                if time.time() - s > min((x for x in (timeout, self._batcher_timeout) if x)):
-                    Logger.p2p.debug(
-                        'Error in get InvItem %s, failed in %ss from peers %s',
-                        inv_item, round(time.time() - s, 4),
-                        ', '.join(['{} ({})'.format(x.hostname, len(x.errors)) for x in connections])
-                    )
-                    future.cancel()
-                    for connection in connections:
-                        connection.add_error(origin='get InvItem')
-                    return
-                await asyncio.sleep(0.01)
-            response = future.result()
-            Logger.p2p.debug('InvItem %s fetched in %ss', inv_item, round(time.time() - s, 4))
-            for connection in connections:
-                connection.add_success()
-            return response and response
+            return done and done.pop().result()
         finally:
-            self._clean_connections(connections)
+            await self._clean_connections(connections)
 
-    def _clean_connections(self, connections: typing.List[P2PConnection]):
+    @staticmethod
+    async def _clean_connections(connections: typing.List[P2PConnection]):
         for connection in connections:
-            try:
-                self._busy_peers.remove(connection.hostname)
-            except KeyError:
-                pass
+            await connection.mark_free()
 
     @staticmethod
     async def on_peer_connected(connection: P2PConnection):

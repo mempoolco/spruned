@@ -164,7 +164,6 @@ class BlocksReactor:
                 self._keep_blocks
             )
             self.repo.blockchain.save_block(block)
-
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()
@@ -178,7 +177,7 @@ class BlocksReactor:
             i, e = 0, 0
             while 1:
                 i += 1
-                if len(self.interface.pool.established_connections) - len(self.interface.pool.busy_peers) \
+                if len(self.interface.pool.established_connections) - len(list(self.interface.pool.busy_peers)) \
                         < self.interface.pool.required_connections / 2:
                     Logger.p2p.debug('Missing peers. Waiting.')
                     await asyncio.sleep(20)
@@ -187,7 +186,7 @@ class BlocksReactor:
                 if e > 100 and e > i * 0.9:  # 90% errors hit. stop.
                     Logger.p2p.error('Error on blocks bootstrap: %s/%s', e, i)
                     raise exceptions.BootstrapException
-                await asyncio.sleep(10)
+                await asyncio.sleep(1)
         finally:
             self.lock.release()
 
@@ -196,7 +195,7 @@ class BlocksReactor:
         status = status if status <= 100 else 100
         self.interface.set_bootstrap_status(status)
         missing_blocks = missing_blocks[::-1]
-        blocks_per_round = min(int(len(self.interface.pool.established_connections)*0.5), len(missing_blocks))
+        blocks_per_round = min(5, len(missing_blocks))
         _blocks = missing_blocks and [missing_blocks[i] for i in range(0, blocks_per_round)] or []
         if not _blocks:
             Logger.p2p.info('Bootstrap: No blocks to fetch.')

@@ -168,10 +168,5 @@ class InvFetcher:
                 future.set_result(item)
         if msg_name == "notfound":
             for inv_item in msg_data["items"]:
-                the_hash = inv_item.data
                 future = self._futures.get(inv_item)
-                if future is not None:
-                    # we don't need to delete the future since it should
-                    # be garbage collected, but hey, why not
-                    del self._futures[inv_item]
-                    future.set_result(None)
+                not future and future.set_result(None)

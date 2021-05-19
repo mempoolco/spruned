@@ -36,7 +36,7 @@ class P2PInterface:
         Logger.p2p.debug('Downloading block %s' % block_hash)
         block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
         inv_item = InvItem(block_type, h2b_rev(block_hash))
-        response = await self.pool.get(inv_item, peers=peers, timeout=timeout, privileged=privileged_peers)
+        response = await self.pool.get(inv_item, timeout=timeout)
         return response and {
             "block_hash": str(block_hash),
             "header_bytes": response[:80],

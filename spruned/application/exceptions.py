@@ -1,5 +1,6 @@
 class SprunedException(Exception):
-    pass
+    def __init_(self, *a, **kw):
+        super(SprunedException).__init__(*a)
 
 
 class ServiceException(SprunedException):
@@ -36,3 +37,9 @@ class StorageErrorException(SprunedException):
 
 class InvalidElectrumNodeException(SprunedException):
     pass
+
+
+class RetryException(SprunedException):
+    def __init__(self, *a, fail_silent=False, **kw):
+        super(RetryException).__init__(*a)
+        self.fail_silent = fail_silent

@@ -250,7 +250,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         if agreement > len(self.established_connections):
             raise exceptions.NoPeersException
         if agreement > 1:
-            connections = self._pick_multiple_connections(agreement)
+            connections = await self._pick_multiple_connections(agreement)
             responses = await asyncio.gather(
                 *[connection.rpc_call(method, params) for connection in connections]
             )
@@ -267,7 +267,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 if fail_silent:
                     return
                 raise
-        connection = self._pick_connection()
+        connection = await self._pick_connection()
         response = await connection.rpc_call(method, params)
         if not response and not fail_silent:
             await self.on_peer_error(connection)
