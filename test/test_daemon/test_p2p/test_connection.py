@@ -87,12 +87,12 @@ class TestP2PConnection(TestCase):
             self.sut._on_inv('inv', 'tx', {'items': [item]})
 
         item = Mock(item_type=ITEM_TYPE_TX)
-        self.sut.loop = self.loop
+        self.sut.run = self.loop
         self.sut.add_on_transaction_hash_callback(txs_callback)
         self.loop.run_until_complete(asyncio.gather(
             wait(), start()
         ))
-        self.sut.loop = self.loopmock
+        self.sut.run = self.loopmock
         self.assertTrue(called)
 
     def test_on_ping(self):

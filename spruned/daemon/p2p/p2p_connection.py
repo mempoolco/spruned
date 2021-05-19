@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 from asyncio import IncompleteReadError, FIRST_COMPLETED
 
 import aiohttp_socks
@@ -150,7 +151,7 @@ class P2PConnection(BaseConnection):
                 flags=flags
             )
 
-        self._event_handler = P2PChannel(peer)
+        self._event_handler = P2PChannel(self)
         self._version = version_data
 
         Logger.p2p.info(
@@ -209,6 +210,7 @@ class P2PConnection(BaseConnection):
             self.loop.create_task(callback(self))
 
     async def disconnect(self):
+        self.failed = True
         try:
             Logger.p2p.debug(
                 'Disconnecting peer %s (%s)' % (self.hostname, self.version and self.version.get('subversion'))
@@ -219,7 +221,6 @@ class P2PConnection(BaseConnection):
             pass
         finally:
             self.peer = None
-            self.failed = True
 
     def _setup_events_handler(self):
         self.peer_event_handler.set_event_callbacks('inv', self._on_inv)
@@ -368,7 +369,7 @@ class P2PConnectionPool(BaseConnectionPool):
         for connection in self._connections:
             if connection.failed:
                 try:
-                    self.connections.remove(connection)
+                    self._connections.remove(connection)
                 except ValueError:
                     pass
         return self._connections
@@ -435,7 +436,11 @@ class P2PConnectionPool(BaseConnectionPool):
         for callback in self._on_block_callback:
             connection.add_on_blocks_callback(callback)
 
-    @async_retry(retries=3, wait=0.01, on_exception=exceptions.MissingPeerResponseException)
+    @async_retry(
+        retries=3,
+        wait=0.01,
+        on_exception=(exceptions.MissingPeerResponseException, exceptions.InvalidConnectionPickedException)
+    )
     async def _get(self, inv_item: InvItem):
         s = int(time.time())
         connection = await self._pick_connection()
@@ -447,19 +452,25 @@ class P2PConnectionPool(BaseConnectionPool):
                 inv_item, round(time.time() - s, 4), connection.hostname
             )
             connection.add_error(origin='get InvItem')
-            raise exceptions.MissingPeerResponseException(fail_silent=True)
+            raise exceptions.MissingPeerResponseException
         finally:
             await connection.mark_free()
 
-    async def get(self, inv_item: InvItem, timeout=None) -> bytes:
+    @async_retry(retries=3, wait=0.01, on_exception=exceptions.MissingPeerResponseException)
+    async def get(self, inv_item: InvItem, timeout=None, retry=0) -> bytes:
         connections = []
         Logger.p2p.debug('Fetching InvItem %s', inv_item)
         try:
-            futures = list(map(lambda _: self._get(inv_item), range(0, 3)))
+            futures = list(map(lambda _: self._get(inv_item), range(0, 1 + retry)))
             done, pending = await asyncio.wait(
-                futures, return_when=FIRST_COMPLETED, timeout=timeout
+                futures,
+                return_when=FIRST_COMPLETED,
+                timeout=timeout
             )
-            return done and done.pop().result()
+            if not done:
+                _ = map(lambda x: x.cancel(), itertools.chain(done, pending))
+                raise exceptions.MissingPeerResponseException(fail_silent=True)
+            return done.pop().result()
         finally:
             await self._clean_connections(connections)
 

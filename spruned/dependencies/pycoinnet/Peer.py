@@ -35,7 +35,7 @@ class ProtocolError(Exception):
 
 
 class Peer:
-    DEFAULT_MAX_MSG_SIZE = 2*1024*1024
+    DEFAULT_MAX_MSG_SIZE = 4*1024*1024
 
     def __init__(self, stream_reader, stream_writer, magic_header,
                  parse_from_data_f, pack_from_data_f, max_msg_size=DEFAULT_MAX_MSG_SIZE):
@@ -64,8 +64,9 @@ class Peer:
         self._writer.write(packet)
 
     async def next_message(self, unpack_to_dict=True):
+        await self._msg_lock.acquire()
         header_size = len(self._magic_header)
-        with await self._msg_lock:
+        try:
             # read magic header
             reader = self._reader
             blob = await reader.readexactly(header_size)
@@ -99,6 +100,8 @@ class Peer:
             if unpack_to_dict:
                 message_data = self._parse_from_data(message_name, message_data)
             return message_name, message_data
+        finally:
+            self._msg_lock.locked() and self._msg_lock.release()
 
     async def perform_handshake(self, **version_msg):
         # "version"

@@ -39,7 +39,7 @@ class ElectrodInterface:
                 if collectors:
                     await asyncio.gather(*collectors)
                 await asyncio.sleep(60)
-                this.loop.create_task(bootstrap(this))
+                self.loop.create_task(bootstrap(this))
 
             self.loop.create_task(bootstrap(self))
 

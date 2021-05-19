@@ -3,20 +3,20 @@ from io import BytesIO
 
 import typing
 from spruned.application.tools import blockheader_to_blockhash
-from spruned.dependencies.pycoinnet import logger
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_SEGWIT_BLOCK, InvItem, ITEM_TYPE_BLOCK
 
 
 class P2PChannel:
-    def __init__(self, peer):
-        self._peer = peer
+    def __init__(self, connection: 'P2PConnection', loop=asyncio.get_event_loop()):
+        self.loop = loop
+        self.connection = connection
         self._events_callbacks = dict()
         self._getdata_listeners = dict()
-        self._task = asyncio.ensure_future(self.loop())
-        self.getdata_lock = asyncio.Lock()
+        self._getdata_lock = asyncio.Lock()
+        self._task = self.loop.create_task(self.run())
 
     def send_msg(self, *args, **kwargs):
-        self._peer.send_msg(*args, **kwargs)
+        self.connection.peer.send_msg(*args, **kwargs)
 
     async def getblock(self, request_message: InvItem):
         response_message = {
@@ -28,28 +28,30 @@ class P2PChannel:
         return response
 
     async def getdata(self, name: str, *request_messages: InvItem):
+        await self._getdata_lock.acquire()
         try:
-            await self.getdata_lock.acquire()
             if name not in self._getdata_listeners:
                 self._getdata_listeners[name] = asyncio.Future()
                 self.send_msg('getdata', items=request_messages)
             return await self._getdata_listeners[name]
         finally:
-            self.getdata_lock.release()
+            self._getdata_lock.locked() and self._getdata_lock.release()
 
     def set_event_callbacks(self, name, callback_f):
         self._events_callbacks[name] = callback_f
 
-    async def loop(self):
-        while True:
-            try:
-                event = await self._peer.next_message()
+    async def run(self):
+        try:
+            while True:
+                event = await self.connection.peer.next_message()
                 if event is None:
                     break
                 name, data = event
                 self._fire_callback(name, data)
-            except:
-                logger.debug('Error processing events')
+            await asyncio.sleep(0.001)
+        except:
+            self.loop.create_task(self.connection.disconnect())
+            raise
 
     def _evaluate_block_on_pending_responses(self, name, data):
         data_bytes: bytes = data[name].getvalue()
