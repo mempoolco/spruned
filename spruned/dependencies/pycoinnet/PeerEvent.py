@@ -24,9 +24,12 @@
 #
 
 import asyncio
+from io import BytesIO
 
+import typing
 from pycoin.block import Block
 
+from spruned.application.tools import blockheader_to_blockhash
 from spruned.dependencies.pycoinnet import logger
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_SEGWIT_BLOCK, InvItem, ITEM_TYPE_BLOCK
 
@@ -47,8 +50,9 @@ class PeerEvent:
             ITEM_TYPE_SEGWIT_BLOCK: 'block',
             ITEM_TYPE_BLOCK: 'block'
         }[request_message.item_type]
+        response_message = f'{response_message}|{request_message.data}'
         response = await self.getdata(response_message, request_message)
-        return response and response.get('block') and response['block'].getvalue()
+        return response
 
     async def getdata(self, response_message: str, *request_messages: InvItem):
         try:
@@ -66,17 +70,39 @@ class PeerEvent:
 
     async def process_events(self):
         while True:
-            event = await self._peer.next_message()
-            if event is None:
-                break
-            name, data = event
-            if name in self._request_callbacks:
-                self._request_callbacks[name](self, name, data)
-            elif name in self._response_futures:
-                self._response_futures[name].set_result(data)
-                self._response_futures.pop(name, None)
-            else:
-                logger.error("unhandled event %s %s", event[0], event[1])
+            try:
+                event = await self._peer.next_message()
+                if event is None:
+                    break
+                name, data = event
+                self._fire_callback(name, data)
+            except:
+                logger.exception('Error process_events')
+                raise
+
+    def _evaluate_block_on_pending_responses(self, name, data):
+        data_bytes: bytes = data[name].getvalue()
+        header = data_bytes[:80]
+        block_hash = blockheader_to_blockhash(header)
+        resp_name = f'{name}|{block_hash[::-1]}'
+        if resp_name in self._response_futures:
+            self._response_futures[resp_name].set_result(data_bytes)
+            self._response_futures.pop(resp_name, None)
+            return
+        return {'block': BytesIO(data_bytes)}
+
+    def _fire_callback(self, name: str, data: typing.Dict):
+        if name == 'block' and any(map(lambda f: f.startswith('block|'), self._response_futures)):
+            data = self._evaluate_block_on_pending_responses(name, data)
+        if not data:
+            return
+        elif name in self._response_futures:
+            self._response_futures[name].set_result(data)
+            self._response_futures.pop(name, None)
+        elif name in self._request_callbacks:
+            self._request_callbacks[name](self, name, data)
+        else:
+            logger.debug('Unhandled exception')
 
     def __repr__(self):
         return "<Peer %s>" % str(self._peer.peername())

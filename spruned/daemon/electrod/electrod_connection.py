@@ -213,7 +213,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 self.loop.create_task(self._connect_servers(missings))
             elif missings < 0:
                 Logger.electrum.warning('Too many peers.')
-                connection = self._pick_connection(fail_silent=True)
+                connection = await self._pick_connection(fail_silent=True)
                 self.loop.create_task(connection.disconnect())
             elif not self._connection_notified:
                 for observer in self._on_connect_observers:

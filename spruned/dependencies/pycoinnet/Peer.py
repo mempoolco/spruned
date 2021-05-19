@@ -52,16 +52,16 @@ class Peer:
         self._bytes_read = 0
         self._bytes_writ = 0
 
-    def send_msg(self, message_name, **kwargs):
-        message_data = self._pack_from_data(message_name, **kwargs)
-        message_type = message_name.encode("utf8")
-        message_type_padded = (message_type+(b'\0'*12))[:12]
+    def send_msg(self, message_name: str, **kwargs):
+        message_type = message_name.split('|')[0]
+        message_data = self._pack_from_data(message_type, **kwargs)
+        message_type_padded = (message_type.encode()+(b'\0'*12))[:12]
         message_size = struct.pack("<L", len(message_data))
         message_checksum = double_sha256(message_data)[:4]
         packet = b"".join([
             self._magic_header, message_type_padded, message_size, message_checksum, message_data
         ])
-        logger.debug("sending message %s [%d bytes] to %s", message_type.decode("utf8"), len(packet), self)
+        logger.debug("sending message %s [%d bytes] to %s", message_type, len(packet), self)
         self._bytes_writ += len(packet)
         self._writer.write(packet)
 
