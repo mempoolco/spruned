@@ -35,7 +35,7 @@ class StorageErrorException(SprunedException):
     pass
 
 
-class InvalidElectrumNodeException(SprunedException):
+class InvalidHeaderException(SprunedException):
     pass
 
 

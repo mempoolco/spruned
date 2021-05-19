@@ -30,7 +30,6 @@ from pycoin.serialize import b2h_rev, bitcoin_streamer
 from pycoin.message.PeerAddress import PeerAddress
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem
 from pycoin.encoding import double_sha256
-import binascii
 
 
 # definitions of message structures and types
@@ -44,7 +43,6 @@ import binascii
 # B: Block object
 # T: Tx object
 # O: optional boolean
-
 
 
 STANDARD_P2P_MESSAGES = {
@@ -66,9 +64,6 @@ STANDARD_P2P_MESSAGES = {
     'headers': "headers:[zI]",
     'getaddr': "",
     'mempool': "",
-    # 'checkorder': obsolete
-    # 'submitorder': obsolete
-    # 'reply': obsolete
     'ping': "nonce:Q",
     'pong': "nonce:Q",
     'filterload': "filter:[1] hash_function_count:L tweak:L flags:b",

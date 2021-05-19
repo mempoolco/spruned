@@ -2,7 +2,7 @@ import asyncio
 import binascii
 from typing import Dict
 from spruned.application.context import ctx
-from spruned.application.exceptions import InvalidPOWException, InvalidElectrumNodeException
+from spruned.application.exceptions import InvalidPOWException, InvalidHeaderException
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header, verify_pow
@@ -101,7 +101,7 @@ class ElectrodInterface:
         except KeyError:
             Logger.p2p.error('Error with header: %s', header, exc_info=True)
             return
-        except (exceptions.NetworkHeadersInconsistencyException, InvalidPOWException, InvalidElectrumNodeException):
+        except (exceptions.NetworkHeadersInconsistencyException, InvalidPOWException, InvalidHeaderException):
             Logger.electrum.error('Wrong POW for header %s from peer %s. Banning', header, peer)
             self.loop.create_task(peer.disconnect())
             return

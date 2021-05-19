@@ -5,7 +5,7 @@ import typing
 from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
+from spruned.daemon.p2p.p2p_interface import P2PInterface
 from spruned.repositories.repository import Repository
 
 

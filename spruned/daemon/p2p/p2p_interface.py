@@ -7,8 +7,8 @@ from spruned.application.logging_factory import Logger
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem, ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_BLOCK
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.application import exceptions
-from spruned.daemon.bitcoin_p2p import utils
-from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
+from spruned.daemon.p2p import utils
+from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
 
 
 class P2PInterface:
@@ -32,7 +32,7 @@ class P2PInterface:
         for callback in self._on_connect_callbacks:
             self.loop.create_task(callback())
 
-    async def get_block(self, block_hash: str, peers=None, timeout=None, privileged_peers=False, segwit=True) -> Dict:
+    async def get_block(self, block_hash: str, timeout=None, segwit=True) -> Dict:
         Logger.p2p.debug('Downloading block %s' % block_hash)
         block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
         inv_item = InvItem(block_type, h2b_rev(block_hash))

@@ -28,15 +28,22 @@ from pycoin.serialize import b2h_rev
 from pycoin.serialize.bitcoin_streamer import parse_struct, stream_struct
 
 
-ITEM_TYPE_TX, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_SEGWIT_TX, ITEM_TYPE_SEGWIT_BLOCK = \
-    (1, 2, 3, 1073741825, 1073741826)
+ITEM_TYPE_TX = 1
+ITEM_TYPE_BLOCK = 2
+ITEM_TYPE_MERKLEBLOCK = 3
+ITEM_TYPE_SEGWIT_TX = 1073741825
+ITEM_TYPE_SEGWIT_BLOCK = 1073741826
 
 
 @functools.total_ordering
 class InvItem(object):
     def __init__(self, item_type, data):
         assert item_type in (
-            ITEM_TYPE_TX, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_SEGWIT_TX, ITEM_TYPE_SEGWIT_BLOCK
+            ITEM_TYPE_TX,
+            ITEM_TYPE_BLOCK,
+            ITEM_TYPE_MERKLEBLOCK,
+            ITEM_TYPE_SEGWIT_TX,
+            ITEM_TYPE_SEGWIT_BLOCK
         )
         self.item_type = item_type
         assert isinstance(data, bytes)

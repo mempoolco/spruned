@@ -2,9 +2,6 @@ import asyncio
 import socket
 import time
 import re
-
-import typing
-
 from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
 from spruned.application import exceptions
 import hashlib
@@ -64,7 +61,7 @@ def serialize_header(inp):
             assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
         return binascii.hexlify(o).decode()
     except:
-        raise exceptions.InvalidElectrumNodeException
+        raise exceptions.InvalidHeaderException
 
 
 def get_nearest_parent(number: int, divisor: int):
@@ -133,8 +130,6 @@ def script_to_scripthash(script):
 
 
 class ElectrumMerkleVerify:
-    # This is a microfork of Electrum Merkle Verify modules. Come from the Electrum codebase
-    # it comes from var modules into
     # https://github.com/spesmilo/electrum/tree/81666bf9ac8b42d0ac25415ee3815d899c8adda6/lib
     # Thanks to the Electrum team.
 

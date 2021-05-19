@@ -7,23 +7,21 @@ import time
 
 import typing
 
-from pycoin.block import Block
-
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
 from spruned.daemon import exceptions
-from spruned.daemon.bitcoin_p2p import save_p2p_peers
+from spruned.daemon.p2p import save_p2p_peers
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
 from spruned.daemon.exceptions import PeerBlockchainBehindException, PeerVersionMismatchException
+from spruned.daemon.p2p.p2p_channel import P2PChannel
 from spruned.dependencies.pycoinnet.Peer import Peer
-from spruned.dependencies.pycoinnet.PeerEvent import PeerEvent
 from spruned.dependencies.pycoinnet.inv_batcher import InvBatcher
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
 from spruned.dependencies.pycoinnet.pycoin import InvItem
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
 from spruned.dependencies.pycoinnet.pycoin.bloom import BloomFilter, filter_size_required, hash_function_count_required
-from spruned.dependencies.pycoinnet.version import version_data_for_peer, NODE_NONE, NODE_WITNESS
+from spruned.dependencies.pycoinnet.version import make_local_version, NODE_NONE, NODE_WITNESS
 from spruned.utils import async_retry
 
 
@@ -114,7 +112,7 @@ class P2PConnection(BaseConnection):
         self._on_addr_callbacks.append(callback)
 
     @property
-    def peer_event_handler(self) -> PeerEvent:
+    def peer_event_handler(self) -> P2PChannel:
         return self._event_handler
 
     def add_error(self, *a, origin=None):
@@ -135,7 +133,7 @@ class P2PConnection(BaseConnection):
             self._peer_network.parse_from_data,
             self._peer_network.pack_from_data
         )
-        version_msg = version_data_for_peer(
+        version_msg = make_local_version(
             peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS,
             relay=self.current_pool.enable_mempool
         )
@@ -152,7 +150,7 @@ class P2PConnection(BaseConnection):
                 flags=flags
             )
 
-        self._event_handler = PeerEvent(peer)
+        self._event_handler = P2PChannel(peer)
         self._version = version_data
 
         Logger.p2p.info(
@@ -224,30 +222,30 @@ class P2PConnection(BaseConnection):
             self.failed = True
 
     def _setup_events_handler(self):
-        self.peer_event_handler.set_request_callback('inv', self._on_inv)
-        self.peer_event_handler.set_request_callback('addr', self._on_addr)
-        self.peer_event_handler.set_request_callback('alert', self._on_alert)
-        self.peer_event_handler.set_request_callback('ping', self._on_ping)
-        self.peer_event_handler.set_request_callback('sendheaders', self._dummy_handler)
-        self.peer_event_handler.set_request_callback('feefilter', self._dummy_handler)
-        self.peer_event_handler.set_request_callback('sendcmpct', self._dummy_handler)
-        self.peer_event_handler.set_request_callback('tx', self._on_tx_inv)
+        self.peer_event_handler.set_event_callbacks('inv', self._on_inv)
+        self.peer_event_handler.set_event_callbacks('addr', self._on_addr)
+        self.peer_event_handler.set_event_callbacks('alert', self._on_alert)
+        self.peer_event_handler.set_event_callbacks('ping', self._on_ping)
+        self.peer_event_handler.set_event_callbacks('sendheaders', self._dummy_handler)
+        self.peer_event_handler.set_event_callbacks('feefilter', self._dummy_handler)
+        self.peer_event_handler.set_event_callbacks('sendcmpct', self._dummy_handler)
+        self.peer_event_handler.set_event_callbacks('tx', self._on_tx_inv)
 
     def _dummy_handler(self, *a, **kw):
         pass
 
-    def _on_tx_inv(self, event_handler: PeerEvent, name: str, data: typing.Dict):
+    def _on_tx_inv(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         for callback in self._on_transaction_callbacks:
             self.loop.create_task(callback(self, data))
 
-    def _on_inv(self, event_handler: PeerEvent, name: str, data: typing.Dict):
+    def _on_inv(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         self.loop.create_task(self._process_inv(event_handler, name, data))
 
     @staticmethod
-    def _on_alert(event_handler: PeerEvent, name: str, data: typing.Dict):  # pragma: no cover
+    def _on_alert(event_handler: P2PChannel, name: str, data: typing.Dict):  # pragma: no cover
         Logger.p2p.debug('Handle alert: %s, %s, %s', event_handler, name, data)
 
-    def _on_addr(self, event_handler: PeerEvent, name: str, data: typing.Dict):  # pragma: no cover
+    def _on_addr(self, event_handler: P2PChannel, name: str, data: typing.Dict):  # pragma: no cover
         try:
             peers = []
             for peer in data['date_address_tuples']:
@@ -259,14 +257,14 @@ class P2PConnection(BaseConnection):
         except:
             Logger.p2p.exception('Exception on addr')
 
-    def _on_ping(self, event_handler: PeerEvent, name: str, data: typing.Dict):
+    def _on_ping(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         try:
             self.peer.send_msg("pong", nonce=data["nonce"])
             Logger.p2p.debug('Handle ping: %s, %s, %s', event_handler, name, data)
         except:
             Logger.p2p.exception('Exception on ping')
 
-    async def _process_inv(self, event_handler: PeerEvent, name: str, data: typing.Dict):
+    async def _process_inv(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         txs = 0
         for item in data.get('items'):
             if item.item_type == ITEM_TYPE_TX:

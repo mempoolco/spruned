@@ -3,14 +3,14 @@ import os
 import random
 from json import JSONDecodeError
 from spruned.application.context import Context
-from spruned.daemon.bitcoin_p2p import utils
+from spruned.daemon.p2p import utils
 
 
 def build(ctx: Context):  # pragma: no cover
     network = ctx.get_network()
     assert isinstance(network, dict), network
-    from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
-    from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
+    from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
+    from spruned.daemon.p2p.p2p_interface import P2PInterface
     peers = load_p2p_peers()
     pool = P2PConnectionPool(
         connections =16,

@@ -1,5 +1,6 @@
 import async_timeout
-import threading, queue
+import queue
+import threading
 from pycoin.block import Block
 
 from spruned.dependencies.pycoinnet.dnsbootstrap import dns_bootstrap_host_port_q

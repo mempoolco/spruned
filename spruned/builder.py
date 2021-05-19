@@ -10,7 +10,7 @@ def builder(ctx: Context):  # pragma: no cover
     from spruned.application import spruned_vo_service
     from spruned.application.jsonrpc_server import JSONRPCServer
     from spruned.daemon.electrod import build as electrod_builder
-    from spruned.daemon.bitcoin_p2p import build as p2p_builder
+    from spruned.daemon.p2p import build as p2p_builder
 
     electrod_connectionpool, electrod_interface = electrod_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
@@ -22,8 +22,7 @@ def builder(ctx: Context):  # pragma: no cover
         p2p_interface,
         repository=repository,
         cache_agent=cache,
-        context=ctx,
-        fallback_non_segwit_blocks=True
+        context=ctx
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)
@@ -54,4 +53,4 @@ def builder(ctx: Context):  # pragma: no cover
 
 
 jsonrpc_server, headers_reactor, blocks_reactor, repository, \
-cache, zmq_context, zmq_observer, p2p_interface = builder(_ctx)
+    cache, zmq_context, zmq_observer, p2p_interface = builder(_ctx)

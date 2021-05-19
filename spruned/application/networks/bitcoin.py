@@ -1,6 +1,6 @@
 import typing
 from pkg_resources import parse_version
-from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
+from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET
 
 
 def _evaluate_bitcoin_subversion(peer_version: typing.Dict) -> bool:

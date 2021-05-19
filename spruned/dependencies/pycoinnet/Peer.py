@@ -1,6 +1,4 @@
 #
-# https://github.com/richardkiss/pycoinnet/
-#
 # The MIT License (MIT)
 #
 # Copyright (c) 2014 Richard Kiss
@@ -22,13 +20,13 @@
 # IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
+# https://github.com/richardkiss/pycoinnet/
+#
 
 import asyncio
 import binascii
 import struct
-
 from pycoin.encoding import double_sha256
-
 from spruned.dependencies.pycoinnet import logger
 
 

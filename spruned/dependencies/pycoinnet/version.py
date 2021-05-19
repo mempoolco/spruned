@@ -1,6 +1,4 @@
 #
-# https://github.com/richardkiss/pycoinnet/
-#
 # The MIT License (MIT)
 #
 # Copyright (c) 2014 Richard Kiss
@@ -21,6 +19,8 @@
 # COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 # IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# https://github.com/richardkiss/pycoinnet/
 #
 
 import os
@@ -73,26 +73,34 @@ def ip_2_bin(ip):
     return bytes(int(x) for x in ip.split("."))
 
 
-def random_nonce_for_version():
-    return int.from_bytes(os.urandom(8), byteorder="big")
-
-
-def version_data_for_peer(
-        peer=None, remote_ip=None, remote_port=None, version=70015, local_ip="127.0.0.1", local_port=6111,
-        last_block_index=0, nonce=None, subversion=b"/spruned-pycoinnet/", local_services=NODE_NONE,
-        remote_services=NODE_NONE, timestamp=None, relay=False
+def make_local_version(
+        peer=None,
+        remote_ip=None,
+        remote_port=None,
+        version=70015,
+        local_ip="127.0.0.1",
+        local_port=6111,
+        last_block_index=0,
+        subversion=b"/spruned/",
+        local_services=NODE_NONE,
+        remote_services=NODE_NONE,
+        timestamp=None,
+        relay=False
 ) -> typing.Dict:
-    """This function helps to create the handshake "version" message."""
     if peer:
-        peername = peer._reader._transport.get_extra_info('peername') or ("0.0.0.0", 0)
-        remote_ip, remote_port = peername[:2]
-    remote_addr = PeerAddress(remote_services, ip_2_bin(remote_ip), remote_port)
-    local_addr = PeerAddress(local_services, ip_2_bin(local_ip), local_port)
-    nonce = nonce or random_nonce_for_version()
+        peer_name = peer._reader._transport.get_extra_info('peername') or ("0.0.0.0", 0)
+        remote_ip, remote_port = peer_name[:2]
+    remote_address = PeerAddress(remote_services, ip_2_bin(remote_ip), remote_port)
+    local_address = PeerAddress(local_services, ip_2_bin(local_ip), local_port)
     timestamp = timestamp or int(time.time())
-    d = dict(
-        version=version, subversion=subversion, services=local_services, timestamp=timestamp,
-        remote_address=remote_addr, local_address=local_addr,
-        nonce=nonce, last_block_index=last_block_index, relay=relay
-    )
-    return d
+    return {
+        "version": version,
+        "subversion": subversion,
+        "services": local_services,
+        "timestamp": timestamp,
+        "remote_address": remote_address,
+        "local_address": local_address,
+        "nonce": int.from_bytes(os.urandom(8), byteorder="big"),
+        "last_block_index": last_block_index,
+        "relay": relay
+    }

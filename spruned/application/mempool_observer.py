@@ -5,13 +5,11 @@ import typing
 from pycoin.block import Block
 
 from spruned.application.logging_factory import Logger
-
 from spruned.application.tools import async_delayed_task
-
 from spruned.daemon import exceptions
-from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnection
-from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
-from spruned.daemon.bitcoin_p2p.utils import get_block_factory
+from spruned.daemon.p2p.p2p_connection import P2PConnection
+from spruned.daemon.p2p.p2p_interface import P2PInterface
+from spruned.daemon.p2p.utils import get_block_factory
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem
 from spruned.repositories.repository import Repository
 
@@ -51,6 +49,7 @@ class MempoolObserver:
                 cached_block = block_transactions and (block_header['header_bytes'] + b''.join(block_raw_data)) or None
                 block_object = Block.from_bin(cached_block)
             except:
+                Logger.mempool.exception('Failed cache data recovery')
                 block_object = None
             if block_object:
                 Logger.mempool.debug('Block %s in cache', block_header['block_hash'])

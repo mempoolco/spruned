@@ -12,7 +12,7 @@ from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
-from spruned.daemon.bitcoin_p2p.utils import get_block_factory
+from spruned.daemon.p2p.utils import get_block_factory
 from spruned.daemon.exceptions import ElectrodMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
@@ -22,11 +22,10 @@ class SprunedVOService(RPCAPIService):
             self,
             electrod,
             p2p,
-            cache_agent: CacheAgent=None,
+            cache_agent: CacheAgent = None,
             repository=None,
             loop=asyncio.get_event_loop(),
-            context=None,
-            fallback_non_segwit_blocks=False
+            context=None
     ):
         self.cache_agent = cache_agent
         self.p2p = p2p
@@ -36,7 +35,6 @@ class SprunedVOService(RPCAPIService):
         self._last_estimatefee = None
         self.block_factory = get_block_factory()
         self.context = context
-        self._fallback_non_segwit_blocks = fallback_non_segwit_blocks
         self._expected_data = {'txids': []}
 
     def available(self):
@@ -116,8 +114,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _get_block(self, blockheader, verbose=False):
         blockhash = blockheader['block_hash']
-
-        block = await self.p2p.get_block(blockhash, privileged_peers=1, segwit=True)
+        block = await self.p2p.get_block(blockhash)
         if not block:
             raise exceptions.ServiceException
 

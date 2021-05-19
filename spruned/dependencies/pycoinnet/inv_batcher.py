@@ -89,8 +89,8 @@ class InvBatcher:
         await self._peer_batch_queue.put((peer, new_batch_size))
 
     async def add_peer(self, peer, initial_batch_size=1):
-        peer.set_request_callback("block", self.handle_block_event)
-        peer.set_request_callback("merkleblock", self.handle_block_event)
+        peer.set_event_callbacks("block", self.handle_block_event)
+        peer.set_event_callbacks("merkleblock", self.handle_block_event)
         await self._peer_batch_queue.put((peer, initial_batch_size))
         await self._peer_batch_queue.put((peer, initial_batch_size))
 

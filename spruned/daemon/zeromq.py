@@ -73,7 +73,7 @@ class ZeroMQObserver:
             self.blockhash_publisher
         ]
 
-        self.sockets = [p.socket for p in self.publishers if p]
+        self.sockets = list(map(lambda p: p.socket, filter(lambda x: x, self.publishers)))
 
     async def on_transaction(self, tx: Tx):
         self.transaction_publisher and await self.transaction_publisher.on_event(tx.as_bin())

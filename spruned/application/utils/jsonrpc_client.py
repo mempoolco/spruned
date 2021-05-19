@@ -11,7 +11,7 @@ class JSONClient:
         self.url = "http://{}:{}".format(host, port)
         self._auth = 'Basic %s' % base64.b64encode(user + b':' + password).decode()
 
-    async def call(self, method: str, params: typing.List=None, jsonRes=True):
+    async def call(self, method: str, params: typing.List = None, jsonRes = True):
         payload = {
             "method": method,
             "params": params,

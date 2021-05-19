@@ -3,7 +3,7 @@ import unittest
 
 from spruned.dependencies.pycoinnet.Peer import Peer
 from spruned.dependencies.pycoinnet.networks import MAINNET
-from spruned.dependencies.pycoinnet.version import version_data_for_peer
+from spruned.dependencies.pycoinnet.version import make_local_version
 
 from test.test_application.test_dependencies.tests_pycoinnet.pipes import create_direct_streams_pair
 from test.test_application.test_dependencies.tests_pycoinnet.timeless_eventloop import TimelessEventLoop
@@ -36,7 +36,7 @@ class PeerTest(unittest.TestCase):
 
     def test_Peer_version(self):
         p1, p2 = self.create_peer_pair()
-        version_msg = version_data_for_peer(p1)
+        version_msg = make_local_version(p1)
         version_msg["relay"] = True
         t1 = p1.send_msg("version", **version_msg)
         assert t1 is None
