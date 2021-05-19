@@ -466,7 +466,8 @@ class TestVOService(unittest.TestCase):
                 'chainwork': '00' * 32,
                 'mediantime': 1521312803,
                 'verificationprogress': 0,
-                'pruned': False
+                'pruned': False,
+                'initialblockdownload': False
             }
         )
 

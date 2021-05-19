@@ -351,13 +351,12 @@ _* bitcoin-cli is not included_
 #### Support sPRUNED!
 
 - **Donate BTC to 3FVGopUDc6tyAP6t4P8f3GkYTJ5JD5tPwV** 
-- How much you care? With 10 BTC I'll guarantee >15hrs\week on the product for a year!
+- Show your love. FOSS development is free, but time is scarce.
 
 #### Partecipate
 
-- sPRUNED is everyday more stable, talk about it at the next meetup!
-- Run Electrum servers and Bitcoin full nodes.
-- Take the chance to contribute to a FOSS Bitcoin project: propose yourself. We all have ideas, don't be shy :-)
-- Write extensive sPRUNED documentation and guides.
-- Help improving sPRUNED support to third-party applications. (ask missing APIs).
+- spruned is a unique client, and could be adapted to any cryptocurrency. Contact me on Twitter for requests.
+- Run Electrum servers and full nodes.
+- Write extensive spruned documentation and guides.
+- Help improving spruned support to third-party applications. (ask missing APIs).
 - Report about your usage!
