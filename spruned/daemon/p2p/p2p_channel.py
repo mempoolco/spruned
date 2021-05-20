@@ -3,6 +3,7 @@ from io import BytesIO
 
 import typing
 from spruned.application.tools import blockheader_to_blockhash
+from spruned.dependencies.pycoinnet.Peer import ProtocolError
 from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_SEGWIT_BLOCK, InvItem, ITEM_TYPE_BLOCK
 
 
@@ -49,9 +50,9 @@ class P2PChannel:
                 name, data = event
                 self._fire_callback(name, data)
             await asyncio.sleep(0.001)
-        except:
+        except ProtocolError:
             self.loop.create_task(self.connection.disconnect())
-            raise
+            return
 
     def _evaluate_block_on_pending_responses(self, name, data):
         data_bytes: bytes = data[name].getvalue()

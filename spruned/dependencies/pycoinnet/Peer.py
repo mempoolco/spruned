@@ -26,6 +26,8 @@
 import asyncio
 import binascii
 import struct
+from asyncio import IncompleteReadError
+
 from pycoin.encoding import double_sha256
 from spruned.dependencies.pycoinnet import logger
 
@@ -63,57 +65,70 @@ class Peer:
         self._bytes_writ += len(packet)
         self._writer.write(packet)
 
+    async def _handle_next_message(self, unpack_to_dict: bool):
+        header_size = len(self._magic_header)
+        # read magic header
+        reader = self._reader
+        try:
+            blob = await reader.readexactly(header_size)
+        except IncompleteReadError as e:
+            raise ProtocolError from e
+        self._bytes_read += header_size
+        if blob != self._magic_header:
+            raise ProtocolError("bad magic: got %s" % binascii.hexlify(blob))
+
+        # read message name
+        message_size_hash_bytes = await reader.readexactly(20)
+        self._bytes_read += 20
+        message_name_bytes = message_size_hash_bytes[:12]
+        message_name = message_name_bytes.replace(b"\0", b"").decode("utf8")
+
+        # get size of message
+        size_bytes = message_size_hash_bytes[12:16]
+        size = int.from_bytes(size_bytes, byteorder="little")
+        if size > self._max_msg_size:
+            raise ProtocolError("absurdly large message size %d" % size)
+
+        # read the hash, then the message
+        transmitted_hash = message_size_hash_bytes[16:20]
+        message_data = await reader.readexactly(size)
+        self._bytes_read += size
+
+        # check the hash
+        actual_hash = double_sha256(message_data)[:4]
+        if actual_hash != transmitted_hash:
+            raise ProtocolError("checksum is WRONG: %s instead of %s" % (
+                binascii.hexlify(actual_hash), binascii.hexlify(transmitted_hash)))
+        logger.debug("message %s: %s (%d byte payload)", self, message_name, len(message_data))
+        if unpack_to_dict:
+            message_data = self._parse_from_data(message_name, message_data)
+        return message_name, message_data
+
     async def next_message(self, unpack_to_dict=True):
         await self._msg_lock.acquire()
-        header_size = len(self._magic_header)
         try:
-            # read magic header
-            reader = self._reader
-            blob = await reader.readexactly(header_size)
-            self._bytes_read += header_size
-            if blob != self._magic_header:
-                raise ProtocolError("bad magic: got %s" % binascii.hexlify(blob))
-
-            # read message name
-            message_size_hash_bytes = await reader.readexactly(20)
-            self._bytes_read += 20
-            message_name_bytes = message_size_hash_bytes[:12]
-            message_name = message_name_bytes.replace(b"\0", b"").decode("utf8")
-
-            # get size of message
-            size_bytes = message_size_hash_bytes[12:16]
-            size = int.from_bytes(size_bytes, byteorder="little")
-            if size > self._max_msg_size:
-                raise ProtocolError("absurdly large message size %d" % size)
-
-            # read the hash, then the message
-            transmitted_hash = message_size_hash_bytes[16:20]
-            message_data = await reader.readexactly(size)
-            self._bytes_read += size
-
-            # check the hash
-            actual_hash = double_sha256(message_data)[:4]
-            if actual_hash != transmitted_hash:
-                raise ProtocolError("checksum is WRONG: %s instead of %s" % (
-                    binascii.hexlify(actual_hash), binascii.hexlify(transmitted_hash)))
-            logger.debug("message %s: %s (%d byte payload)", self, message_name, len(message_data))
-            if unpack_to_dict:
-                message_data = self._parse_from_data(message_name, message_data)
-            return message_name, message_data
+            return await self._handle_next_message(unpack_to_dict)
         finally:
             self._msg_lock.locked() and self._msg_lock.release()
 
     async def perform_handshake(self, **version_msg):
-        # "version"
-        self.send_msg("version", **version_msg)
-        msg, version_data = await self.next_message()
-        assert msg == 'version'
+        try:
+            # "version"
+            self.send_msg("version", **version_msg)
+            msg, version_data = await self.next_message()
+            assert msg == 'version'
 
-        # "verack"
-        self.send_msg("verack")
-        msg, verack_data = await self.next_message()
-        assert msg == 'verack'
-        return version_data
+            # "verack"
+            self.send_msg("verack")
+            msg, verack_data = await self.next_message()
+            assert msg == 'verack'
+            return version_data
+        except (
+                ConnectionResetError,
+                ConnectionRefusedError,
+                OSError
+        ) as e:
+            raise ProtocolError from e
 
     def write_eof(self):
         self._writer.write_eof()

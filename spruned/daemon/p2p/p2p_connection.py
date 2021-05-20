@@ -16,7 +16,7 @@ from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
 from spruned.daemon.exceptions import PeerBlockchainBehindException, PeerVersionMismatchException
 from spruned.daemon.p2p.p2p_channel import P2PChannel
-from spruned.dependencies.pycoinnet.Peer import Peer
+from spruned.dependencies.pycoinnet.Peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.inv_batcher import InvBatcher
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
 from spruned.dependencies.pycoinnet.pycoin import InvItem
@@ -126,7 +126,15 @@ class P2PConnection(BaseConnection):
         self._score += 1
 
     async def _handle_connect(self):
-        reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
+        try:
+            reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
+        except (
+                ConnectionError,
+                OSError,
+                asyncio.exceptions.TimeoutError,
+                asyncio.exceptions.CancelledError
+        ) as e:
+            raise exceptions.PeerHandshakeException from e
         peer = self._peer_factory(
             reader,
             writer,
@@ -141,7 +149,17 @@ class P2PConnection(BaseConnection):
             remote_services=NODE_WITNESS,
             relay=self.current_pool.enable_mempool
         )
-        version_data = await self._verify_peer(await peer.perform_handshake(**version_msg))
+        try:
+            version_data = await self._verify_peer(await peer.perform_handshake(**version_msg))
+        except (
+                PeerBlockchainBehindException,
+                PeerVersionMismatchException,
+                ProtocolError,
+                asyncio.exceptions.TimeoutError,
+                asyncio.exceptions.CancelledError
+        ) as e:
+            raise exceptions.PeerHandshakeException from e
+
         self.starting_height = version_data['last_block_index']
         if self._bloom_filter:
             filter_bytes, hash_function_count, tweak = self._bloom_filter.filter_load_params()
@@ -170,17 +188,7 @@ class P2PConnection(BaseConnection):
         try:
             async with async_timeout.timeout(5):
                 await self._handle_connect()
-        except (
-                ConnectionResetError,
-                ConnectionRefusedError,
-                OSError,
-                PeerBlockchainBehindException,
-                asyncio.TimeoutError,
-                PeerVersionMismatchException,
-                IncompleteReadError
-        ) as e:
-            if isinstance(e, OSError) and 'Connect call failed' not in str(e):
-                raise e
+        except exceptions.PeerHandshakeException as e:
             Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
             self._on_connection_failed()
             return

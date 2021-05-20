@@ -71,3 +71,7 @@ class InvalidConnectionPickedException(RetryException):
 
 class MissingPeerResponseException(RetryException):
     pass
+
+
+class PeerHandshakeException(SprunedException):
+    pass

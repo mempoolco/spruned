@@ -115,7 +115,7 @@ class CacheAgent:
     async def delete(self, item):
         if item['key'][0] == int.from_bytes(DBPrefix.BLOCK_INDEX_PREFIX, 'little'):
             Logger.leveldb.debug('Deleting block %s', item)
-            await await self.repository.blockchain.remove_block(item['key'][2:])
+            await self.repository.blockchain.remove_block(item['key'][2:])
         else:
             raise ValueError('Problem: %s' % item)
         self.index['total'] -= self.index['keys'].pop(item['key'])['size']
