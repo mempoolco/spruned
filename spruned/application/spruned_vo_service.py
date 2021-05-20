@@ -55,7 +55,7 @@ class SprunedVOService(RPCAPIService):
         if not block_header:
             return
         if mode == 1:
-            txids, size = self.repository.blockchain.get_txids_by_block_hash(block_header['block_hash'])
+            txids, size = await self.repository.blockchain.get_txids_by_block_hash(block_header['block_hash'])
             if txids:
                 block = self._serialize_header(block_header)
                 block.update({
@@ -80,7 +80,7 @@ class SprunedVOService(RPCAPIService):
             )
             return p2p_block['verbose']
         else:
-            transactions, size = self.repository.blockchain.get_transactions_by_block_hash(blockhash)
+            transactions, size = await self.repository.blockchain.get_transactions_by_block_hash(blockhash)
             if transactions:
                 Logger.p2p.info(
                     'Raw block %s (%s) provided from local storage in %ss)',
@@ -143,7 +143,7 @@ class SprunedVOService(RPCAPIService):
 
     async def getrawtransaction(self, txid: str, verbose=False):
         if not verbose:
-            tx = self.repository.blockchain.get_transaction(txid)
+            tx = await self.repository.blockchain.get_transaction(txid)
             if tx:
                 return binascii.hexlify(tx['transaction_bytes']).decode()
 
@@ -256,7 +256,7 @@ class SprunedVOService(RPCAPIService):
         }
 
     async def gettxout(self, txid: str, index: int):
-        repo_tx = self.repository.blockchain.get_transaction(txid)
+        repo_tx = await self.repository.blockchain.get_transaction(txid)
         transaction = repo_tx and binascii.hexlify(repo_tx['transaction_bytes']).decode() \
                         or await self._get_electrum_transaction(txid)
         if not transaction:

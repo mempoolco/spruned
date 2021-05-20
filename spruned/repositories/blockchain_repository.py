@@ -171,7 +171,7 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
             data
         )
 
-    async def _get_txids_by_block_hash(self, blockhash: str) -> (List[str], int):
+    async def get_txids_by_block_hash(self, blockhash: str) -> (List[str], int):
         block_index = await self.get_block_index(blockhash)
         if not block_index:
             return [], None
