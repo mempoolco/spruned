@@ -43,3 +43,11 @@ class RetryException(SprunedException):
     def __init__(self, *a, fail_silent=False, **kw):
         super(RetryException).__init__(*a)
         self.fail_silent = fail_silent
+
+
+class ConsensusNotReachedException(SprunedException):
+    pass
+
+
+class DatabaseInconsistencyException(SprunedException):
+    pass

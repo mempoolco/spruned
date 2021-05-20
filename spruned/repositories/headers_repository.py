@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from spruned.application.abstracts import HeadersRepository
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import verify_pow
+from spruned.consensus import verify_pow
 from spruned.daemon import exceptions
 from spruned.application import database
 

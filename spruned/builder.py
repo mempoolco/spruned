@@ -9,16 +9,16 @@ def builder(ctx: Context):  # pragma: no cover
     from spruned.daemon.tasks.headers_reactor import HeadersReactor
     from spruned.application import spruned_vo_service
     from spruned.application.jsonrpc_server import JSONRPCServer
-    from spruned.daemon.electrod import build as electrod_builder
+    from spruned.daemon.electrum import build as electrum_builder
     from spruned.daemon.p2p import build as p2p_builder
 
-    electrod_connectionpool, electrod_interface = electrod_builder(ctx)
+    electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
     repository = Repository.instance()
     cache = CacheAgent(repository, int(ctx.cache_size))
     repository.set_cache(cache)
     service = spruned_vo_service.SprunedVOService(
-        electrod_interface,
+        electrum_interface,
         p2p_interface,
         repository=repository,
         cache_agent=cache,
@@ -26,7 +26,7 @@ def builder(ctx: Context):  # pragma: no cover
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)
-    headers_reactor = HeadersReactor(repository.headers, electrod_interface)
+    headers_reactor = HeadersReactor(repository.headers, electrum_interface)
 
     if ctx.mempool_size:
         from spruned.application.mempool_observer import MempoolObserver

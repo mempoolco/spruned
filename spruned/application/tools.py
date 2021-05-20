@@ -40,14 +40,6 @@ def deserialize_header(header: (str, bytes), fmt=None):
     return data
 
 
-def verify_pow(header, blockhash):
-    bits = header[72:76][::-1]
-    target = int.from_bytes(bits[1:], 'big') * 2 ** (8 * (bits[0] - 3))
-    if target < int.from_bytes(blockhash, 'little'):
-        return True
-    raise exceptions.InvalidPOWException
-
-
 def serialize_header(inp):
     try:
         o = encode(inp['version'], 256, 4)[::-1] + \

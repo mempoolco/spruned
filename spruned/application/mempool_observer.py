@@ -41,7 +41,7 @@ class MempoolObserver:
     async def on_block_header(self, block_header: dict, i=0):
         try:
             Logger.mempool.debug('New block request: %s', block_header['block_hash'])
-            block_transactions, size = self.repository.blockchain.get_transactions_by_block_hash(
+            block_transactions, size = await self.repository.blockchain.get_transactions_by_block_hash(
                 block_header['block_hash']
             )
             block_raw_data = (tx['transaction_bytes'] for tx in block_transactions)
@@ -64,7 +64,7 @@ class MempoolObserver:
                 Logger.mempool.debug(
                     'Block %s not cached, saving', block_header['block_hash']
                 )
-                block = self.repository.blockchain.save_block(block)
+                block = await self.repository.blockchain.save_block(block)
 
             Logger.mempool.debug('Block %s, fetch done', block_header['block_hash'])
             block_txids, removed_txids = self.repository.mempool.on_new_block(block['block_object'])

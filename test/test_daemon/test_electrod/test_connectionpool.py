@@ -177,7 +177,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
         conn2 = Mock(connected=True, protocol=True, score=10)
         conn2.rpc_call.return_value = async_coro(None)
         self.sut._connections = [conn, conn2]
-        with self.assertRaises(exceptions.ElectrodMissingResponseException):
+        with self.assertRaises(exceptions.ElectrumMissingResponseException):
             self.loop.run_until_complete(self.sut.call('cafe', 'babe', agreement=2))
 
         conn.rpc_call.return_value = async_coro(response)
@@ -213,7 +213,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
         conn.rpc_call.return_value = async_coro(None)
         conn2.rpc_call.return_value = async_coro(None)
         self.sut._connections = [conn, conn2]
-        with self.assertRaises(exceptions.ElectrodMissingResponseException):
+        with self.assertRaises(exceptions.ElectrumMissingResponseException):
             self.loop.run_until_complete(
                 self.sut.call('cafe', 'babe', agreement=2)
             )

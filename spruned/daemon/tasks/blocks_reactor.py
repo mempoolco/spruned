@@ -100,7 +100,7 @@ class BlocksReactor:
 
         _local_blocks_indexes = {
             k: v for k, v in {
-                h['block_hash']: self.repo.blockchain.get_block_index(h['block_hash'])
+                h['block_hash']: await self.repo.blockchain.get_block_index(h['block_hash'])
                 for h in headers
             }.items() if v is not None
         }
@@ -113,7 +113,7 @@ class BlocksReactor:
             urgent = urgent or False
             try:
                 sorted_values = sorted(blocks.values(), key=lambda x: x['block_hash'])
-                saved_blocks = self.repo.blockchain.save_blocks(*sorted_values)
+                saved_blocks = await self.repo.blockchain.save_blocks(*sorted_values)
                 last_hash = saved_blocks and saved_blocks[-1]['block_hash']
                 Logger.p2p.debug('Saved block %s', saved_blocks)
             except:
@@ -152,9 +152,9 @@ class BlocksReactor:
 
         async def save_block(blockhash):
             try:
-                block = await self.interface.get_block(blockhash, timeout=10)
+                block = await self.interface.get_block(blockhash, timeout=30)
             except Exception:
-                Logger.p2p.exception('Failed downloading block %s, retrying', blockhash)
+                Logger.p2p.exception('Failed downloading block %s', blockhash)
                 raise
             missing_blocks.remove(block['block_hash'])
             Logger.p2p.info(
@@ -163,43 +163,39 @@ class BlocksReactor:
                 self._keep_blocks - len(missing_blocks),
                 self._keep_blocks
             )
-            self.repo.blockchain.save_block(block)
+            await self.repo.blockchain.save_block(block)
+
         try:
             await self.lock.acquire()
             best_header = self.repo.headers.get_best_header()
             headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._keep_blocks)
-            missing_blocks = list(
-                map(
-                    lambda x: x['block_hash'],
-                    filter(lambda x: not self.repo.blockchain.get_block_index(x['block_hash']), headers)
-                )
-            )
-            i, e = 0, 0
-            while 1:
+            missing_blocks = []
+            for blockheader in headers:
+                if not await self.repo.blockchain.get_block_index(blockheader['block_hash']):
+                    missing_blocks.append(blockheader['block_hash'])
+            i = 0
+            while missing_blocks:
                 i += 1
                 if len(self.interface.pool.established_connections) - len(list(self.interface.pool.busy_peers)) \
                         < self.interface.pool.required_connections / 2:
                     Logger.p2p.debug('Missing peers. Waiting.')
                     await asyncio.sleep(20)
                     continue
-                e += await self._bootstrap(missing_blocks, headers, save_block)
-                if e > 100 and e > i * 0.9:  # 90% errors hit. stop.
-                    Logger.p2p.error('Error on blocks bootstrap: %s/%s', e, i)
-                    raise exceptions.BootstrapException
-                await asyncio.sleep(1)
+                saved_blocks = await self._bootstrap(missing_blocks, headers, save_block)
+                missing_blocks = list(set(missing_blocks) - set(map(lambda b: b['block_hash'], saved_blocks)))
+                if not missing_blocks:
+                    Logger.p2p.info('Bootstrap: No blocks to fetch.')
+                    return
+                await asyncio.sleep(0.01)
         finally:
             self.lock.release()
 
-    async def _bootstrap(self, missing_blocks: typing.List, headers: typing.List, save_fn: callable) -> int:
+    async def _bootstrap(self, missing_blocks: typing.List, headers: typing.List, save_fn: callable) -> typing.Iterable:
         status = float(100) / self._keep_blocks * (len(headers) - len(missing_blocks))
         status = status if status <= 100 else 100
         self.interface.set_bootstrap_status(status)
-        missing_blocks = missing_blocks[::-1]
-        blocks_per_round = min(5, len(missing_blocks))
+        blocks_per_round = min(3, len(missing_blocks))
         _blocks = missing_blocks and [missing_blocks[i] for i in range(0, blocks_per_round)] or []
-        if not _blocks:
-            Logger.p2p.info('Bootstrap: No blocks to fetch.')
-            return 0
         Logger.p2p.info('Bootstrap: Fetching %s blocks', len(_blocks))
         resp = await asyncio.gather(*map(save_fn, _blocks), return_exceptions=True)
-        return len(list(filter(lambda r: isinstance(r, Exception), resp)))
+        return list(filter(lambda r: not isinstance(r, Exception), resp))

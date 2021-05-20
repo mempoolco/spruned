@@ -4,7 +4,7 @@ from unittest.mock import Mock, create_autospec, call
 import binascii
 from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
 from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-from spruned.daemon.exceptions import ElectrodMissingResponseException
+from spruned.daemon.exceptions import ElectrumMissingResponseException
 from test.utils import async_coro
 
 
@@ -97,9 +97,9 @@ class TestElectrodInterface(unittest.TestCase):
 
     def test_get_headers_no_response(self):
         self.connectionpool.call.side_effect = [
-            ElectrodMissingResponseException, ElectrodMissingResponseException, async_coro(('a', self.electrum_header))
+            ElectrumMissingResponseException, ElectrumMissingResponseException, async_coro(('a', self.electrum_header))
         ]
-        with self.assertRaises(ElectrodMissingResponseException):
+        with self.assertRaises(ElectrumMissingResponseException):
             self.loop.run_until_complete(self.sut.get_header(10))
         self.assertIsNone(self.loop.run_until_complete(self.sut.get_header(10, fail_silent_out_of_range=True)))
         peer, res = self.loop.run_until_complete(self.sut.get_header(10, get_peer=1))

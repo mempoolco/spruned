@@ -44,26 +44,26 @@ def save_electrum_servers(peers: set):  # pragma: no cover
 
 
 def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
-    from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool
-    from spruned.daemon.electrod.electrod_interface import ElectrodInterface
-    from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
+    from spruned.daemon.electrum.electrum_connection import ElectrumConnectionPool
+    from spruned.daemon.electrum.electrum_interface import ElectrumInterface
+    from spruned.daemon.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
         EstimateFeeConsensusCollector
     network = ctx.get_network()
     peers = load_electrum_servers(ctx)
     fees_collector = EstimateFeeConsensusCollector(consensus=ctx.get_network()['fees_consensus'])
-    electrod_pool = ElectrodConnectionPool(
+    electrum_pool = ElectrumConnectionPool(
         connections=min(network['electrum_concurrency'], ctx.max_electrum_connections),
         peers=peers,
         ipv6=False,
         proxy=ctx.proxy,
         tor=ctx.tor
     )
-    fees_collector.add_permanent_connections_pool(electrod_pool)
-    electrod_interface = ElectrodInterface(
-        electrod_pool,
+    fees_collector.add_permanent_connections_pool(electrum_pool)
+    electrum_interface = ElectrumInterface(
+        electrum_pool,
         loop,
         fees_projector=EstimateFeeConsensusProjector(),
         fees_collector=fees_collector
     )
-    electrod_interface.add_on_connected_callback(electrod_interface.bootstrap_collector)
-    return electrod_pool, electrod_interface
+    electrum_interface.add_on_connected_callback(electrum_interface.bootstrap_collector)
+    return electrum_pool, electrum_interface

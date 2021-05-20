@@ -13,14 +13,14 @@ from spruned.application.tools import deserialize_header, script_to_scripthash, 
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.daemon.p2p.utils import get_block_factory
-from spruned.daemon.exceptions import ElectrodMissingResponseException
+from spruned.daemon.exceptions import ElectrumMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
 
 class SprunedVOService(RPCAPIService):
     def __init__(
             self,
-            electrod,
+            electrum,
             p2p,
             cache_agent: CacheAgent = None,
             repository=None,
@@ -29,7 +29,7 @@ class SprunedVOService(RPCAPIService):
     ):
         self.cache_agent = cache_agent
         self.p2p = p2p
-        self.electrod = electrod
+        self.electrum = electrum
         self.repository = repository
         self.loop = loop
         self._last_estimatefee = None
@@ -121,13 +121,13 @@ class SprunedVOService(RPCAPIService):
         if verbose and not block.get('verbose'):
             block['verbose'] = await self._make_verbose_block(block, blockheader)
         self.loop.create_task(
-            self.repository.blockchain.async_save_block(block, tracker=self.cache_agent)
+            self.repository.blockchain.save_block(block, tracker=self.cache_agent)
         )
         return block
 
     async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):
         try:
-            response = await self.electrod.getrawtransaction(txid, verbose=verbose)
+            response = await self.electrum.getrawtransaction(txid, verbose=verbose)
             if not response:
                 raise exceptions.ItemNotFoundException
             if verbose:
@@ -151,7 +151,7 @@ class SprunedVOService(RPCAPIService):
         block_header = None
         if transaction.get('blockhash'):
             block_header = self.repository.headers.get_block_header(transaction['blockhash'])
-            merkle_proof = await self.electrod.get_merkleproof(txid, block_header['block_height'])
+            merkle_proof = await self.electrum.get_merkleproof(txid, block_header['block_height'])
             dh = deserialize_header(block_header['header_bytes'])
             if not ElectrumMerkleVerify.verify_merkle(txid, merkle_proof, dh):
                 raise exceptions.InvalidPOWException
@@ -167,7 +167,7 @@ class SprunedVOService(RPCAPIService):
         return self.repository.headers.get_best_blockhash()
 
     async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
-        res = await self.electrod.sendrawtransaction(rawtx, allowhighfees=allowhighfees)
+        res = await self.electrum.sendrawtransaction(rawtx, allowhighfees=allowhighfees)
         try:
             binascii.unhexlify(res)
             self._expected_data['txids'].append(res)
@@ -223,8 +223,8 @@ class SprunedVOService(RPCAPIService):
 
     async def _estimatefee(self, blocks, retries=1):
         try:
-            res = await self.electrod.estimatefee(blocks)
-        except ElectrodMissingResponseException as e:
+            res = await self.electrum.estimatefee(blocks)
+        except ElectrumMissingResponseException as e:
             Logger.electrum.error('Error with peer', exc_info=True)
             retries += 1
             if retries > 10:
@@ -290,7 +290,7 @@ class SprunedVOService(RPCAPIService):
 
     async def _listunspent_by_scripthash(self, scripthash, retries=0):
         try:
-            unspents = await self.electrod.listunspents_by_scripthash(scripthash)
+            unspents = await self.electrum.listunspents_by_scripthash(scripthash)
         except:
             if retries > 15:
                 return
@@ -298,7 +298,7 @@ class SprunedVOService(RPCAPIService):
         return unspents
 
     async def getpeerinfo(self):
-        electrum_peers = self.electrod.get_peers()
+        electrum_peers = self.electrum.get_peers()
         p2p_peers = self.p2p.get_peers()
         response = []
         for peer in itertools.chain(electrum_peers, p2p_peers):

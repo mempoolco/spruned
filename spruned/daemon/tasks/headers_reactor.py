@@ -5,8 +5,8 @@ import time
 import typing
 
 from spruned.application.abstracts import HeadersRepository
-from spruned.daemon.electrod.electrod_connection import ElectrodConnection
-from spruned.daemon.electrod.electrod_interface import ElectrodInterface
+from spruned.daemon.electrum.electrum_connection import ElectrumConnection
+from spruned.daemon.electrum.electrum_interface import ElectrumInterface
 from spruned.daemon import exceptions
 from spruned.application import database
 from spruned.application.logging_factory import Logger
@@ -21,7 +21,7 @@ class HeadersReactor:
     def __init__(
             self,
             repo: HeadersRepository,
-            interface: ElectrodInterface,
+            interface: ElectrumInterface,
             loop=asyncio.get_event_loop(),
             store_headers=True,
             delayed_task=async_delayed_task,  # asyncio testing...  :/
@@ -132,7 +132,7 @@ class HeadersReactor:
                 exceptions.NoHeadersException
         ):
             Logger.electrum.warning(
-                'Fallback headers check: Electrod is not able to find peers to sync headers. Sleeping 30 secs'
+                'Fallback headers check: Electrum Service is not able to find peers to sync headers. Sleeping 30 secs'
             )
             self.loop.create_task(self.delayed_task(self.check_headers(), 30))
             return
@@ -148,7 +148,7 @@ class HeadersReactor:
                 self.new_headers_fallback_poll_interval
             )
 
-    async def on_new_header(self, peer: ElectrodConnection, network_best_header: Dict, retries: int = 0):
+    async def on_new_header(self, peer: ElectrumConnection, network_best_header: Dict, retries: int = 0):
         if not network_best_header:
             Logger.electrum.warning('Weird. No best header received on call')
             return
@@ -202,7 +202,7 @@ class HeadersReactor:
             not retries and self.lock.release()
 
     @database.atomic
-    async def on_inconsistent_header_received(self, peer: ElectrodConnection, received_header: Dict, local_hash: str):
+    async def on_inconsistent_header_received(self, peer: ElectrumConnection, received_header: Dict, local_hash: str):
         """
         received an inconsistent header, this network header differs for hash from
         one at the same height saved in the db.
@@ -309,7 +309,7 @@ class HeadersReactor:
         current_height = local_best_header and local_best_header['block_height'] or 0
         saving_headers = []
         while 1:
-            peer: typing.Optional[ElectrodConnection] = None
+            peer: typing.Optional[ElectrumConnection] = None
             headers: typing.List[typing.Dict] = []
             Logger.electrum.debug(
                 '%s headers behind, downloading',
@@ -328,7 +328,7 @@ class HeadersReactor:
                 return
             res = await self.interface.get_headers_in_range_from_chunks(_from, _to, get_peer=True)
             if res:
-                peer: ElectrodConnection = res[0]
+                peer: ElectrumConnection = res[0]
                 headers = res[1]
             if not headers:
                 raise exceptions.NoHeadersException
@@ -358,12 +358,12 @@ class HeadersReactor:
             i += 1
 
     @database.atomic
-    async def on_network_headers_behind(self, network_best_header: Dict, peer: ElectrodConnection = None):
+    async def on_network_headers_behind(self, network_best_header: Dict, peer: ElectrumConnection = None):
         Logger.electrum.warning('Network headers behind current, closing with peer in 3s')
         await asyncio.sleep(3)
         await self.ensure_consistency(network_best_header, peer)
 
-    async def ensure_consistency(self, network_best_header: Dict, peer: ElectrodConnection):
+    async def ensure_consistency(self, network_best_header: Dict, peer: ElectrumConnection):
         repo_header = self.repo.get_header_at_height(network_best_header['block_height'])
         if repo_header['block_hash'] != network_best_header['block_hash']:
             Logger.electrum.error(

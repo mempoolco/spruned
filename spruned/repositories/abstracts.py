@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Dict, List
 import abc
 
@@ -8,30 +9,27 @@ class BlockchainRepositoryAbstract(metaclass=abc.ABCMeta):
     def set_cache(self, cache):
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def get_key(self, name: str, prefix=b''):
+    def _get_key(name: (bytes, str), prefix: Enum):
         pass
 
     @abc.abstractmethod
-    async def async_save_block(self, block: Dict, tracker=None, callback=None):
+    async def save_block(self, block: Dict, tracker=None) -> Dict:
         pass
 
     @abc.abstractmethod
-    def save_block(self, block: Dict, tracker=None) -> Dict:
+    async def save_blocks(self, *blocks: Dict) -> List[Dict]:
         pass
 
     @abc.abstractmethod
-    def save_blocks(self, *blocks: Dict) -> List[Dict]:
+    async def _save_transaction(self, transaction: Dict) -> Dict:
         pass
 
     @abc.abstractmethod
-    def save_transaction(self, transaction: Dict) -> Dict:
+    async def get_transaction(self, txid) -> (None, Dict):
         pass
 
     @abc.abstractmethod
-    def get_transaction(self, txid) -> (None, Dict):
-        pass
-
-    @abc.abstractmethod
-    def remove_block(self, blockhash: str):
+    async def remove_block(self, blockhash: str):
         pass

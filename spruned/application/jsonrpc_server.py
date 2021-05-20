@@ -427,7 +427,7 @@ class JSONRPCServer:
             "networkactive": False,
             "connections": sum(map(len, itertools.chain(
                 self.vo_service.p2p.pool.established_connections,
-                self.vo_service.electrod.pool.established_connections
+                self.vo_service.electrum.pool.established_connections
             ))),
             "networks": [
                 {

@@ -5,19 +5,21 @@ from spruned.application.context import ctx
 from spruned.application.exceptions import InvalidPOWException, InvalidHeaderException
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
-from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header, verify_pow
-from spruned.daemon.electrod.electrod_connection import ElectrodConnectionPool, ElectrodConnection
-from spruned.daemon.electrod.electrod_fee_estimation import EstimateFeeConsensusProjector, \
+from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
+from spruned.consensus import verify_pow
+from spruned.daemon.electrum.electrum_connection import ElectrumConnectionPool, ElectrumConnection
+from spruned.daemon.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
     EstimateFeeConsensusCollector
 
 
-class ElectrodInterface:
-    def __init__(self,
-                 connection_pool: ElectrodConnectionPool,
-                 loop=asyncio.get_event_loop(),
-                 fees_projector: EstimateFeeConsensusProjector = None,
-                 fees_collector: EstimateFeeConsensusCollector = None
-                 ):
+class ElectrumInterface:
+    def __init__(
+            self,
+            connection_pool: ElectrumConnectionPool,
+            loop=asyncio.get_event_loop(),
+            fees_projector: EstimateFeeConsensusProjector = None,
+            fees_collector: EstimateFeeConsensusCollector = None
+    ):
         self._network = ctx.get_network()
         self.pool = connection_pool
         self._checkpoints = self._network['checkpoints']
@@ -91,8 +93,8 @@ class ElectrodInterface:
             )
             peer, header = response
             if header and header.get('code') == 1:
-                raise exceptions.ElectrodMissingResponseException
-        except exceptions.ElectrodMissingResponseException:
+                raise exceptions.ElectrumMissingResponseException
+        except exceptions.ElectrumMissingResponseException:
             if fail_silent_out_of_range:
                 return
             raise
@@ -110,7 +112,7 @@ class ElectrodInterface:
             return parsed_header
         return peer, parsed_header
 
-    async def handle_peer_error(self, peer: ElectrodConnection):
+    async def handle_peer_error(self, peer: ElectrumConnection):
         await self.pool.on_peer_error(peer)
 
     async def getrawtransaction(self, txid: str, verbose: bool = False):
@@ -215,7 +217,7 @@ class ElectrodInterface:
     async def start(self):
         self.loop.create_task(self.pool.connect())
 
-    async def disconnect_from_peer(self, peer: ElectrodConnection):
+    async def disconnect_from_peer(self, peer: ElectrumConnection):
         self.loop.create_task(peer.disconnect())
 
     async def sendrawtransaction(self, rawtx: str, allowhighfees: bool = False):

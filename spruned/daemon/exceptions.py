@@ -29,7 +29,7 @@ class NoHeadersException(SprunedException):
     pass
 
 
-class ElectrodMissingResponseException(SprunedException):
+class ElectrumMissingResponseException(SprunedException):
     pass
 
 

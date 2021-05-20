@@ -5,7 +5,7 @@ import time
 from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.repositories.blockchain_repository import BLOCK_INDEX_PREFIX
+from spruned.repositories.blockchain_repository import DBPrefix
 
 
 class CacheAgent:
@@ -112,10 +112,10 @@ class CacheAgent:
         if self.index['total'] != self._last_dump_size:
             self._save_index()
 
-    def delete(self, item):
-        if item['key'][0] == int.from_bytes(BLOCK_INDEX_PREFIX, 'little'):
+    async def delete(self, item):
+        if item['key'][0] == int.from_bytes(DBPrefix.BLOCK_INDEX_PREFIX, 'little'):
             Logger.leveldb.debug('Deleting block %s', item)
-            self.repository.blockchain.remove_block(item['key'][2:])
+            await self.repository.blockchain.remove_block(item['key'][2:])
         else:
             raise ValueError('Problem: %s' % item)
         self.index['total'] -= self.index['keys'].pop(item['key'])['size']

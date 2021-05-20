@@ -12,7 +12,7 @@ from spruned import settings
 from spruned.application.cache import CacheAgent
 from spruned.application.exceptions import ServiceException, InvalidPOWException
 from spruned.application.spruned_vo_service import SprunedVOService
-from spruned.daemon.exceptions import ElectrodMissingResponseException
+from spruned.daemon.exceptions import ElectrumMissingResponseException
 from test.utils import async_coro
 
 
@@ -428,7 +428,7 @@ class TestVOService(unittest.TestCase):
         self.assertEqual(res, 6)
 
     def test_estimatefee(self):
-        self.electrod.estimatefee.side_effect = [ElectrodMissingResponseException(), async_coro(3)]
+        self.electrod.estimatefee.side_effect = [ElectrumMissingResponseException(), async_coro(3)]
         res = self.loop.run_until_complete(self.sut.estimatefee(6))
         self.assertEqual(res, 3)
 
@@ -478,7 +478,7 @@ class TestVOService(unittest.TestCase):
         self.repository.get_best_header.return_value = {'block_height': 513980}
         self.electrod.getrawtransaction.return_value = async_coro(tx)
         self.repository.blockchain.get_transaction.return_value = None
-        self.electrod.listunspents_by_scripthash.side_effect = [ElectrodMissingResponseException,
+        self.electrod.listunspents_by_scripthash.side_effect = [ElectrumMissingResponseException,
                                                                 async_coro(
                                                                     [{
                                                                          'tx_hash': '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098',

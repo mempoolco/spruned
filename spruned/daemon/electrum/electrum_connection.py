@@ -16,10 +16,10 @@ from spruned.application.tools import async_delayed_task, check_internet_connect
 from spruned.daemon import exceptions
 from spruned.daemon.connection_base_impl import BaseConnection
 from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
-from spruned.daemon.electrod import save_electrum_servers
+from spruned.daemon.electrum import save_electrum_servers
 
 
-class ElectrodConnection(BaseConnection):
+class ElectrumConnection(BaseConnection):
     def __init__(
             self,
             hostname: str,
@@ -162,10 +162,10 @@ class ElectrodConnection(BaseConnection):
             self.client.protocol = None
 
 
-class ElectrodConnectionPool(BaseConnectionPool):
+class ElectrumConnectionPool(BaseConnectionPool):
     def __init__(
             self,
-            connection_factory=ElectrodConnection,
+            connection_factory=ElectrumConnection,
             peers=list(),
             network_checker=check_internet_connection,
             delayer=async_delayed_task,
@@ -260,7 +260,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 Logger.electrum.debug('call, requested %s responses, received %s', agreement, responses)
                 if fail_silent:
                     return
-                raise exceptions.ElectrodMissingResponseException
+                raise exceptions.ElectrumMissingResponseException
             try:
                 return self._handle_responses(responses)
             except exceptions.NoQuorumOnResponsesException:
@@ -271,7 +271,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         response = await connection.rpc_call(method, params)
         if not response and not fail_silent:
             await self.on_peer_error(connection)
-            raise exceptions.ElectrodMissingResponseException(connection)
+            raise exceptions.ElectrumMissingResponseException(connection)
         return (connection, response) if get_peer else response
 
     @staticmethod
@@ -283,10 +283,10 @@ class ElectrodConnectionPool(BaseConnectionPool):
                 return response
         raise exceptions.NoQuorumOnResponsesException(responses)
 
-    def on_peer_received_peers(self, peer: ElectrodConnection, *_):
+    def on_peer_received_peers(self, peer: ElectrumConnection, *_):
         raise NotImplementedError
 
-    async def on_peer_connected(self, peer: ElectrodConnection):
+    async def on_peer_connected(self, peer: ElectrumConnection):
         future = peer.subscribe(
             'blockchain.headers.subscribe',
             self.on_peer_received_header,
@@ -295,7 +295,7 @@ class ElectrodConnectionPool(BaseConnectionPool):
         self.loop.create_task(self.delayer(future))
         self.loop.create_task(self.save_peers(peer))
 
-    async def save_peers(self, peer: ElectrodConnection):
+    async def save_peers(self, peer: ElectrumConnection):
         await self._storage_lock.acquire()
         try:
             peers = set()

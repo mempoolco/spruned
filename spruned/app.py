@@ -168,10 +168,12 @@ if sys.version > '3.5.2':  # pragma: no cover
 
             migrations.run(sqlite)
 
-            version = repository.blockchain.get_db_version()
+            version = asyncio.get_event_loop().run_until_complete(
+                repository.blockchain.get_db_version()
+            )
             if version != repository.blockchain.current_version:
                 Logger.root.debug('Erasing database because of wrong version')
-                repository.blockchain.erase()
+                asyncio.get_event_loop().run_until_complete(repository.blockchain.erase())
 
             if args.daemon:
                 MSG = 'Warning! --daemon is deprecated and will be removed in' \

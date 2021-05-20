@@ -135,7 +135,10 @@ class P2PConnection(BaseConnection):
             self._peer_network.pack_from_data
         )
         version_msg = make_local_version(
-            peer, version=70015, local_services=NODE_NONE, remote_services=NODE_WITNESS,
+            peer,
+            version=70015,
+            local_services=NODE_NONE,
+            remote_services=NODE_WITNESS,
             relay=self.current_pool.enable_mempool
         )
         version_data = await self._verify_peer(await peer.perform_handshake(**version_msg))

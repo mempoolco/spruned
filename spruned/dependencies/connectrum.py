@@ -349,7 +349,7 @@ class StratumClient:
             try:
                 rv.set_result(result)
             except asyncio.InvalidStateError as e:
-                raise exceptions.ElectrodMissingResponseException
+                raise exceptions.ElectrumMissingResponseException
 
     def RPC(self, method, *params):
         assert '.' in method
@@ -419,7 +419,6 @@ class ServerInfo(dict):
         self['pruning_limit'] = int(pruning_limit or 0)
 
         self['seen_at'] = time.time()
-
 
     @classmethod
     def from_dict(cls, d):
