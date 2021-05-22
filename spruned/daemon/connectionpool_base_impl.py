@@ -10,7 +10,6 @@ from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
 from spruned.daemon import exceptions
 from spruned.daemon.abstracts import ConnectionPoolAbstract, ConnectionAbstract
-from spruned.utils import async_retry
 
 
 class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
@@ -32,9 +31,8 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._connections = []
 
         self._peers: typing.Set = peers or set()
-        self._banned_peers: typing.Set = set()
+        self._banned_peers: typing.Dict = dict()
         self._used_peers: typing.Set = set()
-
         self._headers_observers = []
         self._new_peers_observers = []
         self._on_connect_observers = []
@@ -46,13 +44,21 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._sleep_on_no_internet_connectivity = sleep_no_internet
         self._keepalive = True
         self._ipv6 = ipv6
+        self._ban_time = 60
+
+    def _expire_peer_bans(self):
+        now = int(time.time())
+        for peer, ban_timestamp in list(self._banned_peers.items()):
+            if now - ban_timestamp > self._ban_time:
+                self._banned_peers.pop(peer)
+                self._peers.add(peer)
 
     @property
     def peers(self):
         return self._peers
 
     def _get_peer(self):
-        peers = self._peers - self._banned_peers - self._used_peers
+        peers = self._peers - set(self._banned_peers) - self._used_peers
         if not peers:
             raise exceptions.NoPeersException
         peer = peers.pop()
@@ -62,7 +68,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     def ban_peer(self, peer):
         self._used_peers.remove(peer)
-        self._banned_peers.add(peer)
+        self._banned_peers[peer] = int(time.time())
 
     def _get_multiple_peers(self, count: int):
         return list(
@@ -71,6 +77,9 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 range(0, count)
             )
         )
+
+    def cleanup_connections(self):
+        self._connections = self.connections
 
     @property
     def connections(self):
@@ -130,14 +139,14 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
     async def on_peer_received_peers(self, peer: ConnectionAbstract, *_):
         raise NotImplementedError
 
-    async def on_peer_error(self, peer: ConnectionAbstract, error_type: bool = None):
+    async def on_peer_error(self, connection: ConnectionAbstract, error_type: bool = None):
         if error_type == 'connect':
             if await self._check_internet_connectivity():
-                peer.add_error(int(time.time()) + 180, origin='on_peer_error')
+                await connection.disconnect()
             return
         if self.is_online:
-            Logger.root.debug('Peer %s error', peer)
-            await self._handle_peer_error(peer)
+            Logger.root.debug('Connection %s error', connection)
+            await self._handle_connection_error(connection)
 
     def stop(self):
         self._keepalive = False
@@ -149,7 +158,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._is_online = await self._network_checker()
         return self._is_online
 
-    async def _handle_peer_error(self, connection: ConnectionAbstract):
+    async def _handle_connection_error(self, connection: ConnectionAbstract):
         Logger.root.debug('Handling connection error for %s', connection.hostname)
         if not connection.connected:
             connection.add_error(origin='handle_peer_error')

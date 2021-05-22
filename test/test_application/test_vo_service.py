@@ -11,7 +11,7 @@ from spruned import settings
 
 from spruned.application.cache import CacheAgent
 from spruned.application.exceptions import ServiceException, InvalidPOWException
-from spruned.application.spruned_vo_service import SprunedVOService
+from spruned.application.spruned_vo_service import VOService
 from spruned.daemon.exceptions import ElectrumMissingResponseException
 from test.utils import async_coro
 
@@ -23,7 +23,7 @@ class TestVOService(unittest.TestCase):
         self.p2p = Mock()
         self.repository = Mock()
         self.cache = create_autospec(CacheAgent)
-        self.sut = SprunedVOService(
+        self.sut = VOService(
             self.electrod, self.p2p, cache_agent=self.cache, repository=self.repository
         )
         hb = '000000206ad001ecab39a3267ac6db2ccea9e27907b011bc70324c00000000000000000048043a6a' \

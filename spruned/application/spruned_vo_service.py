@@ -9,7 +9,8 @@ from pycoin.tx.Tx import Tx
 
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import deserialize_header, script_to_scripthash, ElectrumMerkleVerify, is_address
+from spruned.application.tools import deserialize_header, script_to_scripthash, \
+    ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
 from spruned.daemon.p2p.utils import get_block_factory
@@ -17,7 +18,7 @@ from spruned.daemon.exceptions import ElectrumMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
 
-class SprunedVOService(RPCAPIService):
+class VOService(RPCAPIService):
     def __init__(
             self,
             electrum,
@@ -55,7 +56,9 @@ class SprunedVOService(RPCAPIService):
         if not block_header:
             return
         if mode == 1:
-            txids, size = await self.repository.blockchain.get_txids_by_block_hash(block_header['block_hash'])
+            txids, size = await self.repository.blockchain.get_txids_by_block_hash(
+                block_header['block_hash']
+            )
             if txids:
                 block = self._serialize_header(block_header)
                 block.update({

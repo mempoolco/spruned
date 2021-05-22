@@ -1,7 +1,5 @@
 import asyncio
-
 import aiohttp_socks
-
 import typing
 
 from spruned.application.logging_factory import Logger
@@ -32,7 +30,7 @@ class P2PConnectionPool(BaseConnectionPool):
             delayer=async_delayed_task,
             loop=asyncio.get_event_loop(),
             proxy=False,
-            connections=3,
+            connections=1,
             network=MAINNET,
             ipv6=False,
             servers_storage=save_p2p_peers,
@@ -57,9 +55,10 @@ class P2PConnectionPool(BaseConnectionPool):
         self._storage_lock = asyncio.Lock()
         self._pool_size = connections
         self._local_header = None
-        self._on_transaction_hash_callback = []
-        self._on_transaction_callback = []
-        self._on_block_callback = []
+        self._on_transactions_hash_callbacks = []
+        self._on_transactions_callbacks = []
+        self._on_blocks_callbacks = []
+        self._on_headers_callbacks = []
         self.context = context
         self.enable_mempool = enable_mempool
         self._create_bloom_filter()
@@ -87,20 +86,23 @@ class P2PConnectionPool(BaseConnectionPool):
         return self._required_connections
 
     @property
-    def available(self):
-        return len(self.connections) >= self._required_connections
+    def completed(self):
+        return len(self.established_connections) >= self._required_connections
 
     def add_peer(self, peer: typing.Tuple):
         self._peers.add(peer)
 
     def add_on_transaction_hash_callback(self, callback):
-        self._on_transaction_hash_callback.append(callback)
+        self._on_transactions_hash_callbacks.append(callback)
 
     def add_on_transaction_callback(self, callback):
-        self._on_transaction_callback.append(callback)
+        self._on_transactions_callbacks.append(callback)
 
     def add_on_block_callback(self, callback):
-        self._on_block_callback.append(callback)
+        self._on_blocks_callbacks.append(callback)
+
+    def add_on_headers_callback(self, callback):
+        self._on_headers_callbacks.append(callback)
 
     @property
     def connections(self):
@@ -113,25 +115,26 @@ class P2PConnectionPool(BaseConnectionPool):
 
     async def connect(self):
         await self._check_internet_connectivity()
-        self._keepalive = True
-        while not self._peers:
-            Logger.p2p.debug('No P2P peers loaded')
-            await asyncio.sleep(5)
-
-        while self._keepalive:
+        while 1:
+            self._expire_peer_bans()
+            if self.completed or not self._keepalive:
+                await asyncio.sleep(5)
+                continue
+            if not self._peers:
+                Logger.p2p.debug('No P2P peers loaded')
+                await asyncio.sleep(5)
+                continue
             if not self.is_online():
-                Logger.p2p.error(
-                    'No internet. Sleeping.',
-                    self._sleep_on_no_internet_connectivity
-                )
-                await asyncio.sleep(self._sleep_on_no_internet_connectivity)
+                Logger.p2p.error('No internet. Sleeping.')
                 await self._check_internet_connectivity()
+                await asyncio.sleep(5)
                 continue
             try:
                 await self._connect()
             except exceptions.NoPeersException:
                 Logger.p2p.debug('Keep-Alive: Peers loaded but not available. Waiting.')
                 await asyncio.sleep(5)
+                continue
         await asyncio.sleep(1)
 
     async def _connect(self):
@@ -145,9 +148,14 @@ class P2PConnectionPool(BaseConnectionPool):
 
     async def _connect_to_peer(self, host: str, port: int):
         connection = P2PConnection(
-            host, port, loop=self.loop, network=self._network,
-            bloom_filter=self._pool_filter, best_header=self._local_header,
-            version_checker=self.version_checker, proxy=self._proxy
+            host,
+            port,
+            loop=self.loop,
+            network=self._network,
+            bloom_filter=self._pool_filter,
+            best_header=self._local_header,
+            version_checker=self.version_checker,
+            proxy=self._proxy
         )
         connection.pool = self
         self._connections.append(connection)
@@ -156,12 +164,14 @@ class P2PConnectionPool(BaseConnectionPool):
         connection.add_on_peers_callback(self.on_peer_received_peers)
         connection.add_on_error_callback(self.on_peer_error)
         connection.add_on_addr_callback(self.save_peers)
-        for callback in self._on_transaction_hash_callback:
+        for callback in self._on_transactions_hash_callbacks:
             connection.add_on_transaction_hash_callback(callback)
-        for callback in self._on_transaction_callback:
+        for callback in self._on_transactions_callbacks:
             connection.add_on_transaction_callback(callback)
-        for callback in self._on_block_callback:
+        for callback in self._on_blocks_callbacks:
             connection.add_on_blocks_callback(callback)
+        for callback in self._on_headers_callbacks:
+            connection.add_on_headers_callback(callback)
         self.loop.create_task(self._handle_connection_connect(connection))
 
     async def _handle_connection_connect(self, connection: P2PConnection):

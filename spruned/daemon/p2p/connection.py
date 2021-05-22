@@ -124,7 +124,11 @@ class P2PConnection(BaseConnection):
 
     async def _handle_connect(self):
         try:
-            reader, writer = await self.connector(host=self.hostname, port=self.port, proxy=self.proxy)
+            reader, writer = await self.connector(
+                host=self.hostname,
+                port=self.port,
+                proxy=self.proxy
+            )
         except (
                 ConnectionError,
                 OSError,
@@ -221,16 +225,13 @@ class P2PConnection(BaseConnection):
 
     async def disconnect(self):
         self.failed = True
-        try:
-            Logger.p2p.debug(
-                'Disconnecting peer %s (%s)' % (self.hostname, self.version and self.version.get('subversion'))
-            )
-            self.pool.connections.remove(self)
-            self.peer and self.peer.close()
-        except ValueError:
-            pass
-        finally:
-            self.peer = None
+        Logger.p2p.debug(
+            'Disconnecting peer %s (%s)' % (self.hostname, self.version and self.version.get('subversion'))
+        )
+        self.pool.ban_peer((self.hostname, self.port))
+        self.peer and self.peer.close()
+        self.peer = None
+        self.pool.cleanup_connections()
 
     def _setup_events_handler(self):
         self.peer_event_handler.set_event_callbacks('inv', self._on_inv)
@@ -267,10 +268,9 @@ class P2PConnection(BaseConnection):
             self.loop.create_task(callback(peers))
 
     def _on_headers(self, event_handler: P2PChannel, name: str, data: typing.Dict):  # pragma: no cover
-        connection_id = event_handler.connection.uid
         headers = data['headers']
         for callback in self._on_headers_callbacks:
-            self.loop.create_task(callback(connection_id=connection_id, headers=headers))
+            self.loop.create_task(callback(self, headers))
 
     def _on_ping(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         self.peer.send_msg("pong", nonce=data["nonce"])
@@ -312,6 +312,7 @@ class P2PConnection(BaseConnection):
                 lambda x: x.cancel(),
                 filter(lambda x: not x.done(), itertools.chain(done, pending))
             )
+
             raise exceptions.MissingPeerResponseException
 
         return P2PInvItemResponse(

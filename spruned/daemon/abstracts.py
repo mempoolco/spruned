@@ -63,7 +63,7 @@ class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
         pass
 
     @abc.abstractmethod
-    def disconnect(self):
+    async def disconnect(self):
         pass
 
     @abc.abstractmethod

@@ -17,7 +17,7 @@ def builder(ctx: Context):  # pragma: no cover
     repository = Repository.instance()
     cache = CacheAgent(repository, int(ctx.cache_size))
     repository.set_cache(cache)
-    service = spruned_vo_service.SprunedVOService(
+    service = spruned_vo_service.VOService(
         electrum_interface,
         p2p_interface,
         repository=repository,

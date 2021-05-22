@@ -242,14 +242,14 @@ class TestElectrodConnectionPool(unittest.TestCase):
 
     def test__handle_peer_error_disconnected(self):
         conn = Mock(connected=False)
-        res = self.loop.run_until_complete(self.sut._handle_peer_error(conn))
+        res = self.loop.run_until_complete(self.sut._handle_connection_error(conn))
         self.assertIsNone(res)
 
     def test_handle_peer_error_noscore(self):
         conn = Mock(connected=True, score=0)
         conn.disconnect.return_value = 'disconnect'
         self.delayer.return_value = 'delayer'
-        res = self.loop.run_until_complete(self.sut._handle_peer_error(conn))
+        res = self.loop.run_until_complete(self.sut._handle_connection_error(conn))
         self.assertIsNone(res)
         Mock.assert_called_with(self.electrod_loop.create_task, 'delayer')
         Mock.assert_called_with(self.delayer, 'disconnect')
@@ -260,7 +260,7 @@ class TestElectrodConnectionPool(unittest.TestCase):
         conn.disconnect.return_value = 'disconnect'
         self.delayer.return_value = 'delayer'
 
-        res = self.loop.run_until_complete(self.sut._handle_peer_error(conn))
+        res = self.loop.run_until_complete(self.sut._handle_connection_error(conn))
         self.assertIsNone(res)
         Mock.assert_called_with(self.electrod_loop.create_task, 'delayer')
         Mock.assert_called_with(self.delayer, 'disconnect')

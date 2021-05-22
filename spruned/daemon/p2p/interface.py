@@ -5,6 +5,7 @@ import typing
 from pycoin.serialize import h2b_rev
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
+from spruned.daemon import exceptions
 from spruned.daemon.p2p.connection import P2PConnection
 from spruned.daemon.p2p.connectionpool import P2PConnectionPool
 
@@ -43,7 +44,7 @@ class P2PInterface:
 
     async def bootstrap_peers(self):
         peers = None
-        #peers = [('bitcoind.mempool.co', 8333)]
+        peers = [('bitcoind.mempool.co', 8333)]
         while not peers:
             peers = await self._get_peers_from_seed(self.network)
             await asyncio.sleep(1)
@@ -94,3 +95,14 @@ class P2PInterface:
     ):
         connection: P2PConnection = connection or await self.pool.get_connection()
         return await connection.getheaders(*start_from_hash, stop_at_hash=stop_at_hash)
+
+    def get_current_peers_best_height(self) -> int:
+        # todo find a better agreement than "max"
+        if not self.pool.established_connections:
+            raise exceptions.NoPeersException
+        return max(
+            map(
+                lambda connection: connection.best_header['block_height'],
+                self.pool.established_connections
+            )
+        )
