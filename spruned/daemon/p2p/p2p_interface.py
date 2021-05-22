@@ -25,8 +25,11 @@ class P2PInterface:
         self.loop = loop
         self.network = network
         self._bootstrap_status = 0
-        self.peers_bootstrapper = peers_bootstrapper
+        self.peers_bootstrap = peers_bootstrapper
         self.mempool = mempool_repository
+
+    def get_free_slots(self) -> int:
+        return int(len(self.pool and self.pool.free_connections or []))
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:
@@ -44,41 +47,44 @@ class P2PInterface:
         }
 
     async def get_blocks(self, *block_hash: str) -> Dict:
-        """
-        I have to work on pycoinnet to understand how the invbatcher can handle a more efficient 'getblocks'.
-        Meanwhile, parallelize getblocks. This may be dirty, let's try it....
-        """
-        Logger.p2p.debug('Downloading blocks %s' % ', '.join(block_hash))
-        sorted_hash = [x for x in block_hash]
+        sorted_hash = list(block_hash)
         blocks = {}
-        r, max_retry = 0, 100
+        retry, max_retry = 0, 100
+
+        def _save_block(block):
+            nonlocal blocks
+            blocks[block['block_hash']] = block
+
         while sorted_hash:
-            r += 1
-            if r > max_retry:
-                raise ValueError
-            _blocks = await asyncio.gather(*(self.get_block(h) for h in sorted_hash), return_exceptions=True)
-            for i, _hash in enumerate(sorted_hash):
-                if isinstance(_blocks[i], dict):
-                    blocks[_hash] = _blocks[i]
+            _blocks = map(
+                _save_block,
+                filter(
+                    lambda b: b and not isinstance(b, Exception),
+                    await asyncio.gather(*map(self.get_block, sorted_hash), return_exceptions=True)
+                )
+            )
             sorted_hash = [h for h in sorted_hash if h not in blocks]
+            retry += 1
+            if sorted_hash and retry > max_retry:
+                raise exceptions.TooManyRetriesException
         return blocks
 
     def add_on_connect_callback(self, callback: callable):
         self._on_connect_callbacks.append(callback)
 
+    async def bootstrap_peers(self):
+        peers = None
+        while not peers:
+            peers = await self.peers_bootstrap(self.network)
+            await asyncio.sleep(1)
+        if ctx.tor:
+            _ = map(self.pool.add_peer, filter(lambda peer: '.onion' in peer, peers))  # fixme move this check out
+        else:
+            _ = map(self.pool.add_peer, filter(lambda peer: '.onion' not in peer, peers))
+
     async def start(self):
         self.pool.add_on_connected_observer(self.on_connect)
-        peers = None
-        i = 0
-        while not peers:
-            if i > 10:
-                raise exceptions.SprunedException
-            peers = await self.peers_bootstrapper(self.network)
-            i += 1
-        if ctx.tor:
-            _ = [self.pool.add_peer(peer) for peer in peers if '.onion' in peer]
-        else:
-            _ = [self.pool.add_peer(peer) for peer in peers if '.onion' not in peer]
+        await self.bootstrap_peers()
         self.loop.create_task(self.pool.connect())
 
     def set_bootstrap_status(self, value: float):
@@ -89,6 +95,4 @@ class P2PInterface:
         return self._bootstrap_status
 
     def get_peers(self):
-        return [
-            peer for peer in self.pool.established_connections
-        ]
+        return list(self.pool.established_connections)

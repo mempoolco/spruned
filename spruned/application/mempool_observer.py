@@ -9,7 +9,6 @@ from spruned.application.tools import async_delayed_task
 from spruned.daemon import exceptions
 from spruned.daemon.p2p.p2p_connection import P2PConnection
 from spruned.daemon.p2p.p2p_interface import P2PInterface
-from spruned.daemon.p2p.utils import get_block_factory
 from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem
 from spruned.repositories.repository import Repository
 
@@ -17,12 +16,10 @@ from spruned.repositories.repository import Repository
 class MempoolObserver:
     def __init__(self,
                  repository: Repository,
-                 p2p_interface: P2PInterface,
-                 async_block_factory=get_block_factory(),
+                 p2p_interface: P2PInterface
                  ):
         self.repository = repository
         self.p2p = p2p_interface
-        self.block_factory = async_block_factory
         self.loop = asyncio.get_event_loop()
         self.delayer = async_delayed_task
         self.on_transaction_callbacks = []

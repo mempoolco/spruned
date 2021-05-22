@@ -1,6 +1,7 @@
 import binascii
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
+from functools import partial
 from typing import Dict, List
 
 import typing
@@ -8,7 +9,6 @@ import typing
 from fifolock import FifoLock
 from pycoin.block import Block
 
-from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
@@ -49,27 +49,22 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         self.lock = FifoLock()
 
     @staticmethod
-    def _get_key(name: (bytes, str), prefix: (bytes, DBPrefix)): # fixme
+    def _get_key(name: (bytes, str), prefix: (bytes, DBPrefix)):  # fixme
         name = isinstance(name, str) and binascii.unhexlify(name.encode()) or name
         return b'%s.%s' % (
             (prefix if isinstance(prefix, bytes) else int.to_bytes(prefix.value, 2, "big")), name
         )
 
     async def erase(self):
-        from spruned.application.database import init_ldb_storage, erase_ldb_storage
-        from spruned.application.tools import inject_attribute
-        from spruned.builder import cache
-        self.session.close()
+        from spruned.application.database import erase_ldb_storage
         erase_ldb_storage()
-        inject_attribute(
-            init_ldb_storage(), 'session', self, cache
-        )
         await self._save_db_version()
 
     async def _save_db_version(self):
+        session = self.session.write_batch()
         await self.loop.run_in_executor(
             self.executor,
-            self.session.put,
+            session.put,
             self._get_key(self.storage_name, DBPrefix.DB_VERSION),
             self.current_version.to_bytes(2, 'little')
         )
@@ -85,29 +80,27 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
     def set_cache(self, cache):
         self._cache = cache
 
-    @ldb_batch
-    async def save_block(self, block: Dict, tracker=None) -> Dict:
-        return await self._save_block(block, tracker)
+    async def save_block(self, block: Dict, tracker=None, batch_session=None) -> Dict:
+        return await self.loop.run_in_executor(
+            self.executor,
+            partial(self._save_block, block, tracker, batch_session=batch_session)
+        )
 
-    @ldb_batch
-    async def _save_block(self, block, tracker):
+    def _save_block(self, block, tracker, batch_session=None):
         block['size'] = len(block['block_bytes'])
         block['block_object'] = block.get('block_object', Block.from_bin(block.get('block_bytes')))
 
         blockhash = binascii.unhexlify(block['block_hash'].encode())
-        saved_transactions = await asyncio.gather(
-            *[
-                self.loop.run_in_executor(
-                    self.executor,
-                    self._save_transaction,
-                    {
-                        'txid': transaction.id(),
-                        'transaction_bytes': transaction.as_bin(),
-                        'block_hash': blockhash
-                    }
-                ) for transaction in block['block_objects'].txs
-            ],
-            return_exceptions=True
+        batch_session = batch_session or self.session.write_batch()
+        saved_transactions = (
+            self._save_transaction(
+                {
+                    'txid': transaction.id(),
+                    'transaction_bytes': transaction.as_bin(),
+                    'block_hash': blockhash
+                },
+                batch_session=batch_session
+            ) for transaction in block['block_object'].txs
         )
         transaction_ids = list(map(
             lambda t: t['txid'],
@@ -115,20 +108,25 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         ))
         if len(transaction_ids) != len(block['block_object'].txs):
             raise exceptions.DatabaseInconsistencyException
-        await self._save_block_index(blockhash, block['size'], transaction_ids)
+        self._save_block_index(
+            blockhash,
+            block['size'],
+            map(lambda txid: bytes.fromhex(txid), transaction_ids),
+            batch_session
+        )
         tracker and tracker.track(
             self._get_key(block['block_hash'], prefix=DBPrefix.BLOCK_INDEX_PREFIX),
             len(block['block_bytes'])
         )
+        batch_session.write()
         return block
 
-    @ldb_batch
-    async def _save_block_index(self, blockhash: bytes, blocksize: int, txids: typing.Iterable[bytes]):
+    def _save_block_index(
+            self, blockhash: bytes, blocksize: int, txids: typing.Iterable[bytes], batch_session
+    ):
         key = self._get_key(blockhash, prefix=DBPrefix.BLOCK_INDEX_PREFIX)
         size = blocksize.to_bytes(4, 'little')
-        await self.loop.run_in_executor(
-            self.executor,
-            self.session.put,
+        batch_session.put(
             self.storage_name + b'.' + key,
             size + b''.join(txids)
         )
@@ -141,7 +139,6 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
             self.storage_name + b'.' + key
         )
 
-    @ldb_batch
     async def save_blocks(self, *blocks: Dict) -> List[Dict]:
         resp = list(
             await asyncio.gather(
@@ -160,16 +157,14 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
             raise exceptions.DatabaseInconsistencyException
         return resp
 
-    @ldb_batch
-    async def _save_transaction(self, transaction: Dict) -> Dict:
+    def _save_transaction(self, transaction: Dict, batch_session) -> Dict:
         data = transaction['transaction_bytes'] + transaction['block_hash']
         key = self._get_key(transaction['txid'], prefix=DBPrefix.TRANSACTION_PREFIX)
-        return await self.loop.run_in_executor(
-            self.executor,
-            self.session.put,
+        batch_session.put(
             self.storage_name + b'.' + key,
             data
         )
+        return transaction
 
     async def get_txids_by_block_hash(self, blockhash: str) -> (List[str], int):
         block_index = await self.get_block_index(blockhash)
@@ -227,9 +222,8 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
             'txid': txid
         }
 
-    @ldb_batch
     async def remove_block(self, blockhash: str):
-        txids, size = await self._get_txids_by_block_hash(blockhash)
+        txids, size = await self.get_txids_by_block_hash(blockhash)
         if any(
             filter(
                 lambda r: isinstance(r, Exception),
@@ -249,7 +243,6 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         ):
             raise exceptions.DatabaseInconsistencyException
 
-    @ldb_batch
     async def _remove_item(self, key):
         await self.loop.run_in_executor(
             self.executor,

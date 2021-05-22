@@ -8,7 +8,7 @@ from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_SEGWIT_BLOCK
 
 
 class P2PChannel:
-    def __init__(self, connection: 'P2PConnection', loop=asyncio.get_event_loop()):
+    def __init__(self, connection, loop=asyncio.get_event_loop()):
         self.loop = loop
         self.connection = connection
         self._events_callbacks = dict()

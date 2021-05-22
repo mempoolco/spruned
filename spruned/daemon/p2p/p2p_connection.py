@@ -1,6 +1,6 @@
 import asyncio
 import itertools
-from asyncio import IncompleteReadError, FIRST_COMPLETED
+from asyncio import FIRST_COMPLETED
 
 import aiohttp_socks
 import async_timeout
@@ -458,7 +458,7 @@ class P2PConnectionPool(BaseConnectionPool):
         try:
             return await connection.peer_event_handler.getblock(inv_item)
         except:
-            Logger.p2p.exception(
+            Logger.p2p.debug(
                 'Error in get InvItem %s, failed in %ss from peers %s',
                 inv_item, round(time.time() - s, 4), connection.hostname
             )

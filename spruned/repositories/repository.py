@@ -1,7 +1,8 @@
 import asyncio
 
+import plyvel
+
 from spruned import settings
-from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
 from spruned.repositories.blockchain_repository import BlockchainRepository, DBPrefix
@@ -37,7 +38,7 @@ class Repository:
         from spruned.application.context import ctx
         headers_repository = HeadersSQLiteRepository(database.sqlite)
         blocks_repository = BlockchainRepository(
-            database.storage_ldb,
+            database.level_db,
             settings.LEVELDB_BLOCKCHAIN_SLUG,
             settings.LEVELDB_BLOCKCHAIN_ADDRESS
         )
@@ -56,7 +57,7 @@ class Repository:
             keep_blocks=ctx.keep_blocks
         )
         i.sqlite = database.sqlite
-        i.session = database.storage_ldb
+        i.session = database.level_db
         return i
 
     async def ensure_integrity(self):
@@ -66,7 +67,6 @@ class Repository:
         finally:
             self.integrity_lock.release()
 
-    @ldb_batch
     def _ensure_no_stales_in_blockchain_repository(self):
         Logger.leveldb.debug('Ensuring no stales in blockchain repository')
         keypref = self.blockchain.storage_name + b'.' + int.to_bytes(DBPrefix.BLOCK_INDEX_PREFIX.value, 2, 'little')

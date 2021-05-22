@@ -51,3 +51,7 @@ class ConsensusNotReachedException(SprunedException):
 
 class DatabaseInconsistencyException(SprunedException):
     pass
+
+
+class TooManyRetriesException(SprunedException):
+    pass

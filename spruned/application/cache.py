@@ -2,7 +2,6 @@ import asyncio
 import pickle
 import time
 
-from spruned.application.database import ldb_batch
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.repositories.blockchain_repository import DBPrefix
@@ -49,7 +48,6 @@ class CacheAgent:
             data.append([x['key'], x['saved_at'], x['size']])
         return pickle.dumps(data)
 
-    @ldb_batch
     def _save_index(self):
         data = self._serialize_index()
         self.session.put(self.cache_name, data)

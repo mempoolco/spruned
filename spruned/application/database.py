@@ -37,12 +37,10 @@ def init_ldb_storage():
     else:
         from unittest.mock import Mock
         _storage_ldb = Mock()
-    _local.in_ldb_batch = False
-    _local.ldb = _storage_ldb
     return _storage_ldb
 
 
-storage_ldb = init_ldb_storage()
+level_db = init_ldb_storage()
 
 
 def erase_ldb_storage():

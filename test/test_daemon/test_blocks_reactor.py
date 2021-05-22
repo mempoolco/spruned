@@ -172,7 +172,7 @@ class TestBlocksReactory(TestCase):
         self.loop.run_until_complete(
             asyncio.gather(
                 add_peers(),
-                self.sut.bootstrap_blocks()
+                self.sut._check_missing_blocks()
             )
         )
         Mock.assert_has_calls(

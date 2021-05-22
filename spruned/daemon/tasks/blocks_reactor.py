@@ -1,36 +1,29 @@
 import asyncio
-
 import typing
 
-from spruned.daemon import exceptions
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import async_delayed_task
 from spruned.daemon.p2p.p2p_interface import P2PInterface
 from spruned.repositories.repository import Repository
 
 
 class BlocksReactor:
-    """
-    This reactor keeps non-pruned blocks aligned to the best height.
-    """
     def __init__(
             self,
             repository: Repository,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
             keep_blocks=6,
-            delayed_task=async_delayed_task
     ):
         self.repo = repository
         self.interface = interface
         self.loop = loop or asyncio.get_event_loop()
         self.lock = asyncio.Lock()
-        self.delayer = delayed_task
         self._last_processed_block = None
         self._keep_blocks = keep_blocks
-        self._max_per_batch = 10
         self._available = False
-        self._fallback_check_interval = 30
+        self._fetching_blocks = set()
+        self._missing_blocks = set()
+        self._healthy = True
 
     def set_last_processed_block(self, last: typing.Optional[typing.Dict]):
         if last and last != self._last_processed_block:
@@ -38,164 +31,62 @@ class BlocksReactor:
             Logger.p2p.info(
                 'Last processed block: %s (%s)',
                 self._last_processed_block and self._last_processed_block['block_height'],
-                self._last_processed_block and self._last_processed_block['block_hash'],
+                self._last_processed_block and self._last_processed_block['block_hash']
             )
 
-    def on_header(self, best_header: typing.Dict):
+    @staticmethod
+    def on_header(best_header: typing.Dict):
         Logger.p2p.debug('BlocksReactor.on_header: %s', best_header)
-        self.loop.create_task(self._check_blockchain(best_header))
-
-    async def check(self):
-        urgent = False
-        try:
-            best_header = self.repo.headers.get_best_header()
-            urgent = await self._check_blockchain(best_header)
-        except Exception as e:
-            urgent = urgent or False
-            Logger.p2p.exception('Error on BlocksReactor fallback %s', str(e))
-        finally:
-            self.loop.create_task(
-                self.delayer(self.check(), 0 if urgent else self._fallback_check_interval)
-            )
-
-    async def _check_blockchain(self, best_header: typing.Dict):
-        urgent = False
-        try:
-            await self.lock.acquire()
-            if not self._last_processed_block or \
-                    best_header['block_height'] > self._last_processed_block['block_height']:
-                urgent = await self._on_blocks_behind_headers(best_header)
-            elif best_header['block_height'] < self._last_processed_block['block_height']:
-                Logger.p2p.warning('Headers index is behind what this task done. Reset current status')
-                self.set_last_processed_block(None)
-                urgent = True
-                # This will be fixed in the next iteration by on_blocks_behind_header
-            else:
-                if best_header['block_hash'] != self._last_processed_block['block_hash']:
-                    Logger.p2p.warning('There must be a reorg. Reset current status')
-                    # This will be fixed in the next iteration by on_blocks_behind_header
-                    self.set_last_processed_block(None)
-                    urgent = True
-        except (
-            exceptions.BlocksInconsistencyException
-        ):
-            Logger.p2p.exception('Exception checkping the blockchain')
-            self.set_last_processed_block(None)
-            urgent = True
-        finally:
-            self.lock.release()
-            return urgent
-
-    async def _on_blocks_behind_headers(self, best_header: typing.Dict):
-        if self._last_processed_block and \
-                best_header['block_height'] - self._last_processed_block['block_height'] < self._keep_blocks:
-            height_to_start = self._last_processed_block['block_height']
-            urgent = False
-        else:
-            height_to_start = best_header['block_height'] - self._keep_blocks
-            height_to_start = height_to_start if height_to_start >= 0 else 0
-            urgent = True
-
-        headers = self.repo.headers.get_headers_since_height(height_to_start, limit=self._max_per_batch)
-
-        _local_blocks_indexes = {
-            k: v for k, v in {
-                h['block_hash']: await self.repo.blockchain.get_block_index(h['block_hash'])
-                for h in headers
-            }.items() if v is not None
-        }
-
-        _request = [
-            x['block_hash'] for x in headers if x['block_hash'] not in _local_blocks_indexes.keys()
-        ]
-        if _request:
-            blocks = await self.interface.get_blocks(*_request)
-            urgent = urgent or False
-            try:
-                sorted_values = sorted(blocks.values(), key=lambda x: x['block_hash'])
-                saved_blocks = await self.repo.blockchain.save_blocks(*sorted_values)
-                last_hash = saved_blocks and saved_blocks[-1]['block_hash']
-                Logger.p2p.debug('Saved block %s', saved_blocks)
-            except:
-                Logger.p2p.exception('Error saving blocks %s', blocks)
-                return True
-        else:
-            urgent = True
-            last_hash = headers[-1]['block_hash']
-
-        if last_hash:
-            _headers_by_block_hash = {v['block_hash']: v for v in headers}
-            self.set_last_processed_block(
-                {
-                    'block_hash': last_hash,
-                    'block_height': _headers_by_block_hash[last_hash]['block_height']
-                }
-            )
-        else:
-            urgent = True
-        return urgent
 
     async def on_connected(self):
         self._available = True
-        self.loop.create_task(self.check())
 
     async def start(self, *a, **kw):
         self.interface.add_on_connect_callback(self.on_connected)
         self.loop.create_task(self.interface.start())
+        await self._fetch_blocks_loop()
+        self._healthy = False
 
-    async def bootstrap_blocks(self, *a, **kw):
-        while len(self.interface.pool.established_connections) < self.interface.pool.required_connections / 2:
-            Logger.p2p.info('Bootstrap: ConnectionPool not ready yet')
-            await asyncio.sleep(30)
-        Logger.p2p.info('Bootstrap: Downloading %s blocks', self._keep_blocks)
-        missing_blocks = []
-
-        async def save_block(blockhash):
-            try:
-                block = await self.interface.get_block(blockhash, timeout=30)
-            except Exception:
-                Logger.p2p.exception('Failed downloading block %s', blockhash)
-                raise
-            missing_blocks.remove(block['block_hash'])
-            Logger.p2p.info(
-                'Bootstrap: saved block %s (%s/%s)',
-                block['block_hash'],
-                self._keep_blocks - len(missing_blocks),
-                self._keep_blocks
-            )
-            await self.repo.blockchain.save_block(block)
-
+    async def _save_block(self, blockhash: str):
         try:
-            await self.lock.acquire()
-            best_header = self.repo.headers.get_best_header()
-            headers = self.repo.headers.get_headers_since_height(best_header['block_height'] - self._keep_blocks)
-            missing_blocks = []
-            for blockheader in headers:
-                if not await self.repo.blockchain.get_block_index(blockheader['block_hash']):
-                    missing_blocks.append(blockheader['block_hash'])
-            i = 0
-            while missing_blocks:
-                i += 1
-                if len(self.interface.pool.established_connections) - len(list(self.interface.pool.busy_peers)) \
-                        < self.interface.pool.required_connections / 2:
-                    Logger.p2p.debug('Missing peers. Waiting.')
-                    await asyncio.sleep(20)
-                    continue
-                saved_blocks = await self._bootstrap(missing_blocks, headers, save_block)
-                missing_blocks = list(set(missing_blocks) - set(map(lambda b: b['block_hash'], saved_blocks)))
-                if not missing_blocks:
-                    Logger.p2p.info('Bootstrap: No blocks to fetch.')
-                    return
-                await asyncio.sleep(0.01)
+            block = await self.interface.get_block(blockhash, timeout=30)
+            await self.repo.blockchain.save_block(block)
+        except:
+            self._missing_blocks.add(blockhash)
+            Logger.p2p.debug('Error fetching block', exc_info=True)
         finally:
-            self.lock.release()
+            self._fetching_blocks.remove(blockhash)
 
-    async def _bootstrap(self, missing_blocks: typing.List, headers: typing.List, save_fn: callable) -> typing.Iterable:
-        status = float(100) / self._keep_blocks * (len(headers) - len(missing_blocks))
-        status = status if status <= 100 else 100
-        self.interface.set_bootstrap_status(status)
-        blocks_per_round = min(3, len(missing_blocks))
-        _blocks = missing_blocks and [missing_blocks[i] for i in range(0, blocks_per_round)] or []
-        Logger.p2p.info('Bootstrap: Fetching %s blocks', len(_blocks))
-        resp = await asyncio.gather(*map(save_fn, _blocks), return_exceptions=True)
-        return list(filter(lambda r: not isinstance(r, Exception), resp))
+    async def check_missing_blocks(self):
+        if not self._available:
+            return
+
+        free_slots = self.interface.get_free_slots()
+        if not free_slots:
+            return
+
+        best_header = self.repo.headers.get_best_header()
+        headers = self.repo.headers.get_headers_since_height(
+            best_header['block_height'] - self._keep_blocks,
+            limit=free_slots
+        )
+        for blockheader in headers:
+            blockhash = blockheader['block_hash']
+            if blockhash not in self._fetching_blocks and \
+                    blockhash not in self._missing_blocks and \
+                    not await self.repo.blockchain.get_block_index(blockhash):
+                self._missing_blocks.add(blockhash)
+
+    async def _fetch_blocks_loop(self):
+        while 1:
+            await self.check_missing_blocks()
+            if self._missing_blocks:
+                await self._get_blocks()
+            await asyncio.sleep(0.01)
+
+    async def _get_blocks(self):
+        round_size = min(len(self._missing_blocks), self.interface.get_free_slots())
+        _temp = set({self._missing_blocks.pop() for _ in range(round_size)})
+        self._fetching_blocks.update(_temp)
+        for block in _temp:
+            self.loop.create_task(self._save_block(block))

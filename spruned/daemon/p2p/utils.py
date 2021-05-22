@@ -15,7 +15,7 @@ async def dns_bootstrap_servers(network=TESTNET):  # pragma: no cover
     while 1:
         item = host_q.get()
         try:
-            async with async_timeout.timeout(1):
+            async with async_timeout.timeout(5):
                 peer = await item
         except asyncio.TimeoutError:
             try:

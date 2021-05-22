@@ -57,13 +57,13 @@ class HeadersSQLiteRepository(HeadersRepository):
             query = query.limit(limit)
         headers = query.all()
         res = []
-        howmany = len(headers)
+        count = len(headers)
         for i, h in enumerate(headers):
             if not i:
                 prevblockhash = h.blockheight != 0 and self.get_block_hash(h.blockheight-1, decode=False)
             else:
                 prevblockhash = headers[i-1].blockhash
-            nextblockhash = i + 1 < howmany and headers[i + 1].blockhash or self.get_block_hash(
+            nextblockhash = i + 1 < count and headers[i + 1].blockhash or self.get_block_hash(
                 h.blockheight + 1, decode=False
             )
             res.append(
@@ -76,14 +76,14 @@ class HeadersSQLiteRepository(HeadersRepository):
         return res
 
     @database.atomic
-    def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
+    def save_header(self, blockhash: str, blockheight: int, raw_header: bytes, prev_block_hash: str):
         session = self.session()
 
         def _save():
             model = database.Header(
                 blockhash=binascii.unhexlify(blockhash),
                 blockheight=blockheight,
-                data=headerbytes
+                data=raw_header
             )
             session.add(model)
             try:

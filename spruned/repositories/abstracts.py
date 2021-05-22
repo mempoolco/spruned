@@ -23,7 +23,7 @@ class BlockchainRepositoryAbstract(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def _save_transaction(self, transaction: Dict) -> Dict:
+    async def _save_transaction(self, transaction: Dict, batch_session) -> Dict:
         pass
 
     @abc.abstractmethod

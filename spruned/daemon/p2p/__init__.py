@@ -27,7 +27,7 @@ def build(ctx: Context):  # pragma: no cover
     if ctx.tor:
         async def _no_dns_bootstrap(*_, **__):
             return load_p2p_peers()
-        interface.peers_bootstrapper = _no_dns_bootstrap
+        interface.peers_bootstrap = _no_dns_bootstrap
     return pool, interface
 
 
