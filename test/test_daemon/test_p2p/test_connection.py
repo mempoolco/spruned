@@ -6,7 +6,7 @@ import time
 
 from spruned.application.networks.bitcoin import mainnet, testnet
 
-from spruned.dependencies.pycoinnet.pycoin.InvItem import ITEM_TYPE_TX
+from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX
 
 from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnection
 from test.utils import async_coro

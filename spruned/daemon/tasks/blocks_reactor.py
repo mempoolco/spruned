@@ -2,7 +2,7 @@ import asyncio
 import typing
 
 from spruned.application.logging_factory import Logger
-from spruned.daemon.p2p.p2p_interface import P2PInterface
+from spruned.daemon.p2p.interface import P2PInterface
 from spruned.repositories.repository import Repository
 
 
@@ -58,8 +58,6 @@ class BlocksReactor:
             self._fetching_blocks.remove(blockhash)
 
     async def check_missing_blocks(self):
-        if not self._available:
-            return
 
         free_slots = self.interface.get_free_slots()
         if not free_slots:
@@ -79,9 +77,10 @@ class BlocksReactor:
 
     async def _fetch_blocks_loop(self):
         while 1:
-            await self.check_missing_blocks()
-            if self._missing_blocks:
-                await self._get_blocks()
+            if self._available:
+                await self.check_missing_blocks()
+                if self._missing_blocks:
+                    await self._get_blocks()
             await asyncio.sleep(0.01)
 
     async def _get_blocks(self):

@@ -1,30 +1,32 @@
-import async_timeout
+import itertools
 import queue
 import threading
 from pycoin.block import Block
 
-from spruned.dependencies.pycoinnet.dnsbootstrap import dns_bootstrap_host_port_q
 from spruned.dependencies.pycoinnet.networks import TESTNET
 import asyncio
-from spruned.application.logging_factory import Logger
 
 
 async def dns_bootstrap_servers(network=TESTNET):  # pragma: no cover
-    host_q = dns_bootstrap_host_port_q(network)
-    ad = []
-    while 1:
-        item = host_q.get()
-        try:
-            async with async_timeout.timeout(5):
-                peer = await item
-        except asyncio.TimeoutError:
-            try:
-                item.close()
-            except asyncio.CancelledError:
-                Logger.p2p.debug('Cancelled')
-            break
-        ad.append(peer)
-    return ad
+    hosts = set()
+    fn = asyncio.get_event_loop().getaddrinfo
+    done, pending = await asyncio.wait(
+        map(
+            lambda x: fn(x, network.default_port),
+            network.dns_bootstrap,
+        ),
+        timeout=2
+    )
+    for f in itertools.chain(done, pending):
+        hosts.update(
+            set(
+                map(
+                    lambda r: (r[4][0], r[4][1]),
+                    f.result()
+                )
+            )
+        ) if f.done() else f.cancel()
+    return hosts
 
 
 class AsyncBlockFactory:

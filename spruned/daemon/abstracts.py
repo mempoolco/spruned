@@ -6,11 +6,6 @@ class ConnectionAbstract(metaclass=abc.ABCMeta):  # pragma: no cover
 
     @property
     @abc.abstractmethod
-    def start_score(self):
-        pass
-
-    @property
-    @abc.abstractmethod
     def hostname(self):
         pass
 

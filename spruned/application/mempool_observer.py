@@ -7,9 +7,9 @@ from pycoin.block import Block
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.daemon import exceptions
-from spruned.daemon.p2p.p2p_connection import P2PConnection
-from spruned.daemon.p2p.p2p_interface import P2PInterface
-from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem
+from spruned.daemon.p2p.connection import P2PConnection
+from spruned.daemon.p2p.interface import P2PInterface
+from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem
 from spruned.repositories.repository import Repository
 
 
@@ -89,7 +89,8 @@ class MempoolObserver:
     async def on_transaction_hash(self, connection: P2PConnection, item: InvItem):
         txid = str(item.data)
         if self.repository.mempool.add_seen(txid, '{}/{}'.format(connection.hostname, connection.port)):
-            await self.p2p.pool.get_from_connection(connection, item)
+            await self.p2p.pool.get_invitem(item, connection, 10)
+            # todo fixme
             return
 
     async def on_transaction(self, connection: P2PConnection, transaction: typing.Dict):

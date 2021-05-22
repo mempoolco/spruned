@@ -227,11 +227,11 @@ class TestElectrodConnectionPool(unittest.TestCase):
             self.sut._pick_multiple_peers(2)
         self.sut._peers = s
         with self.assertRaises(exceptions.NoPeersException):
-            self.sut._pick_connection()
+            self.sut.get_connection()
         with self.assertRaises(exceptions.NoPeersException):
-            self.sut._pick_multiple_connections(2)
+            self.sut.get_multiple_connections(2)
         self.assertIsNone(
-            self.sut._pick_connection(fail_silent=True)
+            self.sut.get_connection(fail_silent=True)
         )
         self.sut._peers = ['cafebabe']
         self.sut._connections.append(Mock(hostname='cafebabe', connected=True, score=1))

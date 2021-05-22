@@ -1,7 +1,6 @@
 import json
 import os
 import random
-from json import JSONDecodeError
 from spruned.application.context import Context
 from spruned.daemon.p2p import utils
 
@@ -9,31 +8,30 @@ from spruned.daemon.p2p import utils
 def build(ctx: Context):  # pragma: no cover
     network = ctx.get_network()
     assert isinstance(network, dict), network
-    from spruned.daemon.p2p.p2p_connection import P2PConnectionPool
-    from spruned.daemon.p2p.p2p_interface import P2PInterface
-    peers = load_p2p_peers()
+    from spruned.daemon.p2p.interface import P2PInterface
+    from spruned.daemon.p2p.connectionpool import P2PConnectionPool
+    #peers = load_p2p_peers()
     pool = P2PConnectionPool(
-        connections =16,
-        batcher_timeout=30,
+        connections=1,
         network=network['pycoin'],
         ipv6=False,
         proxy=str(ctx.proxy),
         context=ctx,
         enable_mempool=bool(int(ctx.mempool_size))
     )
-    for peer in peers:
-        pool.add_peer(peer)
+    #for peer in peers:
+    #    pool.add_peer(peer)
     interface = P2PInterface(pool, network=network['pycoin'])
-    if ctx.tor:
-        async def _no_dns_bootstrap(*_, **__):
-            return load_p2p_peers()
-        interface.peers_bootstrap = _no_dns_bootstrap
+    #if ctx.tor:
+    #    async def _no_dns_bootstrap(*_, **__):
+    #        return load_p2p_peers()
+    #    interface._get_peers_from_seed = _no_dns_bootstrap
     return pool, interface
 
-
+"""
 def load_p2p_peers():  # pragma: no cover
     from spruned.application.context import ctx
-    _local = ctx.datadir + '/p2p_peers.json'
+    _local = ctx.datadir + '/peers.json'
     local_peers = []
     if os.path.exists(_local) and os.path.isfile(_local):
         with open(_local, 'r') as fr:
@@ -43,7 +41,7 @@ def load_p2p_peers():  # pragma: no cover
                 os.remove(_local)
     network = ctx.get_network()
     _current_path = os.path.dirname(os.path.abspath(__file__))
-    with open(_current_path + '/p2p_peers.json', 'r') as f:
+    with open(_current_path + '/peers.json', 'r') as f:
         hardcoded_peers = json.load(f)[network['alias']]
     local_peers = [peer for peer in local_peers if peer not in hardcoded_peers]
     peers = local_peers + hardcoded_peers
@@ -51,7 +49,7 @@ def load_p2p_peers():  # pragma: no cover
         return [s for s in peers if '.onion' in s[0]]
     else:
         return [s for s in peers if '.onion' not in s[0]]
-
+    """
 
 def save_p2p_peers(peers, max_peers=5120, ipv6=False, shuffle=True):  # pragma: no cover
     from spruned.application.context import ctx

@@ -298,19 +298,20 @@ class SprunedVOService(RPCAPIService):
         return unspents
 
     async def getpeerinfo(self):
-        electrum_peers = self.electrum.get_peers()
-        p2p_peers = self.p2p.get_peers()
-        response = []
-        for peer in itertools.chain(electrum_peers, p2p_peers):
-            response.append(
-                {
-                    "addr": "{}:{}".format(peer.hostname, peer.port),
+        return list(
+            map(
+                lambda peer: {
+                    "addr": f"{peer.hostname}:{peer.port}",
                     "subver": peer.subversion,
                     "conntime": peer.connected_at,
-                    "startingheight": peer.starting_height and int(peer.starting_height)
-                }
+                    "startingheight": peer.last_block_index and int(peer.last_block_index)
+                },
+                itertools.chain(
+                    self.electrum.get_connections(),
+                    self.p2p.get_connections()
+                )
             )
-        return response
+        )
 
     async def getmempoolinfo(self):
         if not self.repository.mempool:

@@ -44,7 +44,8 @@ Network = namedtuple(
 
 streamer = standard_streamer(standard_parsing_functions(Block, Tx))
 btc_parser, btc_packer = make_parser_and_packer(
-    streamer, standard_messages(), standard_message_post_unpacks(streamer))
+    streamer, standard_messages(), standard_message_post_unpacks(streamer)
+)
 
 
 MAINNET = Network(
@@ -58,7 +59,9 @@ MAINNET = Network(
 )
 
 TESTNET = Network(
-    'XTC', binascii.unhexlify('0B110907'), [
+    'XTC',
+    binascii.unhexlify('0B110907'),
+    [
         "testnet-seed.bitcoin.jonasschnelli.ch"
     ],
     18333,

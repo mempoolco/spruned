@@ -37,7 +37,7 @@ class ProtocolError(Exception):
 
 
 class Peer:
-    DEFAULT_MAX_MSG_SIZE = 4*1024*1024
+    DEFAULT_MAX_MSG_SIZE = 8*1024*1024
 
     def __init__(self, stream_reader, stream_writer, magic_header,
                  parse_from_data_f, pack_from_data_f, max_msg_size=DEFAULT_MAX_MSG_SIZE):

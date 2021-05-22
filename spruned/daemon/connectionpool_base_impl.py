@@ -25,27 +25,52 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
             sleep_no_internet=30,
             ipv6=False
     ):
+        self.connectionpicker_lock = asyncio.Lock()
+        self.delayer = delayer
+        self.loop = loop
+        self.starting_height = None
         self._connections = []
-        self._peers: typing.List = peers or []
+
+        self._peers: typing.Set = peers or set()
+        self._banned_peers: typing.Set = set()
+        self._used_peers: typing.Set = set()
+
         self._headers_observers = []
         self._new_peers_observers = []
         self._on_connect_observers = []
         self._required_connections = connections
         self._network_checker = network_checker
         self._proxy = proxy
-        self.loop = loop
-        self.delayer = delayer
         self._connection_notified = False
         self._is_online = False
         self._sleep_on_no_internet_connectivity = sleep_no_internet
         self._keepalive = True
         self._ipv6 = ipv6
-        self.starting_height = None
-        self.connectionpicker_lock = asyncio.Lock()
 
     @property
     def peers(self):
         return self._peers
+
+    def _get_peer(self):
+        peers = self._peers - self._banned_peers - self._used_peers
+        if not peers:
+            raise exceptions.NoPeersException
+        peer = peers.pop()
+        self._peers.remove(peer)
+        self._used_peers.add(peer)
+        return peer
+
+    def ban_peer(self, peer):
+        self._used_peers.remove(peer)
+        self._banned_peers.add(peer)
+
+    def _get_multiple_peers(self, count: int):
+        return list(
+            map(
+                self._get_peer(),
+                range(0, count)
+            )
+        )
 
     @property
     def connections(self):
@@ -59,67 +84,32 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
     def free_connections(self):
         return list(filter(lambda c: c.score > 0 and not c.busy and c.connected, self.connections))
 
-    def _pick_peer(self):
-        i = 0
-        while 1:
-            if self.peers:
-                server = random.choice(self.peers)
-                if server not in [connection.hostname for connection in self.connections]:
-                    if ':' in server[0] and not self._ipv6:
-                        i += 1
-                        continue
-                    return server
-                i += 1
-                if i < 100:
-                    continue
-            raise exceptions.NoServersException
-
-    def _pick_multiple_peers(self, how_many: int):
-        assert how_many >= 1
-        i = 0
-        servers = []
-        while 1:
-            i += 1
-            if self.peers:
-                if i > 100:
-                    return servers
-                server = self._pick_peer()
-                if server in servers:
-                    continue
-                servers.append(server)
-                if len(servers) == how_many:
-                    return servers
-            else:
-                raise exceptions.NoServersException
-
-    @async_retry(retries=100, wait=0.01, on_exception=exceptions.InvalidConnectionPickedException)
-    async def _pick_connection(self, fail_silent: bool = False):
-        connection = random.choice(self.free_connections)
-        if ':' in connection.hostname and not self._ipv6 or connection.score < 1:
-            raise exceptions.InvalidConnectionPickedException(fail_silent=fail_silent)
+    def get_connection(self):
+        connections = sorted(self.free_connections, key=lambda c: c.score, reverse=True)
+        if not connections:
+            raise exceptions.NoConnectionsAvailableException()
+        best_score = connections[0].score
+        best_connections = list(filter(lambda c: c.score >= max(1, best_score), self.free_connections))
+        if not best_connections:
+            raise exceptions.NoConnectionsAvailableException()
+        connection = random.choice(best_connections)
+        connection.score -= 1
         return connection
 
-    async def _pick_multiple_connections(self, count: int, accept: int = 2) -> List:
-        assert count >= 1
+    async def get_multiple_connections(self, count: int) -> List:
         try:
             await self.connectionpicker_lock.acquire()
-            connections = []
-            for x in range(0, 100):
-                conn = await self._pick_connection(fail_silent=True)
-                conn and connections.append(conn)
-                if len(connections) == count:
-                    break
-            if len(connections) < accept:
+            connections = list(
+                map(
+                    lambda _: self.get_connection(),
+                    range(0, count)
+                )
+            )
+            if len(connections) < count:
                 raise exceptions.NoPeersException
             return connections
         finally:
             self.connectionpicker_lock.release()
-
-    async def _pick_privileged_connections(self, how_many: int, accept: int = 1) -> List[ConnectionAbstract]:
-        connection = sorted([x for x in self.established_connections], key=lambda x: getattr(x, 'score'))
-        if len(connection) >= accept:
-            return connection[:how_many]
-        raise exceptions.NoPeersException
 
     def is_online(self):
         return self._is_online
@@ -131,11 +121,11 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._headers_observers.append(observer)
 
     def on_peer_disconnected(self, peer: ConnectionAbstract, *_):
-        peer.add_error(int(time.time()) + 180, origin='on_peer_disconnected')
+        peer.add_error(int(time.time()), origin='on_peer_disconnected') # ?!
 
     async def on_peer_received_header(self, peer: ConnectionAbstract, *_):
         for observer in self._headers_observers:
-            self.loop.create_task(self.delayer(observer(peer, peer.last_header)))
+            self.loop.create_task(observer(peer, peer.last_header))
 
     async def on_peer_received_peers(self, peer: ConnectionAbstract, *_):
         raise NotImplementedError
@@ -146,7 +136,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
                 peer.add_error(int(time.time()) + 180, origin='on_peer_error')
             return
         if self.is_online:
-            Logger.electrum.debug('Peer %s error', peer)
+            Logger.root.debug('Peer %s error', peer)
             await self._handle_peer_error(peer)
 
     def stop(self):
@@ -160,16 +150,16 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         return self._is_online
 
     async def _handle_peer_error(self, connection: ConnectionAbstract):
-        Logger.electrum.debug('Handling connection error for %s', connection.hostname)
+        Logger.root.debug('Handling connection error for %s', connection.hostname)
         if not connection.connected:
             connection.add_error(origin='handle_peer_error')
             return
         if not connection.score:
-            Logger.electrum.error('Disconnecting from peer %s, score: %s', connection.hostname, connection.score)
+            Logger.root.error('Disconnecting from peer %s, score: %s', connection.hostname, connection.score)
             self.loop.create_task(self.delayer(connection.disconnect()))
             return
         if not await connection.ping(timeout=2):
-            Logger.electrum.error('Ping timeout from peer %s, score: %s', connection.hostname, connection.score)
+            Logger.root.error('Ping timeout from peer %s, score: %s', connection.hostname, connection.score)
             self.loop.create_task(self.delayer(connection.disconnect()))
 
     def connect(self):

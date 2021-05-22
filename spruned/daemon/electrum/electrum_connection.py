@@ -213,7 +213,7 @@ class ElectrumConnectionPool(BaseConnectionPool):
                 self.loop.create_task(self._connect_servers(missings))
             elif missings < 0:
                 Logger.electrum.warning('Too many peers.')
-                connection = await self._pick_connection(fail_silent=True)
+                connection = await self.get_connection(fail_silent=True)
                 self.loop.create_task(connection.disconnect())
             elif not self._connection_notified:
                 for observer in self._on_connect_observers:
@@ -250,7 +250,7 @@ class ElectrumConnectionPool(BaseConnectionPool):
         if agreement > len(self.established_connections):
             raise exceptions.NoPeersException
         if agreement > 1:
-            connections = await self._pick_multiple_connections(agreement)
+            connections = await self.get_multiple_connections(agreement)
             responses = await asyncio.gather(
                 *[connection.rpc_call(method, params) for connection in connections]
             )
@@ -267,7 +267,7 @@ class ElectrumConnectionPool(BaseConnectionPool):
                 if fail_silent:
                     return
                 raise
-        connection = await self._pick_connection()
+        connection = await self.get_connection()
         response = await connection.rpc_call(method, params)
         if not response and not fail_silent:
             await self.on_peer_error(connection)

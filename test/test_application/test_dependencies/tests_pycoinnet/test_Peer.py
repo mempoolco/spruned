@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from spruned.dependencies.pycoinnet.Peer import Peer
+from spruned.dependencies.pycoinnet.peer import Peer
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.dependencies.pycoinnet.version import make_local_version
 

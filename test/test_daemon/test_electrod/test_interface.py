@@ -172,7 +172,7 @@ class TestElectrodInterface(unittest.TestCase):
         )
         i = 0
         for header in res:
-            self.assertEqual(header.get('block_height'), i+2016)
+            self.assertEqual(header.get_and_retry('block_height'), i + 2016)
             header['block_height'] = 513526
             i += 1
             header_from_chunk = {

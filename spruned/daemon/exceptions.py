@@ -65,7 +65,7 @@ class BootstrapException(SprunedException):
     pass
 
 
-class InvalidConnectionPickedException(RetryException):
+class NoConnectionsAvailableException(RetryException):
     pass
 
 

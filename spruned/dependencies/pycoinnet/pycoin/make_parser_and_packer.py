@@ -28,7 +28,7 @@ import io
 import struct
 from pycoin.serialize import b2h_rev, bitcoin_streamer
 from pycoin.message.PeerAddress import PeerAddress
-from spruned.dependencies.pycoinnet.pycoin.InvItem import InvItem
+from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem
 from pycoin.encoding import double_sha256
 
 

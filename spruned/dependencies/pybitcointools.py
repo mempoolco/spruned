@@ -52,7 +52,7 @@ import hashlib
 import re
 import binascii
 
-string_types = (str)
+string_types = str
 string_or_bytes_types = (str, bytes)
 int_types = (int, float)
 # Base switching

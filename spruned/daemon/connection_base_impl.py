@@ -1,6 +1,7 @@
 import abc
 import asyncio
 import time
+import uuid
 from typing import Dict, List
 from spruned.application.tools import async_delayed_task
 from spruned.daemon.abstracts import ConnectionAbstract
@@ -24,7 +25,6 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._on_errors_callbacks = []
         self._on_peers_callbacks = []
         self.loop = loop or asyncio.get_event_loop()
-        self._start_score = start_score
         self._score = start_score
         self._last_header = None
         self._subscriptions = []
@@ -37,6 +37,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self.failed = False
         self._busy = False
         self._busy_lock = asyncio.Lock()
+        self.uid = uuid.uuid4()
 
     @property
     def busy(self):
@@ -69,6 +70,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
             self._errors.append(int(a[0]))
         else:
             self._errors.append(int(time.time()))
+        self._score -= 1
 
     def add_success(self):
         self._score += 1
@@ -114,10 +116,6 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
             self.loop.create_task(callback(self))
 
     @property
-    def start_score(self):
-        return self._start_score
-
-    @property
     def version(self):
         return self._version
 
@@ -131,7 +129,11 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
 
     @property
     def score(self):
-        return self._start_score - len(self.errors)
+        return self._score
+
+    @score.setter
+    def score(self, value):
+        self._score = value
 
     @property
     def errors(self):

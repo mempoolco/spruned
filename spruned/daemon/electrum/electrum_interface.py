@@ -223,7 +223,5 @@ class ElectrumInterface:
     async def sendrawtransaction(self, rawtx: str, allowhighfees: bool = False):
         return await self.pool.call('blockchain.transaction.broadcast', rawtx)
 
-    def get_peers(self):
-        return [
-            peer for peer in self.pool.established_connections
-        ]
+    def get_connections(self):
+        return self.pool.established_connections

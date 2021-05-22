@@ -26,7 +26,7 @@ def builder(ctx: Context):  # pragma: no cover
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)
-    headers_reactor = HeadersReactor(repository.headers, electrum_interface)
+    headers_reactor = HeadersReactor(repository.headers, p2p_interface)
 
     if ctx.mempool_size:
         from spruned.application.mempool_observer import MempoolObserver
@@ -47,7 +47,7 @@ def builder(ctx: Context):  # pragma: no cover
             service
         )
     blocks_reactor = BlocksReactor(repository, p2p_interface, keep_blocks=int(ctx.keep_blocks))
-    headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
+    #headers_reactor.add_on_best_height_hit_persistent_callbacks(p2p_connectionpool.set_best_header)
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, \
            cache, zmq_context, zmq_observer, p2p_interface
 
