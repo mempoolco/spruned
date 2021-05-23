@@ -55,3 +55,7 @@ class DatabaseInconsistencyException(SprunedException):
 
 class TooManyRetriesException(SprunedException):
     pass
+
+
+class DatabaseDataNotFoundException(SprunedException):
+    pass

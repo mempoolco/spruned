@@ -43,7 +43,7 @@ class HeadersReactor:
     def set_last_processed_header(self, last: typing.Optional[typing.Dict]):
         if last != self._last_processed_header:
             self._last_processed_header = last
-            Logger.electrum.info(
+            Logger.root.info(
                 'Last processed header: %s (%s)',
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
@@ -54,7 +54,7 @@ class HeadersReactor:
 
     async def start(self):
         best_header = self.repo.get_best_header()
-        best_chain = self.repo.get_headers_since_height(best_header['block_height'] - 5)
+        best_chain = self.repo.get_headers(best_header['block_hash'], limit=6)
         self._best_chain = best_chain
         self.set_last_processed_header(best_header)
         await self._fetch_headers_loop()
@@ -140,7 +140,7 @@ class HeadersReactor:
             # todo difficulty check
 
     async def _save_new_headers(self, headers: typing.List):
-        self.repo.save_headers(headers)
+        await self.repo.save_headers(headers)
         for h in headers[-6:]:
             new = {
                 'block_hash': h['block_hash'],

@@ -8,7 +8,7 @@ import typing
 from fifolock import FifoLock
 from pycoin.block import Block
 
-from spruned.application.tools import blockheader_to_blockhash
+from spruned.application.tools import blockheader_to_blockhash, serialize_header, deserialize_header
 from spruned.daemon import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
 
@@ -66,6 +66,7 @@ class BlockchainRepository:
             self._ensure_brand_new_db(batch_session)
             self._initialize_genesis_block(batch_session)
             batch_session.put(self.get_db_key(DBPrefix.DB_VERSION), self.current_version.to_bytes(2, 'little'))
+            batch_session.write()
         elif db_version != self.current_version:
             raise exceptions.DatabaseInconsistencyException('invalid db_version')
         else:
@@ -79,12 +80,18 @@ class BlockchainRepository:
             raise exceptions.DatabaseInconsistencyException('invalid genesis hash stored')
 
     def _initialize_genesis_block(self, batch_session):
-        height_key = self.get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, int(0).to_bytes(4, 'little'))
+        genesis_block_height = int(0).to_bytes(4, 'little')
+        height_key = self.get_db_key(
+            DBPrefix.BLOCKHASH_BY_HEIGHT,
+            genesis_block_height
+        )
         genesis_header = self.genesis_block[:80]
         genesis_hash = blockheader_to_blockhash(genesis_header)
         header_key = self.get_db_key(DBPrefix.HEADER, genesis_hash)
+        best_height_key = self.get_db_key(DBPrefix.BEST_HEIGHT)
         batch_session.put(height_key, genesis_hash)
-        batch_session.put(header_key, genesis_header)
+        batch_session.put(header_key, genesis_header + genesis_block_height)
+        batch_session.put(best_height_key, genesis_block_height)
 
     @staticmethod
     def get_db_key(prefix: DBPrefix, name: bytes = b''):
@@ -278,13 +285,16 @@ class BlockchainRepository:
         resp = await self.loop.run_in_executor(self.executor, self._save_headers, headers)
         return resp
 
-    def _save_headers(self, *headers: typing.Dict):
+    def _save_headers(self, headers: typing.List[typing.Dict]):
         """
         append only storage, accept only headers subsequent to the existing stored.
         """
         best_header = self.get_best_header()
-        if best_header['block_hash'] != headers[0]['prev_block_hash']:
-            raise exceptions.DatabaseInconsistencyException
+        try:
+            if best_header['block_hash'] != headers[0]['prev_block_hash']:
+                raise exceptions.DatabaseInconsistencyException
+        except:
+            raise
         batch_session = self.session.write_batch()
         saved_headers = []
         last_header = None
@@ -298,21 +308,31 @@ class BlockchainRepository:
         return saved_headers
 
     def _save_header(self, header, batch_session):
-        header_key = self.get_db_key(DBPrefix.HEADER, header['block_hash'])
-        height_key = self.get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, header['block_height'].to_bytes(4, 'little'))
-        batch_session.put(header_key, header['header_bytes'])
-        batch_session.put(height_key, header['block_hash'])
+        header_key = self.get_db_key(DBPrefix.HEADER, bytes.fromhex(header['block_hash']))
+        header_height = header['block_height'].to_bytes(4, 'little')
+        height_key = self.get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, header_height)
+        batch_session.put(header_key, header['header_bytes'] + header_height)
+        batch_session.put(height_key, bytes.fromhex(header['block_hash']))
         return header
 
     def get_header(self, blockhash: str) -> typing.Dict:
         return self._get_header(bytes.fromhex(blockhash))
 
-    def _get_header(self, blockhash: bytes):
+    def _get_header(self, blockhash: bytes) -> typing.Dict:
         key = self.get_db_key(DBPrefix.HEADER, blockhash)
-        header = self.session.get(key)
-        return header
+        data = self.session.get(key)
+        if not data:
+            raise exceptions.DatabaseDataNotFoundException
+        if len(data) != 84:
+            raise exceptions.DatabaseInconsistencyException
+        header = data[:80]
+        header_height = int.from_bytes(data[80:], 'little')
+        h_dict = deserialize_header(header, fmt='hex')
+        h_dict['block_height'] = header_height
+        h_dict['block_hash'] = h_dict.pop('hash')
+        return h_dict
 
-    def get_headers(self, start_hash: str, limit=3000) -> typing.List[typing.Dict]:
+    def get_headers(self, start_hash: str, limit=6) -> typing.List[typing.Dict]:
         headers = []
         assert limit <= 3000, 'absurdly high limit'
         header = self.get_header(start_hash)
@@ -322,6 +342,8 @@ class BlockchainRepository:
         cur_hash = header['block_hash']
         for height in range(header['block_height'] + 1, header['block_height'] + limit):
             n_header = self.get_header_at_height(height)
+            if not n_header:
+                break
             assert cur_hash == n_header['prev_block_hash']
             headers.append(header)
         return headers
@@ -338,12 +360,13 @@ class BlockchainRepository:
     def get_best_height(self) -> int:
         key = self.get_db_key(DBPrefix.BEST_HEIGHT)
         best_height = self.session.get(key)
-        assert isinstance(best_height, bytes)
+        assert isinstance(best_height, bytes), best_height
         best_height = int.from_bytes(best_height, 'little')
         return best_height
 
     def get_best_header(self) -> typing.Dict:
-        return self.get_header_at_height(self.get_best_height())
+        best_height = self.get_best_height()
+        return self.get_header_at_height(best_height)
 
     def _save_best_height(self, height: int, batch_session):
         key = self.get_db_key(DBPrefix.BEST_HEIGHT)
