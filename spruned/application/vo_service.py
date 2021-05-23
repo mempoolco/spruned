@@ -12,7 +12,7 @@ from spruned.application.tools import deserialize_header, script_to_scripthash, 
     ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
-from spruned.daemon.exceptions import ElectrumMissingResponseException
+from spruned.services.exceptions import ElectrumMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
 

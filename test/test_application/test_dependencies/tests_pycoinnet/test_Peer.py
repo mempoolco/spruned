@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from spruned.dependencies.pycoinnet.peer import Peer
+from spruned.dependencies.pycoinnet.peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.dependencies.pycoinnet.version import make_local_version
 
@@ -93,5 +93,5 @@ class PeerTest(unittest.TestCase):
         p2.send_msg("ping", nonce=100)
         p2.close()
         run(p1.next_message())
-        with self.assertRaises(EOFError):
+        with self.assertRaises(ProtocolError):
             run(p1.next_message())

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from spruned.daemon.abstracts import ConnectionAbstract
+from spruned.services.abstracts import ConnectionAbstract
 from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem
 
 

@@ -30,7 +30,7 @@ class Repository:
     def instance(cls):  # pragma: no cover
         from spruned.application.context import ctx
         blockchain_repository = BlockchainRepository(
-            ctx.network_rules,
+            bytes.fromhex(ctx.network_rules['genesis_block']),
             database.level_db,
             settings.LEVELDB_PATH
         )

@@ -97,7 +97,7 @@ import time
 import json
 
 # Check if aiosocks is present, and load it if it is.
-from spruned.daemon import exceptions
+from spruned.services import exceptions
 
 if importutil.find_spec("aiohttp_socks") is not None:
     import aiohttp_socks

@@ -1,15 +1,15 @@
 from spruned.application.context import ctx as _ctx, Context
-from spruned.daemon.zeromq import build_zmq
+from spruned.services.zeromq import build_zmq
 
 
 def builder(ctx: Context):  # pragma: no cover
     from spruned.repositories.repository import Repository
-    from spruned.daemon.tasks.blocks_reactor import BlocksReactor
-    from spruned.daemon.tasks.headers_reactor import HeadersReactor
+    from spruned.reactors.blocks_reactor import BlocksReactor
+    from spruned.reactors.headers_reactor import HeadersReactor
     from spruned.application import vo_service
     from spruned.application.jsonrpc_server import JSONRPCServer
-    from spruned.daemon.electrum import build as electrum_builder
-    from spruned.daemon.p2p import build as p2p_builder
+    from spruned.services.electrum import build as electrum_builder
+    from spruned.services.p2p import build as p2p_builder
 
     electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)

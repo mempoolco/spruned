@@ -1,5 +1,4 @@
 import itertools
-from pycoin.block import Block
 
 from spruned.dependencies.pycoinnet.networks import TESTNET
 import asyncio

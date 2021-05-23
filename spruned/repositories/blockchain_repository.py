@@ -9,7 +9,7 @@ from fifolock import FifoLock
 from pycoin.block import Block
 
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header
-from spruned.daemon import exceptions as daemon_exceptions  # fixme remove
+from spruned.services import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
 
 import asyncio
@@ -39,18 +39,14 @@ class DBPrefix(Enum):
 class BlockchainRepository:
     current_version = 1
 
-    def __init__(self, network_rules, session, dbpath):
-        self.network_rules = network_rules
+    def __init__(self, genesis_block: bytes, session, dbpath):
+        self.genesis_block = genesis_block
         self.session = session
         self.dbpath = dbpath
         self._cache = None
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=64)
         self.lock = FifoLock()
-
-    @property
-    def genesis_block(self):
-        return bytes.fromhex(self.network_rules['genesis_block'])
 
     def _ensure_brand_new_db(self, batch_session):
         from spruned.application.database import BRAND_NEW_DB_PLACEHOLDER
@@ -158,14 +154,15 @@ class BlockchainRepository:
         )
 
     async def get_block_index(self, blockhash: str):
-        blockhash = bytes.fromhex(blockhash)
-        return await self._get_block_index(blockhash)
-
-    async def _get_block_index(self, blockhash: bytes):
-        assert isinstance(blockhash, bytes)
         return await self.loop.run_in_executor(
             self.executor,
-            self.session.get,
+            self._get_block_index,
+            bytes.fromhex(blockhash)
+        )
+
+    def _get_block_index(self, blockhash: bytes):
+        assert isinstance(blockhash, bytes)
+        return self.session.get(
             self._get_db_key(DBPrefix.BLOCK_INDEX, blockhash)
         )
 
@@ -196,13 +193,16 @@ class BlockchainRepository:
 
     async def get_block_size_and_transaction_ids(self, blockhash: str) \
             -> typing.Tuple[typing.Optional[int], typing.Iterable[str]]:
-        blockhash = bytes.fromhex(blockhash)
-        resp = await self._get_block_size_and_transaction_ids(blockhash)
+        resp = await self.loop.run_in_executor(
+            self.executor,
+            self._get_block_size_and_transaction_ids,
+            bytes.fromhex(blockhash)
+        )
         return resp[0], list(map(lambda txid: txid.hex(), resp[1]))
 
-    async def _get_block_size_and_transaction_ids(self, blockhash: bytes) \
+    def _get_block_size_and_transaction_ids(self, blockhash: bytes) \
             -> typing.Tuple[typing.Optional[int], typing.Iterable[bytes]]:
-        block_index = await self._get_block_index(blockhash)
+        block_index = self._get_block_index(blockhash)
         if not block_index:
             return None, ()
         i = 0
@@ -220,7 +220,14 @@ class BlockchainRepository:
         return int.from_bytes(size, 'little'), txids
 
     async def get_transactions_by_block_hash(self, blockhash: str) -> (List[Dict], int):
-        block_index = await self.get_block_index(blockhash)
+        return await self.loop.run_in_executor(
+            self.executor,
+            self._get_transactions_by_block_hash,
+            blockhash
+        )
+
+    def _get_transactions_by_block_hash(self, blockhash: str) -> (List[Dict], int):
+        block_index = self._get_block_index(bytes.fromhex(blockhash))
         if not block_index:
             return None, []
         i = 0
@@ -231,7 +238,7 @@ class BlockchainRepository:
             txid = block_index[i:i+32]
             if not txid:
                 break
-            transaction = await self._get_transaction(txid)
+            transaction = self._get_transaction(txid)
             if not transaction:
                 raise exceptions.DatabaseInconsistencyException
             transactions.append(transaction)
@@ -239,12 +246,14 @@ class BlockchainRepository:
         return int.from_bytes(block_size, 'little'), transactions
 
     async def get_transaction(self, txid: str) -> (None, Dict):
-        return await self._get_transaction(bytes.fromhex(txid))
-
-    async def _get_transaction(self, txid: bytes):
-        data = self.loop.run_in_executor(
+        return await self.loop.run_in_executor(
             self.executor,
-            self.session.get,
+            self._get_transaction,
+            bytes.fromhex(txid)
+        )
+
+    def _get_transaction(self, txid: bytes):
+        data = self.session.get(
             self._get_db_key(DBPrefix.TRANSACTION, txid)
         )
         if not data:

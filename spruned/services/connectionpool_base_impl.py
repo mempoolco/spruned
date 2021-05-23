@@ -8,8 +8,8 @@ import typing
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
-from spruned.daemon import exceptions
-from spruned.daemon.abstracts import ConnectionPoolAbstract, ConnectionAbstract
+from spruned.services import exceptions
+from spruned.services.abstracts import ConnectionPoolAbstract, ConnectionAbstract
 
 
 class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):

@@ -7,14 +7,14 @@ from pycoin.serialize import h2b_rev
 
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
-from spruned.daemon import exceptions
-from spruned.daemon.p2p.connection import P2PConnection
-from spruned.daemon.p2p.connectionpool import P2PConnectionPool
+from spruned.services import exceptions
+from spruned.services.p2p.connection import P2PConnection
+from spruned.services.p2p.connectionpool import P2PConnectionPool
 
 from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem, \
     ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from spruned.dependencies.pycoinnet.networks import MAINNET
-from spruned.daemon.p2p import utils
+from spruned.services.p2p import utils
 
 
 class P2PInterface:

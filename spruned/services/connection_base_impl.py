@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Dict, List
 from spruned.application.tools import async_delayed_task
-from spruned.daemon.abstracts import ConnectionAbstract
+from spruned.services.abstracts import ConnectionAbstract
 
 
 class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):

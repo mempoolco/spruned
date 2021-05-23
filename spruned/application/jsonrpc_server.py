@@ -16,7 +16,7 @@ from spruned.application import exceptions
 
 from spruned.application.exceptions import InvalidPOWException, ItemNotFoundException
 from spruned.application.logging_factory import Logger
-from spruned.daemon.exceptions import GenesisTransactionRequestedException
+from spruned.services.exceptions import GenesisTransactionRequestedException
 from spruned import __version__ as spruned_version
 from spruned.dependencies.pybitcointools import address_to_script
 

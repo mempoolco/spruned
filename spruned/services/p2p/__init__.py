@@ -2,14 +2,14 @@ import json
 import os
 import random
 from spruned.application.context import Context
-from spruned.daemon.p2p import utils
+from spruned.services.p2p import utils
 
 
 def build(ctx: Context):  # pragma: no cover
     network = ctx.get_network()
     assert isinstance(network, dict), network
-    from spruned.daemon.p2p.interface import P2PInterface
-    from spruned.daemon.p2p.connectionpool import P2PConnectionPool
+    from spruned.services.p2p.interface import P2PInterface
+    from spruned.services.p2p.connectionpool import P2PConnectionPool
     pool = P2PConnectionPool(
         connections=16,
         network=network['pycoin'],

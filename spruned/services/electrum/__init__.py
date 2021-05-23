@@ -44,9 +44,9 @@ def save_electrum_servers(peers: set):  # pragma: no cover
 
 
 def build(ctx, loop=asyncio.get_event_loop()):  # pragma: no cover
-    from spruned.daemon.electrum.electrum_connection import ElectrumConnectionPool
-    from spruned.daemon.electrum.electrum_interface import ElectrumInterface
-    from spruned.daemon.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
+    from spruned.services.electrum.electrum_connection import ElectrumConnectionPool
+    from spruned.services.electrum.electrum_interface import ElectrumInterface
+    from spruned.services.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
         EstimateFeeConsensusCollector
     network = ctx.get_network()
     peers = load_electrum_servers(ctx)

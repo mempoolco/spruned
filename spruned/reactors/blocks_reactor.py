@@ -2,7 +2,7 @@ import asyncio
 import typing
 
 from spruned.application.logging_factory import Logger
-from spruned.daemon.p2p.interface import P2PInterface
+from spruned.services.p2p.interface import P2PInterface
 from spruned.repositories.repository import Repository
 
 

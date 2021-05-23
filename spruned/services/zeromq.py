@@ -8,10 +8,10 @@ import zmq.asyncio
 from pycoin.block import Block
 from pycoin.tx.Tx import Tx
 
-from spruned.daemon import exceptions
+from spruned.services import exceptions
 
 from spruned.application.logging_factory import Logger
-from spruned.daemon.tasks.headers_reactor import HeadersReactor
+from spruned.reactors.headers_reactor import HeadersReactor
 import binascii
 
 _SOCKETS = threading.local()

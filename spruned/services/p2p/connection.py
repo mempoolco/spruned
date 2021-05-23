@@ -9,11 +9,11 @@ import typing
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.daemon import exceptions
-from spruned.daemon.connection_base_impl import BaseConnection
-from spruned.daemon.exceptions import PeerBlockchainBehindException, PeerVersionMismatchException
-from spruned.daemon.p2p.channel import P2PChannel
-from spruned.daemon.p2p.types import P2PInvItemResponse
+from spruned.services import exceptions
+from spruned.services.connection_base_impl import BaseConnection
+from spruned.services.exceptions import PeerBlockchainBehindException, PeerVersionMismatchException
+from spruned.services.p2p.channel import P2PChannel
+from spruned.services.p2p.types import P2PInvItemResponse
 from spruned.dependencies.pycoinnet.peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX, InvItem

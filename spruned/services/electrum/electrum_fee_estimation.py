@@ -1,6 +1,6 @@
 import time
 from statistics import median
-from spruned.daemon import exceptions
+from spruned.services import exceptions
 
 
 class NotEnoughDataException(Exception):

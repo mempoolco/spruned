@@ -13,10 +13,10 @@ from spruned.dependencies.connectrum import ServerInfo
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task, check_internet_connection
-from spruned.daemon import exceptions
-from spruned.daemon.connection_base_impl import BaseConnection
-from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
-from spruned.daemon.electrum import save_electrum_servers
+from spruned.services import exceptions
+from spruned.services.connection_base_impl import BaseConnection
+from spruned.services.connectionpool_base_impl import BaseConnectionPool
+from spruned.services.electrum import save_electrum_servers
 
 
 class ElectrumConnection(BaseConnection):

@@ -6,9 +6,9 @@ from pycoin.block import Block
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.daemon import exceptions
-from spruned.daemon.p2p.connection import P2PConnection
-from spruned.daemon.p2p.interface import P2PInterface
+from spruned.services import exceptions
+from spruned.services.p2p.connection import P2PConnection
+from spruned.services.p2p.interface import P2PInterface
 from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem
 from spruned.repositories.repository import Repository
 

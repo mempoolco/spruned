@@ -4,10 +4,10 @@ import typing
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import check_internet_connection, async_delayed_task
-from spruned.daemon import exceptions
-from spruned.daemon.p2p import save_p2p_peers
-from spruned.daemon.connectionpool_base_impl import BaseConnectionPool
-from spruned.daemon.p2p.connection import P2PConnection
+from spruned.services import exceptions
+from spruned.services.p2p import save_p2p_peers
+from spruned.services.connectionpool_base_impl import BaseConnectionPool
+from spruned.services.p2p.connection import P2PConnection
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.dependencies.pycoinnet.pycoin.bloom import BloomFilter, filter_size_required, \
     hash_function_count_required

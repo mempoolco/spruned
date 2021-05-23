@@ -4,11 +4,11 @@ from typing import Dict
 from spruned.application.context import ctx
 from spruned.application.exceptions import InvalidPOWException, InvalidHeaderException
 from spruned.application.logging_factory import Logger
-from spruned.daemon import exceptions
+from spruned.services import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
 from spruned.application.consensus import verify_pow
-from spruned.daemon.electrum.electrum_connection import ElectrumConnectionPool, ElectrumConnection
-from spruned.daemon.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
+from spruned.services.electrum.electrum_connection import ElectrumConnectionPool, ElectrumConnection
+from spruned.services.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
     EstimateFeeConsensusCollector
 
 
