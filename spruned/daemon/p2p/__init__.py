@@ -11,7 +11,7 @@ def build(ctx: Context):  # pragma: no cover
     from spruned.daemon.p2p.interface import P2PInterface
     from spruned.daemon.p2p.connectionpool import P2PConnectionPool
     pool = P2PConnectionPool(
-        connections=1,
+        connections=16,
         network=network['pycoin'],
         ipv6=False,
         proxy=str(ctx.proxy),

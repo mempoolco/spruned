@@ -41,6 +41,7 @@ class HeadersReactor:
         self._on_new_best_header_callbacks.append(callback)
 
     def set_last_processed_header(self, last: typing.Optional[typing.Dict]):
+        assert isinstance(last, dict)
         if last != self._last_processed_header:
             self._last_processed_header = last
             Logger.root.debug(
@@ -170,9 +171,9 @@ class HeadersReactor:
                     )
                 )
                 new_headers = await self._check_headers_with_best_chain(connection, headers)
-                Logger.p2p.debug('Received %s new headers' % len(new_headers))
                 if not new_headers:
                     return
+                Logger.p2p.debug('Received %s new headers' % len(new_headers))
                 new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
                 await self._save_new_headers(new_headers)
             except exceptions.HeadersInconsistencyException:

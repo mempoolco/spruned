@@ -348,7 +348,7 @@ class BlockchainRepository:
     def get_headers(self, start_hash: str, limit=6):
         return self.loop.run_in_executor(
             self.executor,
-            self._get_header,
+            self._get_headers,
             bytes.fromhex(start_hash),
             limit
         )
