@@ -212,7 +212,7 @@ class VOService(RPCAPIService):
         }
 
     async def getblockcount(self) -> int:
-        return self.repository.blockchain.get_best_header().get('block_height')
+        return await self.repository.blockchain.get_best_height()
 
     async def estimatefee(self, blocks: int):
         try:
@@ -239,7 +239,7 @@ class VOService(RPCAPIService):
     async def getblockchaininfo(self):
         from spruned import __version__ as spruned_version
         from spruned import __bitcoind_version_emulation__ as bitcoind_version
-        best_header = self.repository.blockchain.get_best_header()
+        best_header = await self.repository.blockchain.get_best_header()
         _deserialized_header = deserialize_header(best_header['header_bytes'])
         return {
             "chain": "main",
