@@ -166,7 +166,7 @@ class VOService(RPCAPIService):
         return transaction['hex']
 
     async def getbestblockhash(self):
-        return self.repository.blockchain.get_best_blockhash()
+        return await self.repository.blockchain.get_best_block_hash()
 
     async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
         res = await self.electrum.sendrawtransaction(rawtx, allowhighfees=allowhighfees)
@@ -183,11 +183,11 @@ class VOService(RPCAPIService):
         return await self.repository.blockchain.get_block_hash(blockheight)
 
     async def getblockheader(self, blockhash: str, verbose=True):
-        header = self.repository.blockchain.get_block_header(blockhash)
+        header = await self.repository.blockchain.get_header(blockhash)
         if not header:
             return
         if verbose:
-            _best_header = self.repository.blockchain.get_best_header()
+            _best_header = await self.repository.blockchain.get_best_header()
             res = self._serialize_header(header)
             res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
         else:

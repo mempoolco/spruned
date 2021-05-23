@@ -53,8 +53,8 @@ class HeadersReactor:
                     self.loop.create_task(callback(self._last_processed_header))
 
     async def start(self):
-        best_header = self.repo.get_best_header()
-        best_chain = self.repo.get_headers(best_header['block_hash'], limit=6)
+        best_header = await self.repo.get_best_header()
+        best_chain = await self.repo.get_headers(best_header['block_hash'], limit=6)
         self._best_chain = best_chain
         self.set_last_processed_header(best_header)
         await self._fetch_headers_loop()
