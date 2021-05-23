@@ -6,7 +6,7 @@ from spruned.application.exceptions import InvalidPOWException, InvalidHeaderExc
 from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header, serialize_header
-from spruned.consensus import verify_pow
+from spruned.application.consensus import verify_pow
 from spruned.daemon.electrum.electrum_connection import ElectrumConnectionPool, ElectrumConnection
 from spruned.daemon.electrum.electrum_fee_estimation import EstimateFeeConsensusProjector, \
     EstimateFeeConsensusCollector

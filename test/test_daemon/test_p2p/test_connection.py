@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import time
 
-from spruned.application.networks.bitcoin import mainnet, testnet
+from spruned.networks.bitcoin import mainnet, testnet
 
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX
 

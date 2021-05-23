@@ -11,7 +11,7 @@ from spruned import settings
 
 from spruned.application.cache import CacheAgent
 from spruned.application.exceptions import ServiceException, InvalidPOWException
-from spruned.application.spruned_vo_service import VOService
+from spruned.application.vo_service import VOService
 from spruned.daemon.exceptions import ElectrumMissingResponseException
 from test.utils import async_coro
 

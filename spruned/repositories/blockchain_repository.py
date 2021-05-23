@@ -11,7 +11,6 @@ from pycoin.block import Block
 from spruned.daemon import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
 
-from spruned.repositories.abstracts import BlockchainRepositoryAbstract
 import asyncio
 
 
@@ -28,15 +27,16 @@ class Write(asyncio.Future):
 
 
 class DBPrefix(Enum):
-    TRANSACTION_PREFIX = 1
-    BLOCK_INDEX_PREFIX = 2
-    HEADERS_PREFIX = 3
+    DB_VERSION = 0
+    TRANSACTION = 1
+    BLOCK_INDEX = 2
+    HEADER = 3
+    HEADER_BY_HEIGHT = 4
+    BEST_HEIGHT = 5
 
-    DB_VERSION = 99
 
-
-class BlockchainRepository(BlockchainRepositoryAbstract):
-    current_version = 5
+class BlockchainRepository:
+    current_version = 1
 
     def __init__(self, session, dbpath):
         self.session = session
@@ -245,3 +245,76 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         await self.loop.run_in_executor(
             self.executor, self.session.delete, key
         )
+
+    async def save_headers(self, headers):
+        resp = await self.loop.run_in_executor(self.executor, self._save_headers, headers)
+        return resp
+
+    def _save_headers(self, *headers: typing.Dict):
+        """
+        append only storage, accept only headers subsequent to the existing stored.
+        """
+        best_header = self.get_best_header()
+        if best_header['block_hash'] != headers[0]['prev_block_hash']:
+            raise exceptions.DatabaseInconsistencyException
+        batch_session = self.session.write_batch()
+        saved_headers = []
+        last_header = None
+        for i, header in enumerate(headers):
+            assert not i or header['prev_block_hash'] == headers[i-1]['block_hash']
+            saved_headers.append(self._save_header(header, batch_session))
+            last_header = header
+        assert last_header
+        self._save_best_height(last_header['block_height'], batch_session)
+        batch_session.write()
+        return saved_headers
+
+    def _save_header(self, header, batch_session):
+        header_key = self._get_key(DBPrefix.HEADER, header['block_hash'])
+        height_key = self._get_key(DBPrefix.HEADER_BY_HEIGHT, header['block_height'].to_bytes(4, 'little'))
+        batch_session.put(header_key, header['header_bytes'])
+        batch_session.put(height_key, header['block_hash'])
+        return header
+
+    def get_header(self, blockhash: str) -> typing.Dict:
+        return self._get_header(bytes.fromhex(blockhash))
+
+    def _get_header(self, blockhash: bytes):
+        key = self._get_key(DBPrefix.HEADER, blockhash)
+        header = self.session.get(key)
+        return header
+
+    def get_headers(self, start_hash: str, limit=3000) -> typing.List[typing.Dict]:
+        headers = []
+        assert limit <= 3000, 'absurdly high limit'
+        header = self.get_header(start_hash)
+        if not header:
+            raise exceptions.DatabaseInconsistencyException
+        headers.append(header)
+        cur_hash = header['block_hash']
+        for height in range(header['block_height'] + 1, header['block_height'] + limit):
+            n_header = self.get_header_at_height(height)
+            assert cur_hash == n_header['prev_block_hash']
+            headers.append(header)
+        return headers
+
+    def get_header_at_height(self, height: int) -> typing.Dict:
+        height_key = self._get_key(DBPrefix.HEADER_BY_HEIGHT, height.to_bytes(4, 'little'))
+        header_hash = self.session.get(height_key)
+        return self._get_header(header_hash)
+
+    def remove_headers(self, start_hash: str):
+        raise NotImplementedError
+
+    def get_best_height(self) -> int:
+        key = self._get_key(DBPrefix.BEST_HEIGHT)
+        best_height = int.from_bytes(self.session.get(key), 'little')
+        return best_height
+
+    def get_best_header(self) -> typing.Dict:
+        return self.get_header_at_height(self.get_best_height())
+
+    def _save_best_height(self, height: int, batch_session):
+        key = self._get_key(DBPrefix.BEST_HEIGHT)
+        batch_session.put(key, height.to_bytes(4, 'little'))
+        return height

@@ -5,7 +5,7 @@ from typing import Dict
 
 import time
 
-from spruned.application import networks
+from spruned import networks
 
 
 class Context(dict):

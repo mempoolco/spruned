@@ -32,4 +32,3 @@ def async_retry(retries: int, wait: float, on_exception: _exc_type):
                     raise
         return _function
     return decorator
-

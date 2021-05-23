@@ -42,7 +42,7 @@ class VOService(RPCAPIService):
         raise NotImplementedError
 
     async def get_block_object(self, blockhash: str):
-        block_header = self.repository.headers.get_block_header(blockhash)
+        block_header = self.repository.blockchain.get_block_header(blockhash)
         if not block_header:
             return
         block = await self._get_block(block_header)
@@ -52,7 +52,7 @@ class VOService(RPCAPIService):
         start = time.time()
         if mode == 2:
             raise NotImplementedError
-        block_header = self.repository.headers.get_block_header(blockhash)
+        block_header = self.repository.blockchain.get_block_header(blockhash)
         if not block_header:
             return
         if mode == 1:
@@ -65,7 +65,7 @@ class VOService(RPCAPIService):
                     'tx': [t.hex() for t in transaction_ids],
                     'size': block_size
                 })
-                best_header = self.repository.headers.get_best_header()
+                best_header = self.repository.blockchain.get_best_header()
                 block['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
                 Logger.p2p.info(
                     'Verbose block %s (%s) provided from local storage in %ss)',
@@ -93,12 +93,11 @@ class VOService(RPCAPIService):
                     blockhash,
                     '{:.4f}'.format(time.time() - start)
                 )
-                try:
-                    block = Block.parse(io.BytesIO(block_header['header_bytes']), include_transactions=False)
-                    block.set_txs([Tx.from_bin(t['transaction_bytes']) for t in transactions])
-                    return block.as_hex()
-                except:
-                    Logger.repository.error('Error loading block %s from repository, falling back to P2P' % blockhash)
+
+                block = Block.parse(io.BytesIO(block_header['header_bytes']), include_transactions=False)
+                block.set_txs([Tx.from_bin(t['transaction_bytes']) for t in transactions])
+                return block.as_hex()
+
             p2p_block = await self._get_block(block_header)
             Logger.p2p.info(
                 'Raw block %s (%s) provided from P2P in %ss)',
@@ -106,9 +105,7 @@ class VOService(RPCAPIService):
                 blockhash,
                 '{:.4f}'.format(time.time() - start)
             )
-            return binascii.hexlify(
-                p2p_block['block_bytes']
-            ).decode()
+            return binascii.hexlify(p2p_block['block_bytes']).decode()
 
     async def _make_verbose_block(self, block: dict, block_header) -> dict:
         block_object = await self.block_factory.get(block['block_bytes'])
@@ -155,7 +152,7 @@ class VOService(RPCAPIService):
         transaction = await self._get_electrum_transaction(txid, verbose=True)
         block_header = None
         if transaction.get('blockhash'):
-            block_header = self.repository.headers.get_block_header(transaction['blockhash'])
+            block_header = self.repository.blockchain.get_block_header(transaction['blockhash'])
             merkle_proof = await self.electrum.get_merkleproof(txid, block_header['block_height'])
             dh = deserialize_header(block_header['header_bytes'])
             if not ElectrumMerkleVerify.verify_merkle(txid, merkle_proof, dh):
@@ -163,13 +160,13 @@ class VOService(RPCAPIService):
         if verbose:
             if transaction.get('blockhash'):
                 incl_height = block_header and block_header['block_height'] or \
-                  self.repository.headers.get_block_header(transaction['blockhash'])['block_height']
-                transaction['confirmations'] = ((await self.getblockcount()) - incl_height) + 1
+                  self.repository.blockchain.get_block_header(transaction['blockhash'])['block_height']
+                transaction['confirmations'] = (await self.getblockcount()) - incl_height + 1
             return transaction
         return transaction['hex']
 
     async def getbestblockhash(self):
-        return self.repository.headers.get_best_blockhash()
+        return self.repository.blockchain.get_best_blockhash()
 
     async def sendrawtransaction(self, rawtx: str, allowhighfees=False):
         res = await self.electrum.sendrawtransaction(rawtx, allowhighfees=allowhighfees)
@@ -183,14 +180,14 @@ class VOService(RPCAPIService):
         return res
 
     async def getblockhash(self, blockheight: int):
-        return self.repository.headers.get_block_hash(blockheight)
+        return self.repository.blockchain.get_block_hash(blockheight)
 
     async def getblockheader(self, blockhash: str, verbose=True):
-        header = self.repository.headers.get_block_header(blockhash)
+        header = self.repository.blockchain.get_block_header(blockhash)
         if not header:
             return
         if verbose:
-            _best_header = self.repository.headers.get_best_header()
+            _best_header = self.repository.blockchain.get_best_header()
             res = self._serialize_header(header)
             res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
         else:
@@ -217,7 +214,7 @@ class VOService(RPCAPIService):
         }
 
     async def getblockcount(self) -> int:
-        return self.repository.headers.get_best_header().get('block_height')
+        return self.repository.blockchain.get_best_header().get('block_height')
 
     async def estimatefee(self, blocks: int):
         try:
@@ -238,19 +235,19 @@ class VOService(RPCAPIService):
         return res
 
     async def getbestblockheader(self, verbose=True):
-        best_header = self.repository.headers.get_best_header()
+        best_header = self.repository.blockchain.get_best_header()
         return await self.getblockheader(best_header['block_hash'], verbose=verbose)
 
     async def getblockchaininfo(self):
         from spruned import __version__ as spruned_version
         from spruned import __bitcoind_version_emulation__ as bitcoind_version
-        best_header = self.repository.headers.get_best_header()
+        best_header = self.repository.blockchain.get_best_header()
         _deserialized_header = deserialize_header(best_header['header_bytes'])
         return {
             "chain": "main",
             "warning": "spruned %s, emulating bitcoind v%s" % (spruned_version, bitcoind_version),
             "blocks": best_header["block_height"],
-            "headers": best_header["block_height"],
+            "blockchain": best_header["block_height"],
             "bestblockhash": best_header["block_hash"],
             "difficulty": 0,
             "chainwork": '00'*32,
@@ -279,11 +276,11 @@ class VOService(RPCAPIService):
         return txout and await self._format_gettxout(txout, vout)
 
     async def _format_gettxout(self, txout: dict, deserialized_vout: dict):
-        best_header = self.repository.headers.get_best_header()
+        best_header = self.repository.blockchain.get_best_header()
         return {
             "bestblock": best_header['block_hash'],
             "confirmations": best_header['block_height'] - txout['height'] + 1,
-            "value": "{:.8f}".format(txout['value'] / 10**8),
+            "value": "{:.8f}".format(txout['value'] / 10 ** 8),
             "scriptPubKey": {
                 "asm": "",  # todo
                 "hex": deserialized_vout['script'],

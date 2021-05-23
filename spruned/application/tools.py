@@ -1,11 +1,11 @@
 import asyncio
+import binascii
+import hashlib
+import re
 import socket
 import time
-import re
+
 from spruned.dependencies.pybitcointools import decode, bin_sha256, encode
-from spruned.application import exceptions
-import hashlib
-import binascii
 
 
 def blockheader_to_blockhash(header: (bytes, str), fmt=None) -> (bytes, str):
@@ -41,19 +41,16 @@ def deserialize_header(header: (str, bytes), fmt=None):
 
 
 def serialize_header(inp):
-    try:
-        o = encode(inp['version'], 256, 4)[::-1] + \
-            binascii.unhexlify(inp['prev_block_hash'])[::-1] + \
-            binascii.unhexlify(inp['merkle_root'])[::-1] + \
-            encode(inp['timestamp'], 256, 4)[::-1] + \
-            encode(inp['bits'], 256, 4)[::-1] + \
-            encode(inp['nonce'], 256, 4)[::-1]
-        h = binascii.hexlify(bin_sha256(bin_sha256(o))[::-1]).decode()
-        if inp.get('hash'):
-            assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
-        return binascii.hexlify(o).decode()
-    except:
-        raise exceptions.InvalidHeaderException
+    o = encode(inp['version'], 256, 4)[::-1] + \
+        binascii.unhexlify(inp['prev_block_hash'])[::-1] + \
+        binascii.unhexlify(inp['merkle_root'])[::-1] + \
+        encode(inp['timestamp'], 256, 4)[::-1] + \
+        encode(inp['bits'], 256, 4)[::-1] + \
+        encode(inp['nonce'], 256, 4)[::-1]
+    h = binascii.hexlify(bin_sha256(bin_sha256(o))[::-1]).decode()
+    if inp.get('hash'):
+        assert h == inp['hash'], (hashlib.sha256(o), inp['hash'])
+    return binascii.hexlify(o).decode()
 
 
 def get_nearest_parent(number: int, divisor: int):
@@ -169,9 +166,9 @@ class ElectrumMerkleVerify:
         return merkle_root == expected
 
 
-def is_address(addr, prefix):
-    ADDR_RE = re.compile("^[%s][a-km-zA-HJ-NP-Z0-9]{26,33}$" % prefix)
-    return bool(ADDR_RE.match(addr))
+def is_address(address, prefix):
+    regex = re.compile("^[%s][a-km-zA-HJ-NP-Z0-9]{26,33}$" % prefix)
+    return bool(regex.match(address))
 
 
 def inject_attribute(obj: callable, attr_name: str, *objects: object):

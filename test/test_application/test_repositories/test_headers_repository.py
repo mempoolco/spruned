@@ -6,7 +6,6 @@ from spruned import settings
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
 from spruned.application.database import sqlite
 from spruned.daemon import exceptions
-from test.utils import make_headers
 
 
 class TestHeadersRepository(unittest.TestCase):

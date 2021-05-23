@@ -4,7 +4,6 @@
 import sys
 sys.path.insert(0, './')
 import spruned
-from spruned.application import migrations
 
 
 if sys.version > '3.5.2':  # pragma: no cover
@@ -163,10 +162,7 @@ if sys.version > '3.5.2':  # pragma: no cover
 
         def start():  # pragma: no cover
             from spruned.application.logging_factory import Logger
-            from spruned.application.database import sqlite
             from spruned.builder import repository
-
-            migrations.run(sqlite)
 
             version = asyncio.get_event_loop().run_until_complete(
                 repository.blockchain.get_db_version()

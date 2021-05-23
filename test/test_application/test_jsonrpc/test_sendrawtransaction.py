@@ -1,9 +1,9 @@
 import asyncio
 import random
 from unittest import TestCase
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 from spruned.application.jsonrpc_server import JSONRPCServer
-from spruned.application.utils.jsonrpc_client import JSONClient
+from test.jsonrpc_client import JSONClient
 from test.utils import async_coro
 
 
