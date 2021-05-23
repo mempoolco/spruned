@@ -3,7 +3,6 @@ from spruned.daemon.zeromq import build_zmq
 
 
 def builder(ctx: Context):  # pragma: no cover
-    from spruned.application.cache import CacheAgent
     from spruned.repositories.repository import Repository
     from spruned.daemon.tasks.blocks_reactor import BlocksReactor
     from spruned.daemon.tasks.headers_reactor import HeadersReactor
@@ -15,13 +14,10 @@ def builder(ctx: Context):  # pragma: no cover
     electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
     repository = Repository.instance()
-    cache = CacheAgent(repository, int(ctx.cache_size))
-    repository.set_cache(cache)
     service = vo_service.VOService(
         electrum_interface,
         p2p_interface,
         repository=repository,
-        cache_agent=cache,
         context=ctx
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
@@ -48,8 +44,8 @@ def builder(ctx: Context):  # pragma: no cover
         )
     blocks_reactor = BlocksReactor(repository, p2p_interface, keep_blocks=int(ctx.keep_blocks))
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, \
-           cache, zmq_context, zmq_observer, p2p_interface
+           zmq_context, zmq_observer, p2p_interface
 
 
 jsonrpc_server, headers_reactor, blocks_reactor, repository, \
-    cache, zmq_context, zmq_observer, p2p_interface = builder(_ctx)
+    zmq_context, zmq_observer, p2p_interface = builder(_ctx)

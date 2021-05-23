@@ -7,7 +7,6 @@ import time
 from pycoin.block import Block
 from pycoin.tx.Tx import Tx
 
-from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, \
     ElectrumMerkleVerify, is_address
@@ -22,12 +21,10 @@ class VOService(RPCAPIService):
             self,
             electrum,
             p2p,
-            cache_agent: CacheAgent = None,
             repository=None,
             loop=asyncio.get_event_loop(),
             context=None
     ):
-        self.cache_agent = cache_agent
         self.p2p = p2p
         self.electrum = electrum
         self.repository = repository
