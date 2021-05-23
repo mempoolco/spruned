@@ -1,6 +1,8 @@
 #### spruned 
 
 
+Interested in spruned development ? Join the [telegram group](https://t.me/spruned_dev)
+
 
 #### A Bitcoin-without-Blockchain client w/ RPC that can fetch any block or transaction
 ********
