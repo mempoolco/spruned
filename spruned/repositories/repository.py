@@ -1,11 +1,9 @@
 import asyncio
 
-import plyvel
-
 from spruned import settings
 from spruned.application.logging_factory import Logger
 from spruned.repositories.headers_repository import HeadersSQLiteRepository
-from spruned.repositories.blockchain_repository import BlockchainRepository, DBPrefix
+from spruned.repositories.blockchain_repository import BlockchainRepository
 from spruned.repositories.mempool_repository import MempoolRepository
 
 
@@ -39,8 +37,7 @@ class Repository:
         headers_repository = HeadersSQLiteRepository(database.sqlite)
         blocks_repository = BlockchainRepository(
             database.level_db,
-            settings.LEVELDB_BLOCKCHAIN_SLUG,
-            settings.LEVELDB_BLOCKCHAIN_ADDRESS
+            settings.LEVELDB_PATH
         )
         if ctx.mempool_size > 1000:
             Logger.mempool.error(
@@ -68,6 +65,8 @@ class Repository:
             self.integrity_lock.release()
 
     def _ensure_no_stales_in_blockchain_repository(self):
+        return True
+        """
         Logger.leveldb.debug('Ensuring no stales in blockchain repository')
         keypref = self.blockchain.storage_name + b'.' + int.to_bytes(DBPrefix.BLOCK_INDEX_PREFIX.value, 2, 'little')
         extemp = self.get_extemped_blockhash()
@@ -118,6 +117,7 @@ class Repository:
             purged, len(index), kept, cached, tot, txs
         )
         return
+        """
 
     def set_cache(self, cache):
         self.cache = cache

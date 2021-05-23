@@ -29,7 +29,3 @@ class BlockchainRepositoryAbstract(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def get_transaction(self, txid) -> (None, Dict):
         pass
-
-    @abc.abstractmethod
-    async def remove_block(self, blockhash: str):
-        pass

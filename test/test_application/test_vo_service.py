@@ -99,7 +99,7 @@ class TestVOService(unittest.TestCase):
             'header_bytes': binascii.unhexlify(header_hex.encode()),
             'next_block_hash': block_json['nextblockhash']
         }
-        self.repository.blockchain.get_txids_by_block_hash.return_value = [
+        self.repository.blockchain._get_block_size_and_txs.return_value = [
                                                                               '0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098'
                                                                           ], 215
 

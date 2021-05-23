@@ -5,11 +5,9 @@ from functools import partial
 from typing import Dict, List
 
 import typing
-
 from fifolock import FifoLock
 from pycoin.block import Block
 
-from spruned.application.logging_factory import Logger
 from spruned.daemon import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
 
@@ -30,30 +28,28 @@ class Write(asyncio.Future):
 
 
 class DBPrefix(Enum):
-    TRANSACTION_PREFIX = 0
-    BLOCK_INDEX_PREFIX = 1
-    DB_VERSION = 4
+    TRANSACTION_PREFIX = 1
+    BLOCK_INDEX_PREFIX = 2
+    HEADERS_PREFIX = 3
+
+    DB_VERSION = 99
 
 
 class BlockchainRepository(BlockchainRepositoryAbstract):
-    current_version = 4
+    current_version = 5
 
-    def __init__(self, session, storage_name, dbpath):
-        self.storage_name = storage_name
+    def __init__(self, session, dbpath):
         self.session = session
         self.dbpath = dbpath
         self._cache = None
-        self.volatile = {}
         self.loop = asyncio.get_event_loop()
-        self.executor = ThreadPoolExecutor(max_workers=8)
+        self.executor = ThreadPoolExecutor(max_workers=64)
         self.lock = FifoLock()
 
     @staticmethod
-    def _get_key(name: (bytes, str), prefix: (bytes, DBPrefix)):  # fixme
-        name = isinstance(name, str) and binascii.unhexlify(name.encode()) or name
-        return b'%s.%s' % (
-            (prefix if isinstance(prefix, bytes) else int.to_bytes(prefix.value, 2, "big")), name
-        )
+    def _get_key(prefix: DBPrefix, name: bytes = b''):
+        assert isinstance(name, bytes)
+        return b'%s:%s' % (int.to_bytes(prefix.value, 2, "big"), name)
 
     async def erase(self):
         from spruned.application.database import erase_ldb_storage
@@ -65,7 +61,7 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         await self.loop.run_in_executor(
             self.executor,
             session.put,
-            self._get_key(self.storage_name, DBPrefix.DB_VERSION),
+            self._get_key(DBPrefix.DB_VERSION),
             self.current_version.to_bytes(2, 'little')
         )
 
@@ -73,20 +69,20 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         v = await self.loop.run_in_executor(
             self.executor,
             self.session.get,
-            self._get_key(self.storage_name, DBPrefix.DB_VERSION)
+            self._get_key(DBPrefix.DB_VERSION)
         )
         return v and int.from_bytes(v, 'little')
 
     def set_cache(self, cache):
         self._cache = cache
 
-    async def save_block(self, block: Dict, tracker=None, batch_session=None) -> Dict:
+    async def save_block(self, block: Dict, batch_session=None) -> Dict:
         return await self.loop.run_in_executor(
             self.executor,
-            partial(self._save_block, block, tracker, batch_session=batch_session)
+            partial(self._save_block, block, batch_session=batch_session)
         )
 
-    def _save_block(self, block, tracker, batch_session=None):
+    def _save_block(self, block, batch_session=None):
         block['size'] = len(block['block_bytes'])
         block['block_object'] = block.get('block_object', Block.from_bin(block.get('block_bytes')))
 
@@ -114,29 +110,28 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
             map(lambda txid: bytes.fromhex(txid), transaction_ids),
             batch_session
         )
-        tracker and tracker.track(
-            self._get_key(block['block_hash'], prefix=DBPrefix.BLOCK_INDEX_PREFIX),
-            len(block['block_bytes'])
-        )
         batch_session.write()
         return block
 
     def _save_block_index(
-            self, blockhash: bytes, blocksize: int, txids: typing.Iterable[bytes], batch_session
+            self, blockhash: bytes, blocksize: int, transaction_ids: typing.Iterable[bytes], batch_session
     ):
-        key = self._get_key(blockhash, prefix=DBPrefix.BLOCK_INDEX_PREFIX)
         size = blocksize.to_bytes(4, 'little')
         batch_session.put(
-            self.storage_name + b'.' + key,
-            size + b''.join(txids)
+            self._get_key(DBPrefix.BLOCK_INDEX_PREFIX, blockhash),
+            size + b''.join(transaction_ids)
         )
 
     async def get_block_index(self, blockhash: str):
-        key = self._get_key(blockhash, prefix=DBPrefix.BLOCK_INDEX_PREFIX)
+        blockhash = bytes.fromhex(blockhash)
+        return await self._get_block_index(blockhash)
+
+    async def _get_block_index(self, blockhash: bytes):
+        assert isinstance(blockhash, bytes)
         return await self.loop.run_in_executor(
             self.executor,
             self.session.get,
-            self.storage_name + b'.' + key
+            self._get_key(DBPrefix.BLOCK_INDEX_PREFIX, blockhash)
         )
 
     async def save_blocks(self, *blocks: Dict) -> List[Dict]:
@@ -158,61 +153,64 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         return resp
 
     def _save_transaction(self, transaction: Dict, batch_session) -> Dict:
-        data = transaction['transaction_bytes'] + transaction['block_hash']
-        key = self._get_key(transaction['txid'], prefix=DBPrefix.TRANSACTION_PREFIX)
         batch_session.put(
-            self.storage_name + b'.' + key,
-            data
+            self._get_key(DBPrefix.TRANSACTION_PREFIX, transaction['txid']),
+            transaction['transaction_bytes'] + transaction['block_hash']
         )
         return transaction
 
-    async def get_txids_by_block_hash(self, blockhash: str) -> (List[str], int):
-        block_index = await self.get_block_index(blockhash)
+    async def get_block_size_and_transaction_ids(self, blockhash: str) \
+            -> typing.Tuple[typing.Optional[int], typing.Iterable[str]]:
+        blockhash = bytes.fromhex(blockhash)
+        resp = await self._get_block_size_and_transaction_ids(blockhash)
+        return resp[0], map(lambda txid: txid.hex(), resp[1])
+
+    async def _get_block_size_and_transaction_ids(self, blockhash: bytes) \
+            -> typing.Tuple[typing.Optional[int], typing.Iterable[bytes]]:
+        block_index = await self._get_block_index(blockhash)
         if not block_index:
-            return [], None
+            return None, ()
         i = 0
         txids = []
         size = block_index[:4]
         block_index = block_index[4:]
         while 1:
-            txid = binascii.hexlify(block_index[i:i + 32]).decode()
+            txid = block_index[i:i + 32]
             if not txid:
                 if i != len(block_index):
                     raise daemon_exceptions.BrokenDataException
                 break
             txids.append(txid)
             i += 32
-        return txids, int.from_bytes(size, 'little')
+        return int.from_bytes(size, 'little'), txids
 
     async def get_transactions_by_block_hash(self, blockhash: str) -> (List[Dict], int):
         block_index = await self.get_block_index(blockhash)
         if not block_index:
-            return [], None
+            return None, []
         i = 0
-        size = block_index[:4]
+        block_size = block_index[:4]
         block_index = block_index[4:]
         transactions = []
         while 1:
             txid = block_index[i:i+32]
             if not txid:
                 break
-            transaction = await self.get_transaction(txid)
+            transaction = await self._get_transaction(txid)
             if not transaction:
-                if transactions:
-                    Logger.repository.warning('Corrupted storage for blockhash %s, deleting' % blockhash)
-                    await self.remove_block(blockhash)
-                    return [], None
-                break
+                raise exceptions.DatabaseInconsistencyException
             transactions.append(transaction)
             i += 32
-        return transactions, int.from_bytes(size, 'little')
+        return int.from_bytes(block_size, 'little'), transactions
 
-    async def get_transaction(self, txid: (bytes, str)) -> (None, Dict):
-        key = self._get_key(txid, prefix=DBPrefix.TRANSACTION_PREFIX)
+    async def get_transaction(self, txid: str) -> (None, Dict):
+        return await self._get_transaction(bytes.fromhex(txid))
+
+    async def _get_transaction(self, txid: bytes):
         data = self.loop.run_in_executor(
             self.executor,
             self.session.get,
-            self.storage_name + b'.' + key
+            self._get_key(DBPrefix.TRANSACTION_PREFIX, txid)
         )
         if not data:
             return
@@ -222,20 +220,20 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
             'txid': txid
         }
 
-    async def remove_block(self, blockhash: str):
-        txids, size = await self.get_txids_by_block_hash(blockhash)
+    async def _remove_block(self, blockhash: bytes):
+        block_size, transaction_ids = await self._get_block_size_and_transaction_ids(blockhash)
         if any(
             filter(
                 lambda r: isinstance(r, Exception),
                 await asyncio.gather(
                     *map(
                         lambda txid: self._remove_item(
-                            self._get_key(txid, prefix=DBPrefix.TRANSACTION_PREFIX)
+                            self._get_key(DBPrefix.TRANSACTION_PREFIX, txid)
                         ),
-                        txids
+                        transaction_ids
                     ),
                     self._remove_item(
-                        self._get_key(blockhash, prefix=DBPrefix.BLOCK_INDEX_PREFIX)
+                        self._get_key(DBPrefix.BLOCK_INDEX_PREFIX, blockhash)
                     ),
                     return_exceptions=True
                 )
@@ -243,10 +241,7 @@ class BlockchainRepository(BlockchainRepositoryAbstract):
         ):
             raise exceptions.DatabaseInconsistencyException
 
-    async def _remove_item(self, key):
+    async def _remove_item(self, key: bytes):
         await self.loop.run_in_executor(
-            self.executor,
-            self.session.delete,
-            self.storage_name + b'.' + key
+            self.executor, self.session.delete, key
         )
-

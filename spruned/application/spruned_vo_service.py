@@ -56,14 +56,14 @@ class VOService(RPCAPIService):
         if not block_header:
             return
         if mode == 1:
-            txids, size = await self.repository.blockchain.get_txids_by_block_hash(
+            block_size, transaction_ids = await self.repository.blockchain.get_block_size_and_txs(
                 block_header['block_hash']
             )
-            if txids:
+            if transaction_ids:
                 block = self._serialize_header(block_header)
                 block.update({
-                    'tx': txids,
-                    'size': size
+                    'tx': [t.hex() for t in transaction_ids],
+                    'size': block_size
                 })
                 best_header = self.repository.headers.get_best_header()
                 block['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
@@ -83,7 +83,9 @@ class VOService(RPCAPIService):
             )
             return p2p_block['verbose']
         else:
-            transactions, size = await self.repository.blockchain.get_transactions_by_block_hash(blockhash)
+            block_size, transactions = await self.repository.blockchain.get_transactions_by_block_hash(
+                blockhash
+            )
             if transactions:
                 Logger.p2p.info(
                     'Raw block %s (%s) provided from local storage in %ss)',
@@ -124,7 +126,7 @@ class VOService(RPCAPIService):
         if verbose and not block.get('verbose'):
             block['verbose'] = await self._make_verbose_block(block, blockheader)
         self.loop.create_task(
-            self.repository.blockchain.save_block(block, tracker=self.cache_agent)
+            self.repository.blockchain.save_block(block)
         )
         return block
 
