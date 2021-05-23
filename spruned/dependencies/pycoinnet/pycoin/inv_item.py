@@ -24,9 +24,9 @@
 #
 
 import functools
-from pycoin.serialize import b2h_rev
-from pycoin.serialize.bitcoin_streamer import parse_struct, stream_struct
 
+from pycoin.encoding.hexbytes import b2h_rev
+from pycoin.satoshi.satoshi_struct import stream_struct, parse_struct
 
 ITEM_TYPE_TX = 1
 ITEM_TYPE_BLOCK = 2

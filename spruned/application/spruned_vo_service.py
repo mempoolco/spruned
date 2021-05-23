@@ -5,7 +5,7 @@ import itertools
 import time
 
 from pycoin.block import Block
-from pycoin.tx.Tx import Tx
+from pycoin.coins.Tx import Tx
 
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger

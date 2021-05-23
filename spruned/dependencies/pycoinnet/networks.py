@@ -28,11 +28,12 @@ import binascii
 from collections import namedtuple
 
 from pycoin.block import Block
+from pycoin.coins.Tx import Tx
+
 from spruned.dependencies.pycoinnet.pycoin.make_parser_and_packer import (
     make_parser_and_packer, standard_messages,
     standard_message_post_unpacks, standard_streamer, standard_parsing_functions
 )
-from pycoin.tx.Tx import Tx
 
 Network = namedtuple(
     'Network', (
