@@ -189,7 +189,7 @@ class BlockchainRepository:
 
     def _save_transaction(self, transaction: Dict, batch_session) -> Dict:
         batch_session.put(
-            self._get_db_key(DBPrefix.TRANSACTION, transaction['txid']),
+            self._get_db_key(DBPrefix.TRANSACTION, bytes.fromhex(transaction['txid'])),
             transaction['transaction_bytes'] + transaction['block_hash']
         )
         return transaction

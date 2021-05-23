@@ -60,7 +60,7 @@ class VOService(RPCAPIService):
             if transaction_ids:
                 block = self._serialize_header(block_header)
                 block.update({
-                    'tx': [t.hex() for t in transaction_ids],
+                    'tx': transaction_ids,
                     'size': block_size
                 })
                 best_header = await self.repository.blockchain.get_best_header()
