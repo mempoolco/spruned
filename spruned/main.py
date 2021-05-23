@@ -10,9 +10,9 @@ from spruned.builder import cache, headers_reactor, blocks_reactor, jsonrpc_serv
 async def main_task(loop):  # pragma: no cover
     from spruned.application.logging_factory import Logger
     loop.create_task(jsonrpc_server.start())
-
     loop.create_task(p2p_interface.start())
-
+    loop.create_task(headers_reactor.start())
+    p2p_interface.pool.add_on_headers_callback(headers_reactor.on_headers)
 
     #Logger.leveldb.debug('Ensuring integrity of the storage, and tracking missing items')
     #try:
@@ -30,7 +30,7 @@ async def main_task(loop):  # pragma: no cover
 
     #headers_reactor.add_on_new_header_callback(blocks_reactor.start)
 
-    #loop.create_task(headers_reactor.start())
+    #
 
     #loop.create_task(async_delayed_task(cache.lurk(), 600))
 

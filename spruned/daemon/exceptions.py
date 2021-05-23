@@ -75,3 +75,19 @@ class MissingPeerResponseException(RetryException):
 
 class PeerHandshakeException(SprunedException):
     pass
+
+
+class InvalidConsensusRulesException(SprunedException):
+    pass
+
+
+class InvalidHeaderProofException(InvalidConsensusRulesException):
+    pass
+
+
+class InvalidDifficultyException(InvalidConsensusRulesException):
+    pass
+
+
+class ChainBrokenException(InvalidConsensusRulesException):
+    pass

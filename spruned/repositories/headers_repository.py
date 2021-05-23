@@ -6,7 +6,6 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from spruned.application.abstracts import HeadersRepository
 from spruned.application.logging_factory import Logger
-from spruned.consensus import verify_pow
 from spruned.daemon import exceptions
 from spruned.application import database
 
@@ -101,16 +100,17 @@ class HeadersSQLiteRepository(HeadersRepository):
                 raise exceptions.HeadersInconsistencyException
 
             model = _save()
-        return model and self._header_model_to_dict(
-            model, prevblockhash=prev_block and prev_block.blockhash, nextblockhash=None
+        return self._header_model_to_dict(
+            model,
+            prevblockhash=prev_block and prev_block.blockhash,
+            nextblockhash=None
         )
 
     @database.atomic
     def save_headers(self, headers: List[Dict]):
         session = self.session()
         for i, header in enumerate(headers):
-            verify_pow(header['header_bytes'], binascii.unhexlify(header['block_hash']))
-            if i == 0 and header['block_height'] != 0:
+            if not i and header['block_height'] != 0:
                 prev_block = session.query(database.Header).filter_by(blockheight=header['block_height'] - 1).one()
                 if prev_block.blockhash != binascii.unhexlify(header['prev_block_hash']):
                     Logger.repository.exception('Integrity Error on check prev block hash')

@@ -135,7 +135,7 @@ class P2PConnectionPool(BaseConnectionPool):
                 Logger.p2p.debug('Keep-Alive: Peers loaded but not available. Waiting.')
                 await asyncio.sleep(5)
                 continue
-        await asyncio.sleep(1)
+            await asyncio.sleep(1)
 
     async def _connect(self):
         peer = self._get_peer()

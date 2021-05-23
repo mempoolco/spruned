@@ -93,8 +93,9 @@ class P2PInterface:
             stop_at_hash: typing.Optional[str] = None,
             connection: typing.Optional[P2PConnection] = None
     ):
-        connection: P2PConnection = connection or await self.pool.get_connection()
-        return await connection.getheaders(*start_from_hash, stop_at_hash=stop_at_hash)
+        connection: P2PConnection = connection or self.pool.get_connection()
+        await connection.getheaders(*start_from_hash, stop_at_hash=stop_at_hash)
+        return connection
 
     def get_current_peers_best_height(self) -> int:
         # todo find a better agreement than "max"
@@ -102,7 +103,10 @@ class P2PInterface:
             raise exceptions.NoPeersException
         return max(
             map(
-                lambda connection: connection.best_header['block_height'],
-                self.pool.established_connections
+                lambda connection: connection.last_block_index,
+                filter(
+                    lambda c: c.last_block_index,
+                    self.pool.established_connections
+                )
             )
         )

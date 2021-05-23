@@ -10,7 +10,6 @@ def build(ctx: Context):  # pragma: no cover
     assert isinstance(network, dict), network
     from spruned.daemon.p2p.interface import P2PInterface
     from spruned.daemon.p2p.connectionpool import P2PConnectionPool
-    #peers = load_p2p_peers()
     pool = P2PConnectionPool(
         connections=1,
         network=network['pycoin'],
@@ -19,8 +18,9 @@ def build(ctx: Context):  # pragma: no cover
         context=ctx,
         enable_mempool=bool(int(ctx.mempool_size))
     )
-    #for peer in peers:
-    #    pool.add_peer(peer)
+    # peers = load_p2p_peers()
+    # for peer in peers:
+    #     pool.add_peer(peer)
     interface = P2PInterface(pool, network=network['pycoin'])
     #if ctx.tor:
     #    async def _no_dns_bootstrap(*_, **__):

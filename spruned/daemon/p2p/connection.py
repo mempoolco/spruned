@@ -324,9 +324,11 @@ class P2PConnection(BaseConnection):
         self.peer.send_msg("getaddr")
 
     async def getheaders(self, *start_from_hash: str, stop_at_hash: typing.Optional[str] = None):
-        assert len(stop_at_hash) == 64
+        if stop_at_hash is not None:
+            assert len(stop_at_hash) == 64
+
         for x in start_from_hash:
-            assert len(x) == 64
+            assert len(x) == 64, x
 
         self.peer.send_msg(
             "getheaders",

@@ -1,7 +1,7 @@
 from spruned.application import exceptions
 
 
-def verify_pow(header, blockhash):
+def verify_pow(header: bytes, blockhash: bytes):
     bits = header[72:76][::-1]
     target = int.from_bytes(bits[1:], 'big') * 2 ** (8 * (bits[0] - 3))
     if target < int.from_bytes(blockhash, 'little'):
