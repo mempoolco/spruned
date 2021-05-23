@@ -1,9 +1,5 @@
 #### spruned 
 
-
-Interested in spruned development ? Join the [telegram group](https://t.me/spruned_dev)
-
-
 #### A Bitcoin-without-Blockchain client w/ RPC that can fetch any block or transaction
 ********
 [![travis](https://travis-ci.org/gdassori/spruned.svg?branch=master)](https://travis-ci.org/gdassori/spruned)
@@ -11,6 +7,9 @@ Interested in spruned development ? Join the [telegram group](https://t.me/sprun
 [![rtd](https://readthedocs.org/projects/spruned/badge/?version=latest)](http://spruned.readthedocs.io/en/latest/#)
 [![PyPI version](https://badge.fury.io/py/spruned.svg)](https://badge.fury.io/py/spruned)
 [![PyPI version](https://img.shields.io/badge/talk-groups.io-blue.svg)](https://groups.io/g/spruned/)
+
+
+Interested in spruned development ? Join the [telegram group](https://t.me/spruned_dev)
 
 #### What's this?
 
