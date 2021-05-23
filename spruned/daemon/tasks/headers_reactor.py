@@ -43,7 +43,7 @@ class HeadersReactor:
     def set_last_processed_header(self, last: typing.Optional[typing.Dict]):
         if last != self._last_processed_header:
             self._last_processed_header = last
-            Logger.root.info(
+            Logger.root.debug(
                 'Last processed header: %s (%s)',
                 self._last_processed_header and self._last_processed_header['block_height'],
                 self._last_processed_header and self._last_processed_header['block_hash'],
@@ -127,7 +127,7 @@ class HeadersReactor:
                 block_height = self._best_chain[-1]['block_height'] + 1
             else:
                 prev_hash = headers[i-1]['block_hash']
-                block_height = headers[i-1]['block_height']
+                block_height = headers[i-1]['block_height'] + 1
             if prev_hash != h['prev_block_hash']:
                 raise exceptions.ChainBrokenException(
                     '%s != %s', prev_hash, h['prev_block_hash']
@@ -138,15 +138,16 @@ class HeadersReactor:
                 raise exceptions.InvalidHeaderProofException
             headers[i]['block_height'] = block_height
             # todo difficulty check
+        return headers
 
     async def _save_new_headers(self, headers: typing.List):
         await self.repo.save_headers(headers)
         for h in headers[-6:]:
             new = {
                 'block_hash': h['block_hash'],
-                'block_height': self._last_processed_header['block_height'] + 1
+                'block_height': h['block_height']
             }
-            self._last_processed_header = new
+            self.set_last_processed_header(new)
             self._best_chain.append(new)
             self._best_chain.pop(0)
 
@@ -155,8 +156,8 @@ class HeadersReactor:
         the fetch headers call is asynchronous.
         once we request new headers to the interface, we expect to being triggered here.
         """
+        await self._fetch_headers_lock.acquire()
         try:
-            await self._fetch_headers_lock.acquire()
             try:
                 headers = list(
                     map(
@@ -169,12 +170,13 @@ class HeadersReactor:
                     )
                 )
                 new_headers = await self._check_headers_with_best_chain(connection, headers)
+                Logger.p2p.debug('Received %s new headers' % len(new_headers))
                 if not new_headers:
                     return
-                await self._evaluate_consensus_for_new_headers(new_headers)
+                new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
                 await self._save_new_headers(new_headers)
             except exceptions.HeadersInconsistencyException:
-                raise ValueError  # todo fixme - per ora l'happy path...
+                raise ValueError  # fixme - wait wait, let's do the happy path...
             except exceptions.InvalidConsensusRulesException:
                 Logger.p2p.exception('Connection %s has invalid blocks, asking for disconnection', connection)
                 await connection.disconnect()
