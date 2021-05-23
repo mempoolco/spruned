@@ -46,7 +46,6 @@ class P2PInterface:
 
     async def bootstrap_peers(self):
         peers = None
-        #peers = [('bitcoind.mempool.co', 8333)]
         while not peers:
             peers = await self._get_peers_from_seed(self.network)
             await asyncio.sleep(1)

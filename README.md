@@ -33,9 +33,8 @@ Dive into spruned by reading the __[documentation](http://spruned.readthedocs.io
 
 #### How it works?
 
-spruned downloads and store the bitcoin blocks on demand, when you need them, directly from the __peer to peer bitcoin network__.<br/>
-<br />there's a "bootstrap" functionality, to keep the last ~50 (default settings) blocks on the local storage, because 
-fetch blocks may require also up to 10 seconds with slow connections, and this "bootstrap mode" reduces latencies on usage.<br />
+spruned can downloads and store the bitcoin blocks on demand, 
+when you need them, directly from the __peer to peer bitcoin network__.<br/>
 
 You can use bitcoin-cli, or any other RPC client, as if you had bitcoind up & running.<br />
 
@@ -338,7 +337,7 @@ _* bitcoin-cli is not included_
 
 - Not fast as a full node: internet download is slower than a read from disk.
 - Doesn't help to keep the network healthy (I care about that, and this is really going to be addressed).
-- Privacy leaky if not behind Tor
+- Privacy leaky if not behind Tor (not more than an Electrum client)
 
 #### Roadmap
  

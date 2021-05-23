@@ -3,7 +3,6 @@ import typing
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
-from spruned.application.consensus import verify_pow
 from spruned.services import exceptions
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.interface import P2PInterface
@@ -13,11 +12,13 @@ class HeadersReactor:
     def __init__(
             self,
             repo,
+            network_values,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
             delayed_task=async_delayed_task,
-            min_peers_agreement=1
+            min_peers_agreement=1,
     ):
+        self.network_values = network_values
         self.repo = repo
         self.interface = interface
         self.loop = loop or asyncio.get_event_loop()
@@ -134,7 +135,7 @@ class HeadersReactor:
                     '%s != %s', prev_hash, h['prev_block_hash']
                 )
             try:
-                verify_pow(h['header_bytes'], bytes.fromhex(h['block_hash']))
+                self.network_values['header_verify'](h['header_bytes'], bytes.fromhex(h['block_hash']))
             except InvalidPOWException:
                 raise exceptions.InvalidHeaderProofException
             headers[i]['block_height'] = block_height

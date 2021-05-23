@@ -47,7 +47,6 @@ if sys.version > '3.5.2':  # pragma: no cover
         help='Run in the background as a daemon and accept commands'
     )
     parser.add_argument(
-
         '--keep-blocks',
         action='store', dest='keep_blocks', default=int(ctx.keep_blocks), type=int,
         help=''

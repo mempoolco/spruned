@@ -61,7 +61,7 @@ class P2PConnectionPool(BaseConnectionPool):
         self._on_headers_callbacks = []
         self.context = context
         self.enable_mempool = enable_mempool
-        self._create_bloom_filter()
+        #self._create_bloom_filter()
 
     @property
     def proxy(self):

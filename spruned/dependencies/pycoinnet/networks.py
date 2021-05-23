@@ -51,8 +51,10 @@ btc_parser, btc_packer = make_parser_and_packer(
 
 MAINNET = Network(
     'BTC', binascii.unhexlify('F9BEB4D9'), [
-        "seed.bitcoin.sipa.be", "dnsseed.bitcoin.dashjr.org",
-        "bitseed.xf2.org", "dnsseed.bluematt.me",
+        "seed.bitcoin.sipa.be",
+        "dnsseed.bitcoin.dashjr.org",
+        "bitseed.xf2.org",
+        "dnsseed.bluematt.me",
     ],
     8333,
     btc_packer,
@@ -71,7 +73,10 @@ TESTNET = Network(
 )
 
 REGTEST = Network(
-    'XTC', binascii.unhexlify('fabfb5da'), [],
+    'XTC', binascii.unhexlify('fabfb5da'),
+    [
+        "localhost"
+    ],
     18444,
     btc_packer,
     btc_parser,

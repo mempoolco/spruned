@@ -22,7 +22,11 @@ def builder(ctx: Context):  # pragma: no cover
     )
     jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
     jsonrpc_server.set_vo_service(service)
-    headers_reactor = HeadersReactor(repository.blockchain, p2p_interface)
+    headers_reactor = HeadersReactor(
+        repository.blockchain,
+        ctx.network_rules,
+        p2p_interface
+    )
 
     if ctx.mempool_size:
         from spruned.application.mempool_observer import MempoolObserver

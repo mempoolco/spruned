@@ -2,8 +2,8 @@ import asyncio
 from unittest import TestCase
 from unittest.mock import Mock, create_autospec, call
 
-from spruned.daemon.bitcoin_p2p.p2p_interface import P2PInterface
-from spruned.daemon.tasks.blocks_reactor import BlocksReactor
+from spruned.services.p2p.interface import P2PInterface
+from spruned.reactors.blocks_reactor import BlocksReactor
 from spruned.repositories.repository import Repository
 from test.utils import async_coro
 

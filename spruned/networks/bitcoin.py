@@ -1,6 +1,8 @@
 import typing
 from pkg_resources import parse_version
-from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET
+
+from spruned.application.consensus import verify_pow
+from spruned.dependencies.pycoinnet.networks import MAINNET, TESTNET, REGTEST
 
 
 def _evaluate_bitcoin_subversion(peer_version: typing.Dict) -> bool:
@@ -18,7 +20,7 @@ mainnet = {
     'pycoin': MAINNET,
     'alias': 'bc_mainnet',
     'chain': 'main',
-    'regex_legacy_addresses_prefix': '1',
+    'p2p_concurrency': 16,
     'electrum_concurrency': 4,
     'fees_consensus': 3,
     'genesis_block': '0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c0101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac00000000',
@@ -40,17 +42,18 @@ mainnet = {
         568150: "00000000000000000001ae8ead7f279a3f7038967a147a0fb35acb83ff16fd82"
     },
     'rpc_port': 8332,
-    'evaluate_peer_version': _evaluate_bitcoin_subversion
+    'evaluate_peer_version': _evaluate_bitcoin_subversion,
+    'header_verify': verify_pow
 }
 
 testnet = {
     'pycoin': TESTNET,
     'alias': 'bc_testnet',
     'chain': 'test',
+    'p2p_concurrency': 8,
     'electrum_concurrency': 1,
     'fees_consensus': 1,
-    'tx0': '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
-    'tx1': 'f0315ffc38709d70ad5647e22048358dd3745f3ce3874223c80a7c92fab0c8ba',
+    'genesis_block': '0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff001d1aa4ae180101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac00000000',
     'checkpoints': {
         0: "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943",
         1: "00000000b873e79784647a6c82962c70d228557d24a747ea4d1b8bbe878e1206",
@@ -59,5 +62,23 @@ testnet = {
         1485500: "000000000000000deb21d7f38f845864f6b57167b3a64cb88d05c664f370363a"
     },
     'rpc_port': 18332,
-    'evaluate_peer_version': _evaluate_bitcoin_subversion
+    'evaluate_peer_version': _evaluate_bitcoin_subversion,
+    'header_verify': lambda _, __: True
+}
+
+
+regtest = {
+    'pycoin': REGTEST,
+    'alias': 'bc_regtest',
+    'chain': 'regtest',
+    'p2p_concurrency': 1,
+    'electrum_concurrency': 0,
+    'fees_consensus': 0,
+    'genesis_block': "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f20020000000101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac00000000",
+    'checkpoints': {
+        0: "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    },
+    'rpc_port': 8332,
+    'evaluate_peer_version': _evaluate_bitcoin_subversion,
+    'header_verify': lambda _, __: True
 }

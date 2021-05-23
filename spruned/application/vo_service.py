@@ -25,6 +25,7 @@ class VOService(RPCAPIService):
             loop=asyncio.get_event_loop(),
             context=None
     ):
+        self.network_rules = context.network_rules
         self.p2p = p2p
         self.electrum = electrum
         self.repository = repository
@@ -239,7 +240,7 @@ class VOService(RPCAPIService):
         best_header = await self.repository.blockchain.get_best_header()
         _deserialized_header = deserialize_header(best_header['header_bytes'])
         return {
-            "chain": "main",
+            "chain": self.network_rules['chain'],
             "warning": "spruned %s, emulating bitcoind v%s" % (spruned_version, bitcoind_version),
             "blocks": best_header["block_height"],
             "blockchain": best_header["block_height"],
