@@ -1,13 +1,28 @@
 import plyvel
 from spruned import settings
 
+BRAND_NEW_DB_PLACEHOLDER = b'brand_new_db'
+
 
 def init_ldb_storage():
     if not settings.TESTING:
-        _storage_ldb = plyvel.DB(
-            settings.LEVELDB_PATH,
-            create_if_missing=True
-        )
+        try:
+            _storage_ldb = plyvel.DB(
+                settings.LEVELDB_PATH
+            )
+            _storage_ldb.get(
+                BRAND_NEW_DB_PLACEHOLDER
+            )
+        except:
+            _storage_ldb = plyvel.DB(
+                settings.LEVELDB_PATH,
+                create_if_missing=True
+            )
+            _storage_ldb.put(
+                BRAND_NEW_DB_PLACEHOLDER,
+                BRAND_NEW_DB_PLACEHOLDER
+            )
+
     else:
         from unittest.mock import Mock
         _storage_ldb = Mock()

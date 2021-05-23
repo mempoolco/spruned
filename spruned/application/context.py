@@ -107,6 +107,11 @@ class Context(dict):
         return self._get_param('network')
 
     @property
+    def network_rules(self):
+        from spruned.networks import rules
+        return rules[self.network]
+
+    @property
     def rpcbind(self):
         return self._get_param('rpcbind')
 

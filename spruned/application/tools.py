@@ -13,6 +13,7 @@ def blockheader_to_blockhash(header: (bytes, str), fmt=None) -> (bytes, str):
         h, fmt = header, fmt or 'bin'
     else:
         h, fmt = binascii.unhexlify(header.encode()), fmt or 'hex'
+    h = h[:80]
     blockhash = hashlib.sha256(hashlib.sha256(h).digest())
     bytes_blockhash = blockhash.digest()[::-1]
     return fmt == 'hex' and binascii.hexlify(bytes_blockhash).decode() or bytes_blockhash

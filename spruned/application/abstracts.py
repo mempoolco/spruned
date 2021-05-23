@@ -1,5 +1,4 @@
 import abc
-from typing import List, Dict
 import time
 from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
@@ -42,37 +41,3 @@ class RPCAPIService(metaclass=abc.ABCMeta):
                 else:
                     Logger.third_party.exception('Error on %s: %s' % (self.__class__.__name__, e.__cause__))
                 self._increase_errors()
-
-
-class HeadersRepository(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def get_best_header(self):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def get_header_at_height(self, blockheight: int):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def save_header(self, blockhash: str, blockheight: int, headerbytes: bytes, prev_block_hash: str):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def remove_headers_after_height(self, blockheight: int):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def save_headers(self, headers: List[Dict]):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def get_headers_since_height(self, height: int):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def get_block_hash(self, height: int):
-        pass  # pragma: no cover
-
-    @abc.abstractmethod
-    def remove_header_at_height(self, blockheight: int):
-        pass  # pragma: no cover

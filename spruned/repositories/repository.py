@@ -7,12 +7,15 @@ from spruned.repositories.mempool_repository import MempoolRepository
 
 
 class Repository:
-    def __init__(self, blocks, mempool, keep_blocks=6):
-        self._blockchain_repository = blocks
-        self._mempool_repository = mempool
+    def __init__(
+            self,
+            blockchain_repository,
+            mempool_repository
+    ):
+        self._blockchain_repository = blockchain_repository
+        self._mempool_repository = mempool_repository
         self.session = None
         self.cache = None
-        self.keep_blocks = keep_blocks
         self.integrity_lock = asyncio.Lock()
 
     @property
@@ -26,18 +29,18 @@ class Repository:
     @classmethod
     def instance(cls):  # pragma: no cover
         from spruned.application.context import ctx
-        blocks_repository = BlockchainRepository(
+        blockchain_repository = BlockchainRepository(
+            ctx.network_rules,
             database.level_db,
             settings.LEVELDB_PATH
         )
         mempool_repository = ctx.mempool_size and MempoolRepository(
-            max_size_bytes=ctx.mempool_size*1024000
+            max_size_bytes=ctx.mempool_size * 1024000
         ) or None
 
         i = cls(
-            blocks=blocks_repository,
-            mempool=mempool_repository,
-            keep_blocks=ctx.keep_blocks
+            blockchain_repository,
+            mempool_repository
         )
         i.session = database.level_db
         return i
@@ -45,3 +48,6 @@ class Repository:
     def set_cache(self, cache):
         self.cache = cache
         self.blockchain.set_cache(cache)
+
+    def initialize(self):
+        self.blockchain.initialize()
