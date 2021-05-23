@@ -372,3 +372,8 @@ class BlockchainRepository:
         key = self.get_db_key(DBPrefix.BEST_HEIGHT)
         batch_session.put(key, height.to_bytes(4, 'little'))
         return height
+
+    async def get_block_hash(self, height: int):
+        key = self.get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, height.to_bytes(4, 'little'))
+        block_hash = self.session.get(key)
+        return block_hash and block_hash.hex()

@@ -180,7 +180,7 @@ class VOService(RPCAPIService):
         return res
 
     async def getblockhash(self, blockheight: int):
-        return self.repository.blockchain.get_block_hash(blockheight)
+        return await self.repository.blockchain.get_block_hash(blockheight)
 
     async def getblockheader(self, blockhash: str, verbose=True):
         header = self.repository.blockchain.get_block_header(blockhash)
