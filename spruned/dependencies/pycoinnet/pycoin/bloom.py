@@ -26,7 +26,7 @@
 import math
 import struct
 
-from pycoin.coins.Tx import Tx
+from pycoin.tx import Tx
 
 LOG_2 = math.log(2)
 
@@ -59,10 +59,6 @@ class BloomFilter(object):
         for hash_index in range(self.hash_function_count):
             seed = hash_index * 0xFBA4C795 + self.tweak
             self.set_bit(murmur3(item_bytes, seed=seed) % self.bit_count)
-
-    #def add_address(self, address: str, address_prefix: bytes=b'\0'):
-    #    the_hash160 = bitcoin_address_to_hash160_sec(address, address_prefix=address_prefix)
-    #    self.add_item(the_hash160)
 
     def add_spendable(self, spendable: Tx):
         item_bytes = spendable.tx_hash + struct.pack("!L", spendable.tx_out_index)

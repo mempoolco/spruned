@@ -7,7 +7,7 @@ from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash
 from spruned.dependencies.pycoinnet.peer import ProtocolError
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_SEGWIT_BLOCK, InvItem, ITEM_TYPE_BLOCK, \
-    ITEM_TYPE_MERKLEBLOCK, ITEM_TYPE_WTX, ITEM_TYPE_COMPACTBLOCK
+    ITEM_TYPE_MERKLEBLOCK
 
 
 class P2PChannel:
@@ -30,8 +30,6 @@ class P2PChannel:
             ITEM_TYPE_SEGWIT_BLOCK: 'block',
             ITEM_TYPE_BLOCK: 'block',
             ITEM_TYPE_MERKLEBLOCK: 'merkleblock',
-            ITEM_TYPE_WTX: '',
-            ITEM_TYPE_COMPACTBLOCK: ''
         }[request_message.item_type]
         response_message = f'{response_message}|{request_message.data}'
         response = await self.msg('getdata', response_message, request_message)

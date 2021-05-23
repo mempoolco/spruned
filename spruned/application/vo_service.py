@@ -5,7 +5,7 @@ import itertools
 import time
 
 from pycoin.block import Block
-from pycoin.coins.Tx import Tx
+from pycoin.tx.Tx import Tx
 
 from spruned.application.cache import CacheAgent
 from spruned.application.logging_factory import Logger
@@ -13,7 +13,6 @@ from spruned.application.tools import deserialize_header, script_to_scripthash, 
     ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
-from spruned.daemon.p2p.utils import get_block_factory
 from spruned.daemon.exceptions import ElectrumMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
@@ -34,7 +33,6 @@ class VOService(RPCAPIService):
         self.repository = repository
         self.loop = loop
         self._last_estimatefee = None
-        self.block_factory = get_block_factory()
         self.context = context
         self._expected_data = {'txids': []}
 
@@ -46,17 +44,17 @@ class VOService(RPCAPIService):
         if not block_header:
             return
         block = await self._get_block(block_header)
-        return await self.block_factory.get(block['block_bytes'])
+        return await Block.from_bin(block['block_bytes'])
 
     async def getblock(self, blockhash: str, mode: int = 1):
         start = time.time()
         if mode == 2:
             raise NotImplementedError
-        block_header = self.repository.blockchain.get_block_header(blockhash)
+        block_header = await self.repository.blockchain.get_header(blockhash)
         if not block_header:
             return
         if mode == 1:
-            block_size, transaction_ids = await self.repository.blockchain.get_block_size_and_txs(
+            block_size, transaction_ids = await self.repository.blockchain.get_block_size_and_transaction_ids(
                 block_header['block_hash']
             )
             if transaction_ids:
@@ -65,7 +63,7 @@ class VOService(RPCAPIService):
                     'tx': [t.hex() for t in transaction_ids],
                     'size': block_size
                 })
-                best_header = self.repository.blockchain.get_best_header()
+                best_header = await self.repository.blockchain.get_best_header()
                 block['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
                 Logger.p2p.info(
                     'Verbose block %s (%s) provided from local storage in %ss)',
@@ -108,7 +106,7 @@ class VOService(RPCAPIService):
             return binascii.hexlify(p2p_block['block_bytes']).decode()
 
     async def _make_verbose_block(self, block: dict, block_header) -> dict:
-        block_object = await self.block_factory.get(block['block_bytes'])
+        block_object = Block.from_bin(block['block_bytes'])
         serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
         serialized['tx'] = [tx.id() for tx in block_object.txs]
         serialized['size'] = len(block['block_bytes'])

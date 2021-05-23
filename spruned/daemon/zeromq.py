@@ -6,7 +6,7 @@ import asyncio
 import zmq
 import zmq.asyncio
 from pycoin.block import Block
-from pycoin.coins.Tx import Tx
+from pycoin.tx.Tx import Tx
 
 from spruned.daemon import exceptions
 

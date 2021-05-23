@@ -28,7 +28,7 @@ import binascii
 import struct
 from asyncio import IncompleteReadError
 
-from pycoin.encoding.hash import double_sha256
+from pycoin.encoding import double_sha256
 
 from spruned.dependencies.pycoinnet import logger
 

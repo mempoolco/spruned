@@ -153,7 +153,7 @@ class BlockchainRepository:
     ):
         size = blocksize.to_bytes(4, 'little')
         batch_session.put(
-            self._get_db_key(DBPrefix.BLOCK_INDEX_PREFIX, blockhash),
+            self._get_db_key(DBPrefix.BLOCK_INDEX, blockhash),
             size + b''.join(transaction_ids)
         )
 
@@ -166,7 +166,7 @@ class BlockchainRepository:
         return await self.loop.run_in_executor(
             self.executor,
             self.session.get,
-            self._get_db_key(DBPrefix.BLOCK_INDEX_PREFIX, blockhash)
+            self._get_db_key(DBPrefix.BLOCK_INDEX, blockhash)
         )
 
     async def save_blocks(self, *blocks: Dict) -> List[Dict]:
@@ -189,7 +189,7 @@ class BlockchainRepository:
 
     def _save_transaction(self, transaction: Dict, batch_session) -> Dict:
         batch_session.put(
-            self._get_db_key(DBPrefix.TRANSACTION_PREFIX, transaction['txid']),
+            self._get_db_key(DBPrefix.TRANSACTION, transaction['txid']),
             transaction['transaction_bytes'] + transaction['block_hash']
         )
         return transaction
@@ -198,7 +198,7 @@ class BlockchainRepository:
             -> typing.Tuple[typing.Optional[int], typing.Iterable[str]]:
         blockhash = bytes.fromhex(blockhash)
         resp = await self._get_block_size_and_transaction_ids(blockhash)
-        return resp[0], map(lambda txid: txid.hex(), resp[1])
+        return resp[0], list(map(lambda txid: txid.hex(), resp[1]))
 
     async def _get_block_size_and_transaction_ids(self, blockhash: bytes) \
             -> typing.Tuple[typing.Optional[int], typing.Iterable[bytes]]:
@@ -245,7 +245,7 @@ class BlockchainRepository:
         data = self.loop.run_in_executor(
             self.executor,
             self.session.get,
-            self._get_db_key(DBPrefix.TRANSACTION_PREFIX, txid)
+            self._get_db_key(DBPrefix.TRANSACTION, txid)
         )
         if not data:
             return
@@ -263,12 +263,12 @@ class BlockchainRepository:
                 await asyncio.gather(
                     *map(
                         lambda txid: self._remove_item(
-                            self._get_db_key(DBPrefix.TRANSACTION_PREFIX, txid)
+                            self._get_db_key(DBPrefix.TRANSACTION, txid)
                         ),
                         transaction_ids
                     ),
                     self._remove_item(
-                        self._get_db_key(DBPrefix.BLOCK_INDEX_PREFIX, blockhash)
+                        self._get_db_key(DBPrefix.BLOCK_INDEX, blockhash)
                     ),
                     return_exceptions=True
                 )
@@ -368,6 +368,14 @@ class BlockchainRepository:
             assert cur_hash == n_header['prev_block_hash']
             headers.append(header)
         return headers
+
+    async def get_header_at_height(self, height: int, verbose=True):
+        return self.loop.run_in_executor(
+            self.executor,
+            self._get_header_at_height,
+            height.to_bytes(4, 'little'),
+            verbose
+        )
 
     def _get_header_at_height(self, height: bytes, verbose: bool) -> typing.Dict:
         height_key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, height)

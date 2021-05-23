@@ -27,11 +27,10 @@
 import io
 import struct
 
-from pycoin.encoding.hash import double_sha256
-from pycoin.encoding.hexbytes import b2h_rev
+from pycoin.encoding import double_sha256
 from pycoin.message.PeerAddress import PeerAddress
-from pycoin.satoshi.satoshi_int import parse_satoshi_int
-from pycoin.satoshi.satoshi_streamer import STREAMER_FUNCTIONS
+from pycoin.serialize import b2h_rev, bitcoin_streamer
+from pycoin.serialize.bitcoin_streamer import STREAMER_FUNCTIONS
 from pycoin.serialize.streamer import Streamer
 
 from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem
@@ -227,13 +226,13 @@ def standard_parsing_functions(Block, Tx):
     return all_items
 
 
-def standard_streamer(parsing_functions, parse_bc_int=parse_satoshi_int):
+def standard_streamer(parsing_functions, parse_bc_int=bitcoin_streamer.parse_bc_int):
     """
     Create a bitcoin_streamer, which parses and packs using the bitcoin protocol
     (mostly the custom way arrays and integers are parsed and packed).
     """
     streamer = Streamer()
-    streamer.register_array_count_parse(parse_satoshi_int)
+    streamer.register_array_count_parse(parse_bc_int)
     streamer.register_functions(parsing_functions)
     return streamer
 

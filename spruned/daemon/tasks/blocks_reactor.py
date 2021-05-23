@@ -63,9 +63,12 @@ class BlocksReactor:
         if not free_slots:
             return
 
-        best_header = self.repo.headers.get_best_header()
-        headers = self.repo.headers.get_headers_since_height(
-            best_header['block_height'] - self._keep_blocks,
+        best_header = await self.repo.blockchain.get_best_header()
+        keep_from_header = await self.repo.blockchain.get_block_hash(
+            best_header['block_height'] - self._keep_blocks
+        )
+        headers = await self.repo.blockchain.get_headers(
+            keep_from_header,
             limit=free_slots
         )
         for blockheader in headers:

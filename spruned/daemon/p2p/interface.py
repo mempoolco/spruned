@@ -3,7 +3,7 @@ from typing import Dict
 
 import typing
 
-from pycoin.encoding.hexbytes import h2b_rev
+from pycoin.serialize import h2b_rev
 
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
