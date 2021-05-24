@@ -302,7 +302,8 @@ class VOService(RPCAPIService):
                     "addr": f"{peer.hostname}:{peer.port}",
                     "subver": peer.subversion,
                     "conntime": peer.connected_at,
-                    "startingheight": peer.last_block_index and int(peer.last_block_index)
+                    "startingheight": peer.last_block_index and int(peer.last_block_index),
+                    "score": peer.score
                 },
                 itertools.chain(
                     self.electrum.get_connections(),

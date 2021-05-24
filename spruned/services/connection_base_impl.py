@@ -71,6 +71,8 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         else:
             self._errors.append(int(time.time()))
         self._score -= 1
+        if self._score <= 1:
+            self.loop.create_task(self.disconnect())
 
     def add_success(self):
         self._score += 1

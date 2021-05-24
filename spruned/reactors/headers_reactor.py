@@ -92,12 +92,7 @@ class HeadersReactor:
         else:
             # Received an header that it is not in sync with what we know, nor we have requested it.
             # Could be anything. Discard it at the moment: there's the fallback task.
-            has_new_headers = None
-
-        requested = self._best_chain[-6]['block_hash'] == headers[0]['prev_block_hash']
-        if requested and connection == self._last_connection:
-            connection.add_success()  # reward the connection
-
+            has_new_headers = False
         return has_new_headers
 
     async def _evaluate_received_headers(self, headers: typing.List) -> typing.Optional[typing.List]:
@@ -112,7 +107,9 @@ class HeadersReactor:
             )
         ):
             raise exceptions.HeadersInconsistencyException(headers)
-        return headers[len(match_headers) - 1:]
+        p = len(match_headers) - 1
+        headers[p]['block_height'] = headers[0]['block_height'] + p
+        return headers[p:]
 
     async def _evaluate_consensus_for_new_headers(self, headers: typing.List):
         """
@@ -130,10 +127,13 @@ class HeadersReactor:
                         '%s != %s', prev_hash, h['prev_block_hash']
                     )
             try:
-                self.network_values['header_verify'](h['header_bytes'], bytes.fromhex(h['block_hash']))
+                self.network_values['header_verify'](
+                    h['header_bytes'],
+                    bytes.fromhex(h['block_hash'])
+                )
             except InvalidPOWException:
                 raise exceptions.InvalidHeaderProofException
-            # todo difficulty \ chainwork \ flags
+            # todo difficulty \ chainwork \ activations flags
         return headers
 
     async def _save_new_headers(self, headers: typing.List):
@@ -160,11 +160,11 @@ class HeadersReactor:
                     )
                 )
                 new_headers = await self._check_headers_with_best_chain(connection, headers)
-                if not new_headers:
-                    return
-                Logger.p2p.debug('Received %s new headers' % len(new_headers))
-                new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
-                await self._save_new_headers(new_headers)
+                if new_headers:
+                    Logger.p2p.debug('Received %s new headers' % len(new_headers))
+                    new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
+                    await self._save_new_headers(new_headers)
+                connection.add_success()  # reward the connection
             except exceptions.HeadersInconsistencyException:
                 raise ValueError  # fixme - wait wait, let's do the happy path...
             except exceptions.InvalidConsensusRulesException:
@@ -181,9 +181,13 @@ class HeadersReactor:
         """
         if not self._best_chain:
             return
+        elif len(self._best_chain) == 1:
+            chain = self._best_chain
+        else:
+            chain = self._best_chain[-6:-3]
         self._last_connection = await self.interface.get_headers_after_hash(
             *map(
                 lambda h: h['block_hash'],
-                self._best_chain[-6:-3]
+                chain
             )
         )

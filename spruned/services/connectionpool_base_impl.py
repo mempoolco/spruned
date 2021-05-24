@@ -102,7 +102,6 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         if not best_connections:
             raise exceptions.NoConnectionsAvailableException()
         connection = random.choice(best_connections)
-        connection.score -= 1
         return connection
 
     async def get_multiple_connections(self, count: int) -> List:

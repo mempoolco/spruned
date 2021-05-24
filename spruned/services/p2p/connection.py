@@ -117,8 +117,12 @@ class P2PConnection(BaseConnection):
     def add_error(self, *a, origin=None):
         super().add_error(*a, origin=origin)
         Logger.p2p.error('Adding error to connection, origin: %s, score: %s', origin, self.score)
+        self._score -= 1
         if self.score <= 0:
             self.loop.create_task(self.disconnect())
+
+    def add_request(self):
+        self._score -= 1
 
     def add_success(self):
         self._score += 1
@@ -293,22 +297,11 @@ class P2PConnection(BaseConnection):
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
         Logger.p2p.debug('Received %s items, txs: %s', len(data.get('items')), txs)
 
-    async def _get(self, inv_item: InvItem):
-        s = int(time.time())
-        try:
-            return await self.peer_event_handler.get_inv_item(inv_item)
-        except:
-            Logger.p2p.debug(
-                'Error in get InvItem %s, failed in %ss from peers %s',
-                inv_item, round(time.time() - s, 4), self.hostname
-            )
-            self.add_error(origin='get InvItem')
-            raise
-
     async def get_invitem(self, inv_item: InvItem, timeout: int) -> P2PInvItemResponse:
         """
         get data from a peer or fail, return the related peer with the response
         """
+        self.add_request()
         done, pending = await asyncio.wait(
             (self.peer_event_handler.get_inv_item(inv_item),),
             timeout=timeout
@@ -318,6 +311,7 @@ class P2PConnection(BaseConnection):
                 lambda x: x.cancel(),
                 filter(lambda x: not x.done(), itertools.chain(done, pending))
             )
+            self.add_error(int(time.time()), origin='get_invitem')
             raise exceptions.MissingPeerResponseException
         self.add_success()
         return P2PInvItemResponse(
@@ -329,12 +323,12 @@ class P2PConnection(BaseConnection):
         self.peer.send_msg("getaddr")
 
     async def getheaders(self, *start_from_hash: str, stop_at_hash: typing.Optional[str] = None):
+        self.add_request()
         if stop_at_hash is not None:
             assert len(stop_at_hash) == 64
 
         for x in start_from_hash:
             assert len(x) == 64, x
-
         self.peer.send_msg(
             "getheaders",
             version=70015,
