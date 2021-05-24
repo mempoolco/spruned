@@ -354,32 +354,34 @@ class BlockchainRepository:
             h_dict['next_block_hash'] = next_block_hash and next_block_hash.hex()
         return h_dict
 
-    def get_headers(self, start_hash: str, limit=6):
+    def get_headers(self, start_hash: str):
         return self.loop.run_in_executor(
             self.executor,
             self._get_headers,
-            bytes.fromhex(start_hash),
-            limit
+            bytes.fromhex(start_hash)
         )
 
-    def _get_headers(self, start_hash: bytes, limit=6) -> typing.List[typing.Dict]:
+    def _get_headers(self, start_hash: bytes) -> typing.List[typing.Dict]:
         headers = []
-        assert limit <= 3000, 'absurdly high limit'
         header = self._get_header(start_hash, verbose=True)
         if not header:
             raise exceptions.DatabaseInconsistencyException
         headers.append(header)
         cur_hash = header['block_hash']
-        for height in range(header['block_height'] + 1, header['block_height'] + limit):
-            n_header = self._get_header_at_height(height.to_bytes(4, 'little'), True)
+        cur_height = header['block_height']
+        while 1:
+            n_header = self._get_header_at_height((cur_height + 1).to_bytes(4, 'little'), True)
             if not n_header:
                 break
-            assert cur_hash == n_header['prev_block_hash']
-            headers.append(header)
+            assert cur_hash == n_header['prev_block_hash'], (cur_hash, n_header)
+            assert n_header['block_height'] == cur_height + 1
+            cur_hash = n_header['block_hash']
+            cur_height = n_header['block_height']
+            headers.append(n_header)
         return headers
 
     async def get_header_at_height(self, height: int, verbose=True):
-        return self.loop.run_in_executor(
+        return await self.loop.run_in_executor(
             self.executor,
             self._get_header_at_height,
             height.to_bytes(4, 'little'),

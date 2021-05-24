@@ -15,6 +15,7 @@ from spruned.dependencies.pycoinnet.pycoin.inv_item import InvItem, \
     ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from spruned.dependencies.pycoinnet.networks import MAINNET
 from spruned.services.p2p import utils
+from spruned.utils import async_retry
 
 
 class P2PInterface:
@@ -76,12 +77,19 @@ class P2PInterface:
         inv_item = InvItem(ITEM_TYPE_MERKLEBLOCK, bytes.fromhex(block_hash)[::-1])
         return await connection.get_invitem(inv_item, timeout=10)
 
-    async def get_block(self, block_hash: str, timeout=None, segwit=True) -> Dict:
-        Logger.p2p.debug('Downloading block %s' % block_hash)
-        connection: P2PConnection = self.pool.get_connection()
-        block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
-        inv_item = InvItem(block_type, h2b_rev(block_hash))
-        response = (await connection.get_invitem(inv_item, timeout=timeout)).response
+    async def get_block(self, block_hash: str, segwit=True) -> Dict:
+        @async_retry(retries=10, wait=5, on_exception=(
+            exceptions.MissingPeerResponseException,
+            exceptions.NoConnectionsAvailableException
+        ))
+        async def _get_and_retry():
+            Logger.p2p.debug('Downloading block %s' % block_hash)
+            connection: P2PConnection = self.pool.get_connection()
+            block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
+            inv_item = InvItem(block_type, h2b_rev(block_hash))
+            return (await connection.get_invitem(inv_item, timeout=15)).response
+        response = await _get_and_retry()
+
         return response and {
             "block_hash": str(block_hash),
             "header_bytes": response[:80],

@@ -91,7 +91,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     @property
     def free_connections(self):
-        return list(filter(lambda c: c.score > 0 and not c.busy and c.connected, self.connections))
+        return list(filter(lambda c: c.score > 0 and c.connected, self.connections))
 
     def get_connection(self):
         connections = sorted(self.free_connections, key=lambda c: c.score, reverse=True)

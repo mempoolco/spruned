@@ -118,9 +118,9 @@ class VOService(RPCAPIService):
 
         if verbose and not block.get('verbose'):
             block['verbose'] = await self._make_verbose_block(block, blockheader)
-        self.loop.create_task(
-            self.repository.blockchain.save_block(block)
-        )
+        #self.loop.create_task(
+        #    self.repository.blockchain.save_block(block)
+        #)
         return block
 
     async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):

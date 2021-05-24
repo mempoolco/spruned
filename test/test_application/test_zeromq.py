@@ -15,8 +15,8 @@ import asyncio
 from pycoin.block import Block
 from pycoin.merkle import merkle
 
-from spruned.daemon.tasks.headers_reactor import HeadersReactor
-from spruned.daemon.zeromq import build_zmq, BitcoindZMQTopics
+from spruned.reactors.headers_reactor import HeadersReactor
+from spruned.services.zeromq import build_zmq, BitcoindZMQTopics
 
 
 class TestZeroMQ(TestCase):

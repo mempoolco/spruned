@@ -27,6 +27,7 @@ def async_retry(retries: int, wait: float, on_exception: _exc_type):
                     i += 1
                     if i <= retries:
                         await asyncio.sleep(wait)
+                        continue
                     elif getattr(e, 'fail_silent', False):
                         return
                     raise

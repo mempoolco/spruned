@@ -18,6 +18,7 @@ from spruned.dependencies.pycoinnet.peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX, InvItem
 from spruned.dependencies.pycoinnet.version import make_local_version, NODE_NONE, NODE_WITNESS
+from spruned.utils import async_retry
 
 
 def connector_f(host: str = None, port: int = None, proxy: str = None):
@@ -163,6 +164,21 @@ class P2PConnection(BaseConnection):
             raise exceptions.PeerHandshakeException from e
 
         self.last_block_index = version_data['last_block_index']
+        self._event_handler = P2PChannel(self)
+        self._version = version_data
+
+        Logger.p2p.info(
+            'Connected to peer %s:%s (%s)', self.hostname, self.port,
+            self.version and self.version.get('subversion', b'').decode().strip('/')
+        )
+        Logger.p2p.debug('Peer raw response %s', self.version)
+        self._do_more_handshake(peer)
+        self.peer = peer
+        self.connected_at = int(time.time())
+        self._setup_events_handler()
+
+    def _do_more_handshake(self, peer):
+        peer.send_msg('sendheaders')
         if self._bloom_filter:
             filter_bytes, hash_function_count, tweak = self._bloom_filter.filter_load_params()
             flags = 0
@@ -173,18 +189,6 @@ class P2PConnection(BaseConnection):
                 tweak=tweak,
                 flags=flags
             )
-
-        self._event_handler = P2PChannel(self)
-        self._version = version_data
-
-        Logger.p2p.info(
-            'Connected to peer %s:%s (%s)', self.hostname, self.port,
-            self.version and self.version.get('subversion', b'').decode().strip('/')
-        )
-        Logger.p2p.debug('Peer raw response %s', self.version)
-        self.peer = peer
-        self.connected_at = int(time.time())
-        self._setup_events_handler()
 
     async def connect(self):
         try:
@@ -238,7 +242,6 @@ class P2PConnection(BaseConnection):
         self.peer_event_handler.set_event_callbacks('addr', self._on_addr)
         self.peer_event_handler.set_event_callbacks('alert', self._on_alert)
         self.peer_event_handler.set_event_callbacks('ping', self._on_ping)
-        self.peer_event_handler.set_event_callbacks('sendheaders', self._dummy_handler)
         self.peer_event_handler.set_event_callbacks('headers', self._on_headers)
         self.peer_event_handler.set_event_callbacks('feefilter', self._dummy_handler)
         self.peer_event_handler.set_event_callbacks('sendcmpct', self._dummy_handler)
@@ -269,6 +272,9 @@ class P2PConnection(BaseConnection):
 
     def _on_headers(self, event_handler: P2PChannel, name: str, data: typing.Dict):  # pragma: no cover
         headers = data['headers']
+        if not headers:
+            Logger.p2p.debug('Received from peer %s empty on_headers: %s', event_handler, data)
+            return
         for callback in self._on_headers_callbacks:
             self.loop.create_task(callback(self, headers))
 
@@ -312,9 +318,8 @@ class P2PConnection(BaseConnection):
                 lambda x: x.cancel(),
                 filter(lambda x: not x.done(), itertools.chain(done, pending))
             )
-
             raise exceptions.MissingPeerResponseException
-
+        self.add_success()
         return P2PInvItemResponse(
             response=done.pop().result(),
             connection=self

@@ -91,3 +91,7 @@ class InvalidDifficultyException(InvalidConsensusRulesException):
 
 class ChainBrokenException(InvalidConsensusRulesException):
     pass
+
+
+class UnlinkedHeaderException(InvalidConsensusRulesException):
+    pass
