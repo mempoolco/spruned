@@ -1,6 +1,6 @@
 import asyncio
 import typing
-from spruned.application.exceptions import InvalidPOWException, DatabaseDataNotFoundException
+from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.services import exceptions
@@ -84,41 +84,35 @@ class HeadersReactor:
             self._fetch_headers_lock.release()
 
     async def _check_headers_with_best_chain(self, connection: P2PConnection, headers: typing.List):
-        """
-        check if headers are:
-         - wanted, because probably requested
-         - in sync with what we know
-         - new
-         - correct
-        """
-        wanted = self._best_chain[0]['block_hash'] == headers[0]['prev_block_hash']
-        new_in_sync = self._best_chain[-1]['block_hash'] == headers[0]['prev_block_hash']
-
-        if wanted and connection == self._last_connection:
-            connection.add_success()  # good boy
-            has_new_headers = await self._evaluate_wanted_headers(headers)
-        elif new_in_sync:
-            has_new_headers = headers
+        start_from_height = self._get_height_for_hash(headers[0]['prev_block_hash'])
+        if start_from_height is not None \
+                and start_from_height + len(headers) + 1 > self._best_chain[-1]['block_height']:
+            headers[0]['block_height'] = start_from_height + 1
+            has_new_headers = await self._evaluate_received_headers(headers)
         else:
             # Received an header that it is not in sync with what we know, nor we have requested it.
             # Could be anything. Discard it at the moment: there's the fallback task.
             has_new_headers = None
+
+        requested = self._best_chain[-6]['block_hash'] == headers[0]['prev_block_hash']
+        if requested and connection == self._last_connection:
+            connection.add_success()  # reward the connection
+
         return has_new_headers
 
-    async def _evaluate_wanted_headers(self, headers) -> typing.Optional[typing.List]:
+    async def _evaluate_received_headers(self, headers: typing.List) -> typing.Optional[typing.List]:
+        start_height = self._best_chain[0]['block_height']
+        pos = headers[0]['block_height'] - start_height
+        assert pos >= 0
+        match_headers = self._best_chain[pos-1:]
         if any(
             filter(
                 lambda h: str(h[0]['prev_block_hash']) != h[1]['block_hash'],
-                zip(headers, self._best_chain)
+                zip(headers, match_headers)
             )
         ):
             raise exceptions.HeadersInconsistencyException(headers)
-        if len(headers) < len(self._best_chain):
-            return None  # we are ahead
-        elif len(headers) == len(self._best_chain):
-            return None  # we are even
-        else:
-            return headers
+        return headers[len(match_headers) - 1:]
 
     async def _evaluate_consensus_for_new_headers(self, headers: typing.List):
         """
@@ -128,13 +122,8 @@ class HeadersReactor:
         - difficulty is ok
         """
         for i, h in enumerate(headers):
-            if not i:
-                block_height = self._get_height_for_hash(h['prev_block_hash'])
-                if block_height is None:
-                    raise exceptions.UnlinkedHeaderException
-                block_height += 1
-            else:
-                block_height = headers[i-1]['block_height'] + 1
+            if i:
+                headers[i]['block_height'] = headers[i-1]['block_height'] + 1
                 prev_hash = headers[i-1]['block_hash']
                 if prev_hash != h['prev_block_hash']:
                     raise exceptions.ChainBrokenException(
@@ -144,15 +133,12 @@ class HeadersReactor:
                 self.network_values['header_verify'](h['header_bytes'], bytes.fromhex(h['block_hash']))
             except InvalidPOWException:
                 raise exceptions.InvalidHeaderProofException
-            headers[i]['block_height'] = block_height
-            # todo difficulty check
+            # todo difficulty \ chainwork \ flags
         return headers
 
     async def _save_new_headers(self, headers: typing.List):
-        current_best_height = self._best_chain[-1]['block_height']
-        headers_to_save = list(filter(lambda h: h['block_height'] > current_best_height, headers))
-        await self.repo.save_headers(headers_to_save)
-        for header in headers_to_save:
+        await self.repo.save_headers(headers)
+        for header in headers:
             self._append_to_best_chain(header)
 
     async def on_headers(self, connection: P2PConnection, headers: typing.List):  # fixme type hinting
