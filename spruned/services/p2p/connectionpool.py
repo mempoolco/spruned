@@ -116,6 +116,9 @@ class P2PConnectionPool(BaseConnectionPool):
     async def connect(self):
         await self._check_internet_connectivity()
         while 1:
+            for connection in self._connections:
+                if connection.score <= 0:
+                    self.loop.create_task(connection.disconnect())
             self._expire_peer_bans()
             if self.completed or not self._keepalive:
                 await asyncio.sleep(5)

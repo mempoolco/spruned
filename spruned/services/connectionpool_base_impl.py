@@ -83,7 +83,7 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     @property
     def connections(self):
-        return list(filter(lambda c: not c.failed and c.score > 0, self._connections))
+        return list(filter(lambda c: not c.failed or c.score > 0, self._connections))
 
     @property
     def established_connections(self):
@@ -94,14 +94,9 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         return list(filter(lambda c: c.score > 0 and c.connected, self.connections))
 
     def get_connection(self):
-        connections = sorted(self.free_connections, key=lambda c: c.score, reverse=True)
-        if not connections:
+        if not self.free_connections:
             raise exceptions.NoConnectionsAvailableException()
-        best_score = connections[0].score
-        best_connections = list(filter(lambda c: c.score >= max(1, best_score), self.free_connections))
-        if not best_connections:
-            raise exceptions.NoConnectionsAvailableException()
-        connection = random.choice(best_connections)
+        connection = random.choice(self.free_connections)
         return connection
 
     async def get_multiple_connections(self, count: int) -> List:
