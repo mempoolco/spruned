@@ -18,7 +18,6 @@ from spruned.dependencies.pycoinnet.peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX, InvItem
 from spruned.dependencies.pycoinnet.version import make_local_version, NODE_NONE, NODE_WITNESS
-from spruned.utils import async_retry
 
 
 def connector_f(host: str = None, port: int = None, proxy: str = None):
@@ -124,8 +123,8 @@ class P2PConnection(BaseConnection):
     def add_request(self):
         self._score -= 1
 
-    def add_success(self):
-        self._score += 1
+    def add_success(self, score=1):
+        self._score = min(self._score + score, self.max_score)
 
     async def _handle_connect(self):
         try:

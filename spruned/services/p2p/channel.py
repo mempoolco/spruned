@@ -11,9 +11,6 @@ from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_SEGWIT_BLOC
 
 
 class P2PChannel:
-    """
-    look into STANDARD_P2P_MESSAGES to extend
-    """
     def __init__(self, connection, loop=asyncio.get_event_loop()):
         self.loop = loop
         self.connection = connection

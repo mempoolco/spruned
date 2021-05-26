@@ -26,6 +26,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._on_peers_callbacks = []
         self.loop = loop or asyncio.get_event_loop()
         self._score = start_score
+        self.max_score = start_score
         self._last_header = None
         self._subscriptions = []
         self._timeout = timeout

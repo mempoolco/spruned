@@ -108,8 +108,11 @@ class HeadersReactor:
         ):
             raise exceptions.HeadersInconsistencyException(headers)
         p = len(match_headers) - 1
-        headers[p]['block_height'] = headers[0]['block_height'] + p
-        return headers[p:]
+        new_headers = headers[p:]
+        if not new_headers:
+            return
+        new_headers[0]['block_height'] = headers[0]['block_height'] + p
+        return new_headers
 
     async def _evaluate_consensus_for_new_headers(self, headers: typing.List):
         """
@@ -164,14 +167,14 @@ class HeadersReactor:
                     Logger.p2p.debug('Received %s new headers' % len(new_headers))
                     new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
                     await self._save_new_headers(new_headers)
-                connection.add_success()  # reward the connection
+                    self._next_fetch_headers_schedule.cancel()
+                    self.loop.create_task(self._fetch_headers_loop())
+                connection.add_success(score=2)  # reward the connection
             except exceptions.HeadersInconsistencyException:
                 raise ValueError  # fixme - wait wait, let's do the happy path...
             except exceptions.InvalidConsensusRulesException:
                 Logger.p2p.exception('Connection %s has invalid blocks, asking for disconnection', connection)
                 await connection.disconnect()
-            self._next_fetch_headers_schedule.cancel()
-            self.loop.create_task(self._fetch_headers_loop())
         finally:
             self._fetch_headers_lock.release()
 
