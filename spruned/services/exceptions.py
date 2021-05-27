@@ -95,3 +95,7 @@ class ChainBrokenException(InvalidConsensusRulesException):
 
 class UnlinkedHeaderException(InvalidConsensusRulesException):
     pass
+
+
+class PeersDoesNotAgreeOnHeadersException(RetryException):
+    pass

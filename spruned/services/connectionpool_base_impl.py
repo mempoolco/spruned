@@ -46,6 +46,10 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         self._ipv6 = ipv6
         self._ban_time = 60
 
+    @property
+    def required_connections(self) -> int:
+        return self._required_connections
+
     def _expire_peer_bans(self):
         now = int(time.time())
         for peer, ban_timestamp in list(self._banned_peers.items()):

@@ -1,4 +1,5 @@
 import asyncio
+import time
 import typing
 from spruned.application.exceptions import InvalidPOWException
 from spruned.application.logging_factory import Logger
@@ -6,6 +7,7 @@ from spruned.application.tools import async_delayed_task
 from spruned.services import exceptions
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.interface import P2PInterface
+from spruned.utils import async_retry
 
 
 class HeadersReactor:
@@ -54,8 +56,7 @@ class HeadersReactor:
     def _append_to_best_chain(self, header: typing.Dict):
         self._best_chain.append(header)
         self._best_chain_height_index[header['block_hash']] = header['block_height']
-        b = self._best_chain.pop(0)
-        self._best_chain_height_index.pop(b['block_hash'])
+        self._best_chain_height_index.pop(self._best_chain.pop(0)['block_hash'])
 
     async def start(self):
         request_back_to_headers = 100
@@ -107,11 +108,11 @@ class HeadersReactor:
             )
         ):
             raise exceptions.HeadersInconsistencyException(headers)
-        p = len(match_headers) - 1
-        new_headers = headers[p:]
+        pos_after_match = len(match_headers) - 1
+        new_headers = headers[pos_after_match:]
         if not new_headers:
             return
-        new_headers[0]['block_height'] = headers[0]['block_height'] + p
+        new_headers[0]['block_height'] = headers[0]['block_height'] + pos_after_match
         return new_headers
 
     async def _evaluate_consensus_for_new_headers(self, headers: typing.List):
@@ -144,6 +145,17 @@ class HeadersReactor:
         for header in headers:
             self._append_to_best_chain(header)
 
+    @staticmethod
+    def _format_headers(headers: typing.List):
+        return map(
+            lambda h: {
+                'block_hash': str(h[0].hash()),
+                'prev_block_hash': str(h[0].previous_block_hash),
+                'header_bytes': h[0].as_bin()
+            },
+            headers
+        )
+
     async def on_headers(self, connection: P2PConnection, headers: typing.List):  # fixme type hinting
         """
         the fetch headers call is asynchronous.
@@ -151,32 +163,35 @@ class HeadersReactor:
         """
         await self._fetch_headers_lock.acquire()
         try:
-            try:
-                headers = list(
-                    map(
-                        lambda h: {
-                            'block_hash': str(h[0].hash()),
-                            'prev_block_hash': str(h[0].previous_block_hash),
-                            'header_bytes': h[0].as_bin()
-                        },
-                        headers
-                    )
-                )
-                new_headers = await self._check_headers_with_best_chain(connection, headers)
-                if new_headers:
-                    Logger.p2p.debug('Received %s new headers' % len(new_headers))
-                    new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
-                    await self._save_new_headers(new_headers)
-                    self._next_fetch_headers_schedule.cancel()
-                    self.loop.create_task(self._fetch_headers_loop())
-                connection.add_success(score=2)  # reward the connection
-            except exceptions.HeadersInconsistencyException:
-                raise ValueError  # fixme - wait wait, let's do the happy path...
-            except exceptions.InvalidConsensusRulesException:
-                Logger.p2p.exception('Connection %s has invalid blocks, asking for disconnection', connection)
-                await connection.disconnect()
+            headers = list(self._format_headers(headers))
+            new_headers = await self._check_headers_with_best_chain(connection, headers)
+            if not new_headers:
+                connection.add_success(score=1)  # ack
+                return
+            await self.ensure_agreement_for_headers(
+                connection,
+                self._get_headers_for_agreement(new_headers)
+            )
+            await self._handle_new_headers(new_headers)
+            connection.add_success(score=2)  # ack & reward
+        except exceptions.HeadersInconsistencyException:
+            raise ValueError  # fixme - wait wait, let's do the happy path...
+        except exceptions.InvalidConsensusRulesException:
+            Logger.p2p.exception('Connection %s has invalid blocks, asking for disconnection', connection)
+            await connection.disconnect()
         finally:
             self._fetch_headers_lock.release()
+
+    async def _handle_new_headers(self, new_headers: typing.List[typing.Dict]):
+        Logger.p2p.debug('Received %s new headers' % len(new_headers))
+        new_headers = await self._evaluate_consensus_for_new_headers(new_headers)
+        await self._save_new_headers(new_headers)
+        self._next_fetch_headers_schedule.cancel()
+        self.loop.create_task(self._fetch_headers_loop())
+
+    def _get_headers_for_agreement(self, headers):
+        assert headers[0]['prev_block_hash'] == self._best_chain[-1]['block_hash']
+        return (self._best_chain[-2:] + headers)[-3:]
 
     async def _fetch_headers(self):
         """
@@ -194,3 +209,40 @@ class HeadersReactor:
                 chain
             )
         )
+
+    @staticmethod
+    async def _fetch_header_blocking(connection, responses, headers: typing.List[typing.Dict]):
+        h = await connection.fetch_headers_blocking(
+            *map(lambda x: x['block_hash'], headers[:-1]),
+            stop_at_hash=headers[-1]['block_hash']
+        )
+        responses.append({connection: h})
+
+    @staticmethod
+    def _evaluate_agreement_for_headers(_headers, _responses):
+        return True
+
+    @async_retry(retries=1, wait=2, on_exception=exceptions.PeersDoesNotAgreeOnHeadersException)
+    async def ensure_agreement_for_headers(
+        self,
+        peer: P2PConnection,
+        headers: typing.List[typing.Dict]
+    ):
+        total_connections = self.interface.pool.required_connections - 1
+        if not total_connections:
+            return True  # spruned is set to connect to a single peer.
+        requested: typing.Set = {peer.uid, }
+        start = time.time()
+        responses = []
+        while time.time() - start <= 20:
+            for connection in self.interface.pool.established_connections:
+                if connection.uid in requested:
+                    continue
+                self.loop.create_task(
+                    self._fetch_header_blocking(connection, responses, headers[-3:])
+                )
+                requested.add(connection.uid)
+            await asyncio.sleep(0.1)
+            if 1 + len(responses) > self.interface.pool.required_connections * 0.6:
+                return self._evaluate_agreement_for_headers(headers, responses)
+        raise exceptions.PeersDoesNotAgreeOnHeadersException(responses)

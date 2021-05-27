@@ -46,7 +46,9 @@ def builder(ctx: Context):  # pragma: no cover
             ctx.mempool_size,
             service
         )
-    blocks_reactor = BlocksReactor(repository, p2p_interface, keep_blocks=int(ctx.keep_blocks))
+    blocks_reactor = BlocksReactor(
+        headers_reactor, repository, p2p_interface, keep_blocks_relative=ctx.keep_blocks
+    )
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, \
            zmq_context, zmq_observer, p2p_interface
 

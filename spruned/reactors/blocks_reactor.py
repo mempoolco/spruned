@@ -42,7 +42,11 @@ class BlocksReactor:
         if block['block_hash'] not in self._pending_blocks:
             return
         pending_task = self._pending_blocks.pop(block['block_hash'])
-        await self._on_block_received(pending_task, block)
+        await self._on_block_received(
+            {block['block_hash']: pending_task}, block)
+
+    async def _on_block_received(self, pending_task: typing.Dict, block: typing.Dict):
+        pass
 
     async def on_new_header(self, header: typing.Dict):
         # pass atm, rely on the loop

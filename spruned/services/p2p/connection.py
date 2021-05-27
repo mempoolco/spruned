@@ -335,3 +335,23 @@ class P2PConnection(BaseConnection):
             hashes=[bytes.fromhex(s)[::-1] for s in start_from_hash],
             hash_stop=bytes.fromhex(stop_at_hash or '0'*64)
         )
+
+    async def fetch_headers_blocking(self, *start_from_hash: str, stop_at_hash: typing.Optional[str]):
+        self.add_request()
+        if stop_at_hash is not None:
+            assert len(stop_at_hash) == 64, stop_at_hash
+
+        for x in start_from_hash:
+            assert len(x) == 64, x
+        res = await self.peer_event_handler.get(
+            "getheaders",
+            start_from_hash[0],
+            dict(
+                version=70015,
+                hash_count=len(start_from_hash),
+                hashes=[bytes.fromhex(s)[::-1] for s in start_from_hash],
+                hash_stop=bytes.fromhex(stop_at_hash)
+            ),
+            timeout=10
+        )
+        return res
