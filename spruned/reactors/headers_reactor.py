@@ -191,6 +191,8 @@ class HeadersReactor:
 
     def _get_headers_for_agreement(self, headers):
         assert headers[0]['prev_block_hash'] == self._best_chain[-1]['block_hash']
+        for i, h in enumerate(headers, start=1):
+            h['block_height'] = self._best_chain[-1]['block_height'] + i
         return (self._best_chain[-2:] + headers)[-3:]
 
     async def _fetch_headers(self):
@@ -222,19 +224,21 @@ class HeadersReactor:
     def _evaluate_agreement_for_headers(_headers, _responses):
         return True
 
-    @async_retry(retries=1, wait=2, on_exception=exceptions.PeersDoesNotAgreeOnHeadersException)
+    @async_retry(retries=2, wait=2, on_exception=exceptions.PeersDoesNotAgreeOnHeadersException)
     async def ensure_agreement_for_headers(
         self,
         peer: P2PConnection,
         headers: typing.List[typing.Dict]
     ):
-        total_connections = self.interface.pool.required_connections - 1
-        if not total_connections:
+        if headers[0]['block_height'] + len(headers) < max(self.network_values['checkpoints']):
+            return True
+        total_peers_needed_to_agree = self.interface.pool.required_connections - 1
+        if not total_peers_needed_to_agree:
             return True  # spruned is set to connect to a single peer.
         requested: typing.Set = {peer.uid, }
         start = time.time()
         responses = []
-        while time.time() - start <= 20:
+        while time.time() - start <= 10:
             for connection in self.interface.pool.established_connections:
                 if connection.uid in requested:
                     continue
