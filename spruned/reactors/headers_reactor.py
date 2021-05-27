@@ -1,7 +1,9 @@
 import asyncio
 import time
 import typing
-from spruned.application.exceptions import InvalidPOWException
+
+from spruned.application import consensus
+from spruned.application.exceptions import InvalidPOWException, ConsensusNotReachedException
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.services import exceptions
@@ -214,15 +216,24 @@ class HeadersReactor:
 
     @staticmethod
     async def _fetch_header_blocking(connection, responses, headers: typing.List[typing.Dict]):
-        h = await connection.fetch_headers_blocking(
-            *map(lambda x: x['block_hash'], headers[:-1]),
-            stop_at_hash=headers[-1]['block_hash']
-        )
-        responses.append({connection: h})
+        try:
+            h = await connection.fetch_headers_blocking(
+                *map(lambda x: x['block_hash'], headers[:-1]),
+                stop_at_hash=headers[-1]['block_hash']
+            )
+            responses.append(h)
+            connection.add_success()
+        except asyncio.exceptions.TimeoutError:
+            Logger.p2p.debug('fetch_header_blocking timeout error')
 
     @staticmethod
     def _evaluate_agreement_for_headers(_headers, _responses):
-        return True
+        for x in range(0, len(_headers[2:])):
+            d = []
+            for r in _responses:
+                d.append(str(r['headers'][x][0].hash()))
+            d.append(_headers[1+x]['block_hash'])
+            consensus.reach_consensus_on_blockhash(*d)
 
     @async_retry(retries=2, wait=2, on_exception=exceptions.PeersDoesNotAgreeOnHeadersException)
     async def ensure_agreement_for_headers(
@@ -230,6 +241,10 @@ class HeadersReactor:
         peer: P2PConnection,
         headers: typing.List[typing.Dict]
     ):
+        """
+        This method makes sure that other peers agree with the headers we have.
+        Only some headers are checked.
+        """
         if headers[0]['block_height'] + len(headers) < max(self.network_values['checkpoints']):
             return True
         total_peers_needed_to_agree = self.interface.pool.required_connections - 1
@@ -248,5 +263,8 @@ class HeadersReactor:
                 requested.add(connection.uid)
             await asyncio.sleep(0.1)
             if 1 + len(responses) > self.interface.pool.required_connections * 0.6:
-                return self._evaluate_agreement_for_headers(headers, responses)
+                try:
+                    return self._evaluate_agreement_for_headers(headers, responses)
+                except ConsensusNotReachedException:
+                    continue
         raise exceptions.PeersDoesNotAgreeOnHeadersException(responses)

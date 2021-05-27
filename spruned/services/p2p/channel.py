@@ -31,7 +31,7 @@ class P2PChannel:
             ITEM_TYPE_MERKLEBLOCK: 'merkleblock',
         }[request_message.item_type]
         response_message = f'{response_message}|{request_message.data}'
-        response = await self._msg('getdata', response_message, {'items': request_message})
+        response = await self._msg('getdata', response_message, {'items': (request_message, )})
         return response
 
     async def get(self, message: str, lock_key: str, payload: typing.Dict, timeout=999):
@@ -51,8 +51,9 @@ class P2PChannel:
             async with async_timeout.timeout(timeout):
                 return await self._responses_listeners[name]
         finally:
-            self._responses_listeners.pop(name, None)
+            future = self._responses_listeners.pop(name, None)
             self._lock.locked() and self._lock.release()
+            future and future.cancel()
 
     def set_event_callbacks(self, name, callback_f):
         self._events_callbacks[name] = callback_f

@@ -343,7 +343,7 @@ class P2PConnection(BaseConnection):
 
         for x in start_from_hash:
             assert len(x) == 64, x
-        res = await self.peer_event_handler.get(
+        return await self.peer_event_handler.get(
             "getheaders",
             start_from_hash[0],
             dict(
@@ -351,7 +351,5 @@ class P2PConnection(BaseConnection):
                 hash_count=len(start_from_hash),
                 hashes=[bytes.fromhex(s)[::-1] for s in start_from_hash],
                 hash_stop=bytes.fromhex(stop_at_hash)
-            ),
-            timeout=10
+            )
         )
-        return res

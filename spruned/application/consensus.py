@@ -10,18 +10,20 @@ def verify_pow(header: bytes, blockhash: bytes):
 
 
 def reach_consensus_on_blockhash(*blockhash: str) -> str:
-    assert len(blockhash) > 5
+    """
+    ensure 90% of peers agree
+    """
     unique = set(blockhash)
     scores = sorted(
         map(
             lambda b: {
-                'h': b,
-                'c': blockhash.count(b)
+                'hash': b,
+                'count': blockhash.count(b)
             },
             unique
         ),
-        key=lambda x: x['c'], reverse=True
+        key=lambda x: x['count'], reverse=True
     )
-    if scores[0]['c'] < len(blockhash) * .8:
-        raise exceptions.ConsensusNotReachedException('Insufficient score: %s', scores[0]['c'] / len(blockhash))
-    return scores[0]['h']
+    if scores[0]['count'] < len(blockhash) * 0.9:
+        raise exceptions.ConsensusNotReachedException('Insufficient score: %s', scores[0]['count'] / len(blockhash))
+    return scores[0]['hash']
