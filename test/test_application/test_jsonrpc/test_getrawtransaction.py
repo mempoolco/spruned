@@ -6,7 +6,7 @@ from unittest.mock import Mock, call
 from spruned.application.exceptions import ItemNotFoundException
 from spruned.application.jsonrpc_server import JSONRPCServer
 from test.jsonrpc_client import JSONClient
-from spruned.daemon import exceptions
+from spruned.services import exceptions
 from test.utils import async_coro
 
 

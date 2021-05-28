@@ -79,8 +79,8 @@ class ZeroMQObserver:
     async def on_transaction(self, tx: Tx):
         self.transaction_publisher and await self.transaction_publisher.on_event(tx.as_bin())
 
-    async def on_transaction_hash(self, tx: Tx):
-        self.transaction_hash_publisher and await self.transaction_hash_publisher.on_event(tx.hash())
+    async def on_transaction_hash(self, tx_hash: str):
+        self.transaction_hash_publisher and await self.transaction_hash_publisher.on_event(tx_hash)
 
     async def on_block_hash(self, data):
         block_hash = binascii.unhexlify(data['block_hash'].encode())

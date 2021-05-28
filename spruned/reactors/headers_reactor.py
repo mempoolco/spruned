@@ -263,6 +263,7 @@ class HeadersReactor:
             agreement_on_height = heights_by_hashes[agreement_on_hash]
             if origin_peer.last_block_index < agreement_on_height:
                 origin_peer.last_block_index = agreement_on_height
+
             for c in connections_by_hashes[agreement_on_hash]:
                 if c.last_block_index < agreement_on_height:
                     Logger.p2p.info(

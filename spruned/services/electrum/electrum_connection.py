@@ -213,7 +213,7 @@ class ElectrumConnectionPool(BaseConnectionPool):
                 self.loop.create_task(self._connect_servers(missings))
             elif missings < 0:
                 Logger.electrum.warning('Too many peers.')
-                connection = await self.get_connection(fail_silent=True)
+                connection = await self.get_connection()
                 self.loop.create_task(connection.disconnect())
             elif not self._connection_notified:
                 for observer in self._on_connect_observers:
@@ -221,9 +221,9 @@ class ElectrumConnectionPool(BaseConnectionPool):
                 self._connection_notified = True
             await asyncio.sleep(missings and 2 or 10)
 
-    async def _connect_servers(self, howmany: int):
-        peers = self._pick_multiple_peers(howmany)
-        peers and Logger.electrum.debug('Connecting to peers (%s)', howmany)
+    async def _connect_servers(self, count: int):
+        peers = set(self._get_multiple_peers(count))
+        peers and Logger.electrum.debug('Connecting to peers (%s)', count)
         for peer in peers:
             instance = self._connection_factory(
                 hostname=peer[0],

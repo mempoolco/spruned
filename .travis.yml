@@ -2,13 +2,13 @@ language: python
 os:
   - linux
 dist:
-  - xenial
+  - focal
 env:
   - TESTING=true DEBUG=true
 python:
-  - 3.5.3
   - 3.6.3
   - 3.7.2
+  - 3.9.0
 before_install:
   - pwd
   - sudo apt-get -qq update
@@ -19,7 +19,7 @@ script:
   - coverage run --source=spruned -m unittest discover
 after_success:
   - coverage report
-  - if [[ $(python3 -V 2>&1) == *"Python 3.6"* ]]; then
+  - if [[ $(python3 -V 2>&1) == *"Python 3.9"* ]]; then
       pip install python-coveralls;
       coveralls;
     fi

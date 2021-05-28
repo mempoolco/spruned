@@ -8,7 +8,7 @@ from spruned.networks.bitcoin import mainnet, testnet
 
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX
 
-from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnection
+from spruned.services.p2p.connection import P2PConnection
 from test.utils import async_coro
 
 
@@ -84,7 +84,7 @@ class TestP2PConnection(TestCase):
                     raise AssertionError('Timeout!')
 
         async def start():
-            self.sut._on_inv('inv', 'tx', {'items': [item]})
+            self.sut._on_inv(Mock(), 'inv', 'tx', {'items': [item]})
 
         item = Mock(item_type=ITEM_TYPE_TX)
         self.sut.run = self.loop

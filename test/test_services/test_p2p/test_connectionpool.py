@@ -1,7 +1,7 @@
 import asyncio
 from unittest import TestCase
 from unittest.mock import Mock, call
-from spruned.daemon.bitcoin_p2p.p2p_connection import P2PConnectionPool
+from spruned.services.p2p.connectionpool import P2PConnectionPool
 
 from test.utils import async_coro, coro_call
 
@@ -14,7 +14,7 @@ class TestP2PConnectionPool(TestCase):
         self.port = 8333
         self.sut = P2PConnectionPool(
             network_checker=self.online_checker, delayer=self.delayer,
-            loop=self.loopmock, proxy=False, sleep_no_internet=1, connections=2,
+            loop=self.loopmock, proxy=False, connections=2,
         )
         self.loop = asyncio.get_event_loop()
         self.peers = [['cafe', 123], ['babe', 123], ['eta', 123], ['beta', 123]]
@@ -23,7 +23,7 @@ class TestP2PConnectionPool(TestCase):
         async def parallel():
             await asyncio.sleep(3)
             for peer in self.peers:
-                self.sut.add_peer(peer)
+                self.sut.add_peer(tuple(peer))
 
             await asyncio.sleep(5)
             self.sut._keepalive = False
