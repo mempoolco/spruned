@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2018 Guido Dassori <guido.dassori@gmail.com>
+# Copyright (C) 2018 - 2021 Guido 'khs9ne' Dassori
 #
 import sys
 sys.path.insert(0, './')

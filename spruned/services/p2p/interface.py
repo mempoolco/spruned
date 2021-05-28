@@ -1,11 +1,11 @@
 import asyncio
-import time
 from typing import Dict
 
 import typing
 
 from pycoin.serialize import h2b_rev
 
+from spruned.application import consensus
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
 from spruned.services import exceptions
@@ -35,6 +35,27 @@ class P2PInterface:
         self._bootstrap_status = 0
         self._get_peers_from_seed = peers_bootstrapper
         self.mempool = mempool_repository
+
+    async def on_peer_disagreement(self, local_header: typing.Dict, peer: P2PConnection):
+        pass  # TODO FIXME
+        """
+        - track disagreements
+        - evaluate consensus-disagreements 
+        """
+
+    @async_retry(retries=2, wait=0.1, on_exception=exceptions.RetryException)
+    async def _check_connection_sync(self, connection: P2PConnection, header: typing.Dict):
+        headers = await connection.fetch_headers_blocking(
+            header['prev_block_hash'],
+            stop_at_hash=header['block_hash']
+        )
+        pass
+
+    def set_local_current_header(self, header: typing.Dict):
+        for connection in self.pool.connections:
+            if connection.last_block_index and connection.last_block_index < header['block_height']:
+                self.loop.create_task(self._check_connection_sync(connection, header))
+        self.pool.set_local_current_header(header)
 
     def get_free_slots(self) -> int:
         return int(len(self.pool and self.pool.free_connections or []))
@@ -79,6 +100,7 @@ class P2PInterface:
         return await connection.get_invitem(inv_item, timeout=10)
 
     async def get_block(self, block_hash: str, segwit=True) -> Dict:
+
         @async_retry(retries=10, wait=5, on_exception=(
             exceptions.MissingPeerResponseException,
             exceptions.NoConnectionsAvailableException
@@ -108,10 +130,9 @@ class P2PInterface:
         return connection
 
     def get_current_peers_best_height(self) -> int:
-        # todo find a better agreement than "max"
         if not self.pool.established_connections:
             raise exceptions.NoPeersException
-        return max(
+        last_heights = list(
             map(
                 lambda connection: connection.last_block_index,
                 filter(
@@ -120,4 +141,6 @@ class P2PInterface:
                 )
             )
         )
-
+        scores = consensus.score_values(*last_heights)
+        network_height = int(scores[0]['value'])
+        return network_height

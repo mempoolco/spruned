@@ -31,7 +31,7 @@ class HeadersReactor:
         self._sync_errors = 0
         self.delayed_task = delayed_task
         self.new_headers_fallback_poll_interval = 10
-        self.synced = False
+        self.initial_headers_download = True
         self.on_best_height_hit_volatile_callbacks = []
         self.on_best_height_hit_persistent_callbacks = []
         self._on_new_best_header_callbacks = []
@@ -57,6 +57,7 @@ class HeadersReactor:
 
     def _append_to_best_chain(self, header: typing.Dict):
         self._best_chain.append(header)
+        self.interface.set_local_current_header(header)
         self._best_chain_height_index[header['block_hash']] = header['block_height']
         self._best_chain_height_index.pop(self._best_chain.pop(0)['block_hash'])
 
@@ -79,7 +80,12 @@ class HeadersReactor:
                     5, lambda: self.loop.create_task(self._fetch_headers_loop())
                 )
                 return
+
+            if self.initial_headers_download and \
+                    self._best_chain[-1]['block_height'] >= self.interface.get_current_peers_best_height():
+                self.initial_headers_download = False
             await self._fetch_headers()
+
             self._next_fetch_headers_schedule = self.loop.call_later(
                 20, lambda: self.loop.create_task(self._fetch_headers_loop())
             )
@@ -215,25 +221,55 @@ class HeadersReactor:
         )
 
     @staticmethod
-    async def _fetch_header_blocking(connection, responses, headers: typing.List[typing.Dict]):
+    async def _fetch_header_blocking(connection, responses: typing.Dict, headers: typing.List[typing.Dict]):
         try:
             h = await connection.fetch_headers_blocking(
                 *map(lambda x: x['block_hash'], headers[:-1]),
                 stop_at_hash=headers[-1]['block_hash']
             )
-            responses.append(h)
+            responses[connection] = h
             connection.add_success()
         except asyncio.exceptions.TimeoutError:
             Logger.p2p.debug('fetch_header_blocking timeout error')
 
     @staticmethod
-    def _evaluate_agreement_for_headers(_headers, _responses):
+    def _evaluate_agreement_for_headers(
+            _headers: typing.List[typing.Dict], _responses: typing.Dict, origin_peer: P2PConnection
+    ):
+        """
+        This method is called when the headers reactor intend to save new headers on the database.
+
+        It evaluates agreement on headers between peers who responded the getheaders call.
+        It is part of the `ensure_agreement_for_headers` flow.
+        Once the agreement is done, all the P2PConnection object that agrees, are updated.
+
+        """
+        connections_by_hashes: typing.Dict[str:P2PConnection] = {}
+        heights_by_hashes: typing.Dict[str:int] = {}
+
         for x in range(0, len(_headers[2:])):
             d = []
-            for r in _responses:
-                d.append(str(r['headers'][x][0].hash()))
+            for c, r in _responses.items():
+                blockhash = str(r['headers'][x][0].hash())
+                block_height = _headers[2+x]['block_height']
+                heights_by_hashes[blockhash] = block_height
+                connections_by_hashes.setdefault(blockhash, [])
+                connections_by_hashes[blockhash].append(c)
+                d.append(blockhash)
+
             d.append(_headers[1+x]['block_hash'])
-            consensus.reach_consensus_on_blockhash(*d)
+            agreement_on_hash = consensus.reach_consensus_on_value(*d)
+
+            agreement_on_height = heights_by_hashes[agreement_on_hash]
+            if origin_peer.last_block_index < agreement_on_height:
+                origin_peer.last_block_index = agreement_on_height
+            for c in connections_by_hashes[agreement_on_hash]:
+                if c.last_block_index < agreement_on_height:
+                    Logger.p2p.info(
+                        'Updating current height for peer %s. %s - %s',
+                        c.hostname, agreement_on_height, agreement_on_hash
+                    )
+                    c.last_block_index = agreement_on_height
 
     @async_retry(retries=2, wait=2, on_exception=exceptions.PeersDoesNotAgreeOnHeadersException)
     async def ensure_agreement_for_headers(
@@ -252,7 +288,7 @@ class HeadersReactor:
             return True  # spruned is set to connect to a single peer.
         requested: typing.Set = {peer.uid, }
         start = time.time()
-        responses = []
+        responses = dict()
         while time.time() - start <= 10:
             for connection in self.interface.pool.established_connections:
                 if connection.uid in requested:
@@ -261,10 +297,10 @@ class HeadersReactor:
                     self._fetch_header_blocking(connection, responses, headers[-3:])
                 )
                 requested.add(connection.uid)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.3)
             if 1 + len(responses) > self.interface.pool.required_connections * 0.6:
                 try:
-                    return self._evaluate_agreement_for_headers(headers, responses)
+                    return self._evaluate_agreement_for_headers(headers, responses, peer)
                 except ConsensusNotReachedException:
                     continue
         raise exceptions.PeersDoesNotAgreeOnHeadersException(responses)

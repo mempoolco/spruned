@@ -67,8 +67,12 @@ class P2PConnectionPool(BaseConnectionPool):
     def proxy(self):
         return self._proxy
 
-    async def set_local_current_header(self, value: typing.Dict):
+    def set_local_current_header(self, value: typing.Dict):
         self._local_header = value
+
+    @property
+    def local_header(self):
+        return self._local_header
 
     def _create_bloom_filter(self):
         element_count = 1

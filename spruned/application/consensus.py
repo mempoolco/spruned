@@ -1,3 +1,5 @@
+from typing import Any
+
 from spruned.application import exceptions
 
 
@@ -9,21 +11,26 @@ def verify_pow(header: bytes, blockhash: bytes):
     raise exceptions.InvalidPOWException
 
 
-def reach_consensus_on_blockhash(*blockhash: str) -> str:
-    """
-    ensure 90% of peers agree
-    """
-    unique = set(blockhash)
+def score_values(*value):
+    unique = set(value)
     scores = sorted(
         map(
-            lambda b: {
-                'hash': b,
-                'count': blockhash.count(b)
+            lambda val: {
+                'value': val,
+                'count': value.count(val)
             },
             unique
         ),
         key=lambda x: x['count'], reverse=True
     )
-    if scores[0]['count'] < len(blockhash) * 0.9:
-        raise exceptions.ConsensusNotReachedException('Insufficient score: %s', scores[0]['count'] / len(blockhash))
-    return scores[0]['hash']
+    return scores
+
+
+def reach_consensus_on_value(*value: Any, agreement=0.9) -> str:
+    """
+    ensure 90% of peers agree
+    """
+    scores = score_values(*value)
+    if scores[0]['count'] < len(value) * agreement:
+        raise exceptions.ConsensusNotReachedException('Insufficient score: %s', scores[0]['count'] / len(value))
+    return scores[0]['value']

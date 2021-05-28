@@ -218,10 +218,12 @@ class P2PConnection(BaseConnection):
 
     async def _verify_peer(self, version_data: typing.Dict):
         if self.best_header and self.best_header['block_height'] - version_data['last_block_index'] > 5:
+            Logger.p2p.debug('Disconnecting peer %s:%s: PeerBlockchainBehindException', self.hostname, self.port)
             await self.disconnect()
             raise exceptions.PeerBlockchainBehindException
         if self.version_checker and not self.version_checker(version_data):
             self.pool.ban_peer((self.hostname, self.port))
+            Logger.p2p.debug('Disconnecting peer %s:%s: PeerVersionMismatchException', self.hostname, self.port)
             await self.disconnect()
             raise exceptions.PeerVersionMismatchException
         return version_data
@@ -336,7 +338,7 @@ class P2PConnection(BaseConnection):
             hash_stop=bytes.fromhex(stop_at_hash or '0'*64)
         )
 
-    async def fetch_headers_blocking(self, *start_from_hash: str, stop_at_hash: typing.Optional[str]):
+    async def fetch_headers_blocking(self, *start_from_hash: str, stop_at_hash: str):
         self.add_request()
         if stop_at_hash is not None:
             assert len(stop_at_hash) == 64, stop_at_hash

@@ -71,8 +71,12 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
         return peer
 
     def ban_peer(self, peer):
-        self._used_peers.remove(peer)
-        self._banned_peers[peer] = int(time.time())
+        try:
+            self._banned_peers[peer] = int(time.time())
+            self._used_peers.remove(peer)
+        except KeyError:
+            # ignore race conditions
+            pass
 
     def _get_multiple_peers(self, count: int):
         return list(
