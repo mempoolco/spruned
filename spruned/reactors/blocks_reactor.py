@@ -29,7 +29,7 @@ class BlocksReactor:
         self.loop = loop or asyncio.get_event_loop()
         self._headers = headers_reactor
         self.keep_blocks_relative = None
-        self.keep_from_height = 0
+        self.keep_from_height = 650000
         assert keep_blocks_relative is None or keep_block_from_height is None  # one must be none
         self.max_blocks_per_round = max_blocks_per_round
         self._pending_blocks = dict()
@@ -182,7 +182,7 @@ class BlocksReactor:
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
         round_slots = min(
-            max(0, self.interface.get_free_slots() * 3 - len(self._pending_blocks)),
+            max(0, self.interface.get_free_slots() - len(self._pending_blocks)),
             self.max_blocks_per_round
         )
         if not round_slots:
