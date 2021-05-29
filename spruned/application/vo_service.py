@@ -20,19 +20,21 @@ class VOService(RPCAPIService):
     def __init__(
             self,
             electrum,
-            p2p,
+            p2p_interface,
+            headers_reactor,
             repository=None,
             loop=asyncio.get_event_loop(),
             context=None
     ):
         self.network_rules = context.network_rules
-        self.p2p = p2p
+        self.p2p_interface = p2p_interface
         self.electrum = electrum
         self.repository = repository
         self.loop = loop
         self._last_estimatefee = None
         self.context = context
         self._expected_data = {'txids': []}
+        self._headers_reactor = headers_reactor
 
     def available(self):
         raise NotImplementedError
@@ -112,7 +114,7 @@ class VOService(RPCAPIService):
 
     async def _get_block(self, blockheader, verbose=False):
         blockhash = blockheader['block_hash']
-        block = await self.p2p.get_block(blockhash)
+        block = await self.p2p_interface.get_block(blockhash)
         if not block:
             raise exceptions.ServiceException
 
@@ -248,9 +250,10 @@ class VOService(RPCAPIService):
             "difficulty": 0,
             "chainwork": '00'*32,
             "mediantime": _deserialized_header["timestamp"],
-            "verificationprogress": self.p2p.bootstrap_status,
+            "verificationprogress": self.p2p_interface.bootstrap_status,
             "pruned": False,
-            "initialblockdownload": False
+            "initialblockdownload": False,
+            "initialheaderdownload": self._headers_reactor.initial_headers_download
         }
 
     async def gettxout(self, txid: str, index: int):
@@ -307,7 +310,7 @@ class VOService(RPCAPIService):
                 },
                 itertools.chain(
                     self.electrum.get_connections(),
-                    self.p2p.get_connections()
+                    self.p2p_interface.get_connections()
                 )
             )
         )

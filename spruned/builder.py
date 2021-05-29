@@ -14,19 +14,20 @@ def builder(ctx: Context):  # pragma: no cover
     electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
     repository = Repository.instance()
-    service = vo_service.VOService(
-        electrum_interface,
-        p2p_interface,
-        repository=repository,
-        context=ctx
-    )
-    jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
-    jsonrpc_server.set_vo_service(service)
     headers_reactor = HeadersReactor(
         repository.blockchain,
         ctx.network_rules,
         p2p_interface
     )
+    service = vo_service.VOService(
+        electrum_interface,
+        p2p_interface,
+        headers_reactor,
+        repository=repository,
+        context=ctx
+    )
+    jsonrpc_server = JSONRPCServer(ctx.rpcbind, ctx.rpcport, ctx.rpcuser, ctx.rpcpassword)
+    jsonrpc_server.set_vo_service(service)
 
     if ctx.mempool_size:
         from spruned.application.mempool_observer import MempoolObserver
