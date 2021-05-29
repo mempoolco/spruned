@@ -14,6 +14,7 @@ def deserialize_block(data):
             'success': True,
             'data': {
                 'header': header.as_bin(),
+                'size': len(block.as_bin()),
                 'hash': bytes.fromhex(str(header.hash())),
                 'txs': list(
                     map(

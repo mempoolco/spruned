@@ -20,8 +20,8 @@ class BlocksReactor:
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_block_from_height=None,
-        max_blocks_per_round=4,
-        block_fetch_timeout=10,
+        max_blocks_per_round=8,
+        block_fetch_timeout=5,
         deserialize_workers=4
     ):
         self.repo = repository
@@ -40,9 +40,8 @@ class BlocksReactor:
         self._next_fetch_blocks_schedule = None
         self._started = False
         self._blocks_to_save = dict()
-        self._local_current_block_height = 0
-        self._fetch_lock = asyncio.Lock()
-        self._save_lock = asyncio.Lock()
+        self._local_current_block_height = None
+        self._lock = asyncio.Lock()
 
     async def _deserialize_block(self, block: typing.Dict):
         block_bytes = block['header_bytes'] + block['data'].read()
@@ -55,11 +54,14 @@ class BlocksReactor:
             raise exceptions.DeserializeBlockException(item['error'])
         return item['data']
 
-    def _reschedule_fetch_blocks(self, reschedule_in: int):
+    def _reschedule_fetch_blocks(self, reschedule_in: typing.Union[int, float]):
         assert self._next_fetch_blocks_schedule is None
-        self._next_fetch_blocks_schedule = self.loop.call_later(
-            reschedule_in, lambda: self.loop.create_task(self._fetch_blocks_loop())
-        )
+        if reschedule_in == 0:
+            self.loop.create_task(self._fetch_blocks_loop())
+        else:
+            self._next_fetch_blocks_schedule = self.loop.call_later(
+                reschedule_in, lambda: self.loop.create_task(self._fetch_blocks_loop())
+            )
         return
 
     @property
@@ -67,44 +69,54 @@ class BlocksReactor:
         return self.interface.is_connected()
 
     async def on_block(self, connection: P2PConnection, block: typing.Dict):
-        if block['block_hash'].hex() in self._pending_blocks or self._pending_blocks_no_answer:
-            task = self._pending_blocks_no_answer.pop(block['block_hash'], None)
-            task = task or self._pending_blocks.pop(block['block_hash'])
-        else:
-            # unwanted block
-            return
-        await self._on_block_received(task, block)
+        if block['block_hash'] in self._pending_blocks or self._pending_blocks_no_answer:
+            await self._on_block_received(block)
 
-    async def _on_block_received(self, pending_task: typing.Dict, block: typing.Dict):
+    async def _on_block_received(self, block: typing.Dict):
         deserialized_block = await self._deserialize_block(block)
-        height = deserialized_block['block:height'] = pending_task[1]  # height - we really have to fix built-in types.
-        self._blocks_to_save[height] = deserialized_block
-        if height == self._local_current_block_height + 1:
+        await self._lock.acquire()
+        try:
+            pending_task = self._pending_blocks_no_answer.pop(
+                block['block_hash'],
+                self._pending_blocks.pop(block['block_hash'], None)
+            )
+            if not pending_task:
+                return
+            height = deserialized_block['height'] = pending_task[1]  # height - we really have to fix built-in types.
+            if height <= self._local_current_block_height:
+                return
+            self._blocks_to_save[height] = deserialized_block
+            if height != self._local_current_block_height + 1:
+                return
             await self._save_blocks()
+        finally:
+            self._lock.release()
 
     async def _save_blocks(self):
         """
         wait to stack contiguous blocks to the current height, before saving
         """
-        await self._save_lock.acquire()
-        try:
-            contiguous = []
-            for i, h in enumerate(sorted(list(self._blocks_to_save))):
-                if not i:
-                    assert h['block_height'] == self._local_current_block_height + 1, h
-                    contiguous.append(h['block_height'])
-                else:
-                    if h['block_height'] != contiguous[-1] + 1:
-                        break
-            await self.repo.blockchain.save_blocks(
-                map(
-                    lambda block_height: self._blocks_to_save.pop(block_height),
-                    contiguous
-                )
+        contiguous = []
+        for i, h in enumerate(sorted(list(self._blocks_to_save))):
+            if not i:
+                if h != self._local_current_block_height + 1:
+                    break
+                contiguous.append(h)
+            else:
+                if h != contiguous[-1] + 1:
+                    break
+                contiguous.append(h)
+        saved_blocks = await self.repo.blockchain.save_blocks(
+            map(
+                lambda block_height: self._blocks_to_save.pop(block_height),
+                contiguous
             )
-            self._local_current_block_height = contiguous[-1]
-        finally:
-            self._save_lock.release()
+        )
+        assert len(contiguous) == len(saved_blocks)
+        if saved_blocks:
+            current_height = saved_blocks[-1]['height']
+            Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
+            self._local_current_block_height = current_height
 
     async def start(self, *a, **kw):
         assert not self._started
@@ -123,28 +135,36 @@ class BlocksReactor:
                 self._pending_blocks_no_answer[blockhash] = self._pending_blocks.pop(blockhash)
 
     async def _fetch_blocks_loop(self):
-        await self._fetch_lock.acquire()
         self._next_fetch_blocks_schedule = None
+        await self._lock.acquire()
         try:
+            await self._save_blocks()
             if not self.is_connected:
                 return self._reschedule_fetch_blocks(5)
             if self._headers.initial_headers_download:
-                return self._reschedule_fetch_blocks(10)
+                return self._reschedule_fetch_blocks(5)
             if self._pending_blocks:
                 await self._check_pending_blocks()
+                return self._reschedule_fetch_blocks(0.01)
 
             head = await self.repo.blockchain.get_best_header()
             start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
             if start_fetch_from_height is None:
-                return self._reschedule_fetch_blocks(30)
+                return self._reschedule_fetch_blocks(5)
+            if self._local_current_block_height is None:
+                self._local_current_block_height = start_fetch_from_height - 1
             await self._request_missing_blocks(start_fetch_from_height)
-            self._reschedule_fetch_blocks(5)
+            return self._reschedule_fetch_blocks(0.01)
         finally:
-            self._fetch_lock.release()
+            not self._next_fetch_blocks_schedule and self._reschedule_fetch_blocks(60)
+            self._lock.release()
 
     def _get_first_block_to_fetch(self, head: int) -> typing.Optional[int]:
         if self.keep_blocks_relative is not None:
-            return min(0, head - self.keep_blocks_relative)
+            return max(
+                max(1, head - self.keep_blocks_relative + 1),  # enforce min block 1 (genesis block is hardcoded)
+                self._local_current_block_height or 0
+            )
         else:
             if head >= self.keep_from_height:
                 return self.keep_from_height
@@ -156,15 +176,26 @@ class BlocksReactor:
         self.loop.create_task(self.interface.request_block(blockhash))
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
-        fetch_blocks = min(
-            max(0, self.interface.get_free_slots() - len(self._pending_blocks)),
+        round_slots = min(
+            max(0, self.interface.get_free_slots() * 2 - len(self._pending_blocks)),
             self.max_blocks_per_round
         )
-        if not fetch_blocks:
+        if not round_slots:
             return
-        hashes_in_range = await self.repo.blockchain.get_block_hashes_in_range(
-            start_from_height=start_fetch_from_height,
-            limit=fetch_blocks
+        fetching_blocks = []
+        i = 0
+        while round_slots > len(fetching_blocks):
+            block_height = start_fetch_from_height + i
+            if block_height not in self._pending_blocks:
+                fetching_blocks.append(block_height)
+            i += 1
+        block_hashes = await asyncio.gather(
+            *map(
+                self.repo.blockchain.get_block_hash,
+                fetching_blocks
+            )
         )
-        for i, blockhash in enumerate(hashes_in_range):
+        for i, blockhash in enumerate(block_hashes):
+            if not blockhash:
+                break
             await self._request_block(blockhash, start_fetch_from_height + i)

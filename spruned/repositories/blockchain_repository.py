@@ -1,4 +1,3 @@
-import binascii
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 from functools import partial
@@ -6,7 +5,6 @@ from typing import Dict, List
 
 import typing
 from fifolock import FifoLock
-from pycoin.block import Block
 
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header
 from spruned.services import exceptions as daemon_exceptions  # fixme remove
@@ -113,44 +111,36 @@ class BlockchainRepository:
             partial(self._save_block, block, batch_session=batch_session)
         )
 
-    def _save_block(self, block, batch_session=None):
-        block['size'] = len(block['block_bytes'])
-        block['block_object'] = block.get('block_object', Block.from_bin(block.get('block_bytes')))
-
-        blockhash = binascii.unhexlify(block['block_hash'].encode())
-        batch_session = batch_session or self.session.write_batch()
-        saved_transactions = (
-            self._save_transaction(
+    def _save_block(self, block: typing.Dict, batch_session):
+        blockhash = block['hash']
+        saved_transactions = map(
+            lambda transaction: self._save_transaction(
                 {
-                    'txid': transaction.id(),
-                    'transaction_bytes': transaction.as_bin(),
-                    'block_hash': blockhash
+                    'hash': transaction['hash'],
+                    'bytes': transaction['bytes']
                 },
+                blockhash,
                 batch_session=batch_session
-            ) for transaction in block['block_object'].txs
+            ), block['txs']
         )
-        transaction_ids = list(map(
-            lambda t: t['txid'],
-            filter(lambda t: isinstance(t, dict), saved_transactions)
-        ))
-        if len(transaction_ids) != len(block['block_object'].txs):
-            raise exceptions.DatabaseInconsistencyException
         self._save_block_index(
             blockhash,
             block['size'],
-            map(lambda txid: bytes.fromhex(txid), transaction_ids),
+            saved_transactions,
             batch_session
         )
-        batch_session.write()
         return block
 
     def _save_block_index(
-            self, blockhash: bytes, blocksize: int, transaction_ids: typing.Iterable[bytes], batch_session
+            self, blockhash: bytes,
+            blocksize: int,
+            transactions: typing.Iterable[typing.Dict],
+            batch_session
     ):
         size = blocksize.to_bytes(4, 'little')
         batch_session.put(
             self._get_db_key(DBPrefix.BLOCK_INDEX, blockhash),
-            size + b''.join(transaction_ids)
+            size + b''.join(map(lambda t: t['hash'], transactions))  # fixme argh?
         )
 
     async def get_block_index(self, blockhash: str):
@@ -167,27 +157,24 @@ class BlockchainRepository:
         )
 
     async def save_blocks(self, blocks: typing.Iterable[Dict]) -> List[Dict]:
-        resp = list(
-            await asyncio.gather(
-                *map(
-                    lambda b: self.loop.run_in_executor(
-                        self.executor,
-                        self.save_block,
-                        b
-                    ),
-                    blocks
-                ),
-                return_exceptions=True
-            )
+        return await self.loop.run_in_executor(
+            self.executor,
+            self._save_blocks,
+            blocks
         )
-        if any(filter(lambda r: isinstance(r, Exception), resp)):
-            raise exceptions.DatabaseInconsistencyException
-        return resp
 
-    def _save_transaction(self, transaction: Dict, batch_session) -> Dict:
+    def _save_blocks(self, blocks: typing.Iterable[Dict]) -> List[Dict]:
+        batch_session = self.session.write_batch()
+        response = []
+        for block in blocks:
+            response.append(self._save_block(block, batch_session))
+        batch_session.write()
+        return response
+
+    def _save_transaction(self, transaction: Dict, block_hash: bytes, batch_session) -> Dict:
         batch_session.put(
-            self._get_db_key(DBPrefix.TRANSACTION, bytes.fromhex(transaction['txid'])),
-            transaction['transaction_bytes'] + transaction['block_hash']
+            self._get_db_key(DBPrefix.TRANSACTION, transaction['hash']),
+            transaction['bytes'] + block_hash  # fixme aaarrrgh!
         )
         return transaction
 
