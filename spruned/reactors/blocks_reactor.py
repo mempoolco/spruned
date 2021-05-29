@@ -22,7 +22,7 @@ class BlocksReactor:
         keep_block_from_height=None,
         max_blocks_per_round=8,
         block_fetch_timeout=5,
-        deserialize_workers=4
+        deserialize_workers=8
     ):
         self.repo = repository
         self.interface = interface
@@ -151,6 +151,9 @@ class BlocksReactor:
             start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
             if start_fetch_from_height is None:
                 return self._reschedule_fetch_blocks(5)
+            elif self._local_current_block_height and start_fetch_from_height <= self._local_current_block_height:
+                self.initial_blocks_download = False
+                return self._reschedule_fetch_blocks(5)
             if self._local_current_block_height is None:
                 self._local_current_block_height = start_fetch_from_height - 1
             await self._request_missing_blocks(start_fetch_from_height)
@@ -166,7 +169,7 @@ class BlocksReactor:
                 self._local_current_block_height or 0
             )
         else:
-            if head >= self.keep_from_height:
+            if head > self.keep_from_height:
                 return self.keep_from_height
 
     async def _request_block(self, blockhash: str, blockheight: int):
