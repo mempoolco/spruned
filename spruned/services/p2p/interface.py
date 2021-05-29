@@ -36,6 +36,9 @@ class P2PInterface:
         self._get_peers_from_seed = peers_bootstrapper
         self.mempool = mempool_repository
 
+    def is_connected(self):
+        return bool(len(self.pool.established_connections))
+
     async def on_peer_disagreement(self, local_header: typing.Dict, peer: P2PConnection):
         pass  # TODO FIXME
         """
@@ -99,9 +102,11 @@ class P2PInterface:
         inv_item = InvItem(ITEM_TYPE_MERKLEBLOCK, bytes.fromhex(block_hash)[::-1])
         return await connection.get_invitem(inv_item, timeout=10)
 
-    async def get_block(self, block_hash: str, segwit=True) -> Dict:
+    async def get_block(
+            self, block_hash: str, segwit=True, retries=10,  wait_on_fail=5, timeout=15
+    ) -> Dict:
 
-        @async_retry(retries=10, wait=5, on_exception=(
+        @async_retry(retries=retries, wait=wait_on_fail, on_exception=(
             exceptions.MissingPeerResponseException,
             exceptions.NoConnectionsAvailableException
         ))
@@ -110,14 +115,20 @@ class P2PInterface:
             connection: P2PConnection = self.pool.get_connection()
             block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
             inv_item = InvItem(block_type, h2b_rev(block_hash))
-            return (await connection.get_invitem(inv_item, timeout=15)).response
+            return (await connection.get_invitem(inv_item, timeout=timeout)).response
         response = await _get_and_retry()
 
         return response and {
             "block_hash": str(block_hash),
-            "header_bytes": response[:80],
-            "block_bytes": response
+            "header_bytes": response['header_bytes'],
+            "block_bytes": response['data'].read()
         }
+
+    async def request_block(self, block_hash, segwit=True):
+        connection: P2PConnection = self.pool.get_connection()
+        block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
+        inv_item = InvItem(block_type, h2b_rev(block_hash))
+        await connection.request_invitem(inv_item)
 
     async def get_headers_after_hash(
             self,

@@ -19,10 +19,14 @@ def builder(ctx: Context):  # pragma: no cover
         ctx.network_rules,
         p2p_interface
     )
+    blocks_reactor = BlocksReactor(
+        headers_reactor, repository, p2p_interface, keep_blocks_relative=ctx.keep_blocks
+    )
     service = vo_service.VOService(
         electrum_interface,
         p2p_interface,
         headers_reactor,
+        blocks_reactor,
         repository=repository,
         context=ctx
     )
@@ -47,9 +51,6 @@ def builder(ctx: Context):  # pragma: no cover
             ctx.mempool_size,
             service
         )
-    blocks_reactor = BlocksReactor(
-        headers_reactor, repository, p2p_interface, keep_blocks_relative=ctx.keep_blocks
-    )
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, \
            zmq_context, zmq_observer, p2p_interface
 

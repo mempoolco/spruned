@@ -5,7 +5,6 @@ import typing
 from spruned.application import consensus
 from spruned.application.exceptions import InvalidPOWException, ConsensusNotReachedException
 from spruned.application.logging_factory import Logger
-from spruned.application.tools import async_delayed_task
 from spruned.services import exceptions
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.interface import P2PInterface
@@ -19,7 +18,6 @@ class HeadersReactor:
             network_values,
             interface: P2PInterface,
             loop=asyncio.get_event_loop(),
-            delayed_task=async_delayed_task,
             min_peers_agreement=1,
     ):
         self.network_values = network_values
@@ -27,9 +25,7 @@ class HeadersReactor:
         self.interface = interface
         self.loop = loop or asyncio.get_event_loop()
         self.lock = asyncio.Lock()
-        self.subscriptions = []
         self._sync_errors = 0
-        self.delayed_task = delayed_task
         self.new_headers_fallback_poll_interval = 10
         self.initial_headers_download = True
         self.on_best_height_hit_volatile_callbacks = []

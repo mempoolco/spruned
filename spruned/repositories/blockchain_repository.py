@@ -265,7 +265,8 @@ class BlockchainRepository:
         }
 
     async def _remove_block(self, blockhash: bytes):
-        block_size, transaction_ids = await self._get_block_size_and_transaction_ids(blockhash)
+        # fixme todo
+        block_size, transaction_ids = self._get_block_size_and_transaction_ids(blockhash)
         if any(
             filter(
                 lambda r: isinstance(r, Exception),
@@ -447,3 +448,23 @@ class BlockchainRepository:
     def _get_best_block_hash(self):
         best_height = self._get_best_height()
         return self._get_block_hash(best_height)
+
+    async def get_block_hashes_in_range(self, start_from_height: int, limit: int):
+        return await self.loop.run_in_executor(
+            self.executor,
+            self._get_block_hashes_in_range,
+            start_from_height,
+            limit,
+            True
+        )
+
+    def _get_block_hashes_in_range(
+            self, start_from_height, limit, serialize: bool
+    ) -> typing.Iterable[typing.Optional[str]]:
+        def fn(_h):
+            res = self._get_block_hash(int.to_bytes(_h, 4, 'little'))
+            if res and serialize:
+                return res.hex()
+            return res
+
+        return list(map(fn, range(start_from_height, start_from_height + limit)))

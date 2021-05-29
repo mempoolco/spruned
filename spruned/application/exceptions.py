@@ -59,3 +59,7 @@ class TooManyRetriesException(SprunedException):
 
 class DatabaseDataNotFoundException(SprunedException):
     pass
+
+
+class DeserializeBlockException(SprunedException):
+    pass

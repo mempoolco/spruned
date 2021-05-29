@@ -22,6 +22,7 @@ class VOService(RPCAPIService):
             electrum,
             p2p_interface,
             headers_reactor,
+            blocks_reactor,
             repository=None,
             loop=asyncio.get_event_loop(),
             context=None
@@ -35,6 +36,7 @@ class VOService(RPCAPIService):
         self.context = context
         self._expected_data = {'txids': []}
         self._headers_reactor = headers_reactor
+        self._blocks_reactor = blocks_reactor
 
     def available(self):
         raise NotImplementedError
@@ -44,7 +46,7 @@ class VOService(RPCAPIService):
         if not block_header:
             return
         block = await self._get_block(block_header)
-        return await Block.from_bin(block['block_bytes'])
+        return await Block.from_bin(block['header_bytes'] + block['block_bytes'])
 
     async def getblock(self, blockhash: str, mode: int = 1):
         start = time.time()
@@ -106,10 +108,11 @@ class VOService(RPCAPIService):
             return binascii.hexlify(p2p_block['block_bytes']).decode()
 
     async def _make_verbose_block(self, block: dict, block_header) -> dict:
-        block_object = Block.from_bin(block['block_bytes'])
-        serialized = self._serialize_header(block_header or deserialize_header(block['block_bytes'][:80]))
+        block_data = block['header_bytes'] + block['block_bytes']
+        block_object = Block.from_bin(block_data)
+        serialized = self._serialize_header(block_header or deserialize_header(block['header_bytes']))
         serialized['tx'] = [tx.id() for tx in block_object.txs]
-        serialized['size'] = len(block['block_bytes'])
+        serialized['size'] = len(block_data)
         return serialized
 
     async def _get_block(self, blockheader, verbose=False):
@@ -252,7 +255,7 @@ class VOService(RPCAPIService):
             "mediantime": _deserialized_header["timestamp"],
             "verificationprogress": self.p2p_interface.bootstrap_status,
             "pruned": False,
-            "initialblockdownload": False,
+            "initialblockdownload": self._blocks_reactor.initial_blocks_download,
             "initialheaderdownload": self._headers_reactor.initial_headers_download
         }
 

@@ -80,16 +80,24 @@ class P2PChannel:
             return
         return {name: data}
 
-    def _evaluate_block_on_pending_responses(self, name, data):
-        data_bytes: bytes = data[name].getvalue()
-        header = data_bytes[:80]
+    @staticmethod
+    def _serialize_block_response(data: BytesIO):
+        header: bytes = data.read(80)
         block_hash = blockheader_to_blockhash(header)
-        resp_name = f'{name}|{block_hash[::-1]}'
+        response = {
+            'block_hash': block_hash,
+            'header_bytes': header,
+            'data': data
+        }
+        return response
+
+    def _evaluate_block_on_pending_responses(self, name, data: typing.Dict):
+        resp_name = f'{name}|{data["block_hash"][::-1]}'
         if resp_name in self._responses_listeners:
-            self._responses_listeners[resp_name].set_result(data_bytes)
+            self._responses_listeners[resp_name].set_result(data)
             self._responses_listeners.pop(resp_name, None)
             return
-        return {name: BytesIO(data_bytes)}
+        return data
 
     def _evaluate_headers_on_pending_responses(self, name: str, data: typing.Dict):
         h = data['headers'][0]
@@ -101,20 +109,25 @@ class P2PChannel:
         return data
 
     def _fire_callback(self, name: str, data: typing.Dict):
+        # this is awful, will go away with built-ins refactoring
+        processed = None
+        if name == 'block':
+            processed = self._serialize_block_response(data['block'])
+
         if any(map(lambda f: f.startswith(f'{name}|'), self._responses_listeners)):
             if name == 'block':
-                data = self._evaluate_block_on_pending_responses(name, data)
-            elif name == 'merkleblock':
-                data = self._evaluate_merkleblock_on_pending_responses(name, data)
+                processed = self._evaluate_block_on_pending_responses(name, processed)
             elif name == 'headers':
                 data = self._evaluate_headers_on_pending_responses(name, data)
+
         if not data:  # event handled by the custom handlers
             return
+
         elif name in self._responses_listeners:
-            self._responses_listeners[name].set_result(data)
+            self._responses_listeners[name].set_result(processed or data)
             self._responses_listeners.pop(name, None)
         elif name in self._events_callbacks:
-            self._events_callbacks[name](self, name, data)
+            self._events_callbacks[name](self, name, processed or data)
         else:
-            Logger.p2p.error('UNKOWN MESSAGE - %s - %s', name, data)
+            Logger.p2p.error('UNKNOWN MESSAGE - %s - %s', name, data)
 

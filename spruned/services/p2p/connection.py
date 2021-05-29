@@ -251,9 +251,16 @@ class P2PConnection(BaseConnection):
         self.peer_event_handler.set_event_callbacks('feefilter', self._dummy_handler)
         self.peer_event_handler.set_event_callbacks('sendcmpct', self._dummy_handler)
         self.peer_event_handler.set_event_callbacks('tx', self._on_tx_inv)
+        self.peer_event_handler.set_event_callbacks('block', self._on_block)
 
     def _dummy_handler(self, *a, **kw):
         pass
+
+    def _on_block(self, event_handler: P2PChannel, name: str, data: typing.Dict):
+        assert len(self._on_block_callbacks) == 1
+        # fixme - going on with lazy reading we can't use multiple callbacks
+        # and actually there was no need at all
+        self.loop.create_task(self._on_block_callbacks[0](self, data))
 
     def _on_tx_inv(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         for callback in self._on_transaction_callbacks:
@@ -297,6 +304,13 @@ class P2PConnection(BaseConnection):
             else:
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
         Logger.p2p.debug('Received %s items, txs: %s', len(data.get('items')), txs)
+
+    async def request_invitem(self, inv_item: InvItem) -> None:
+        """
+        asynchronous request an inv item to a peer.
+        expect to have hooked an event handler to get the result.
+        """
+        self.peer.send_msg("getdata", items=[inv_item])
 
     async def get_invitem(self, inv_item: InvItem, timeout: int) -> P2PInvItemResponse:
         """
@@ -355,3 +369,4 @@ class P2PConnection(BaseConnection):
                 hash_stop=bytes.fromhex(stop_at_hash)
             )
         )
+
