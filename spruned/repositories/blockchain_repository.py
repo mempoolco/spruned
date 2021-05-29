@@ -166,7 +166,7 @@ class BlockchainRepository:
             self._get_db_key(DBPrefix.BLOCK_INDEX, blockhash)
         )
 
-    async def save_blocks(self, *blocks: Dict) -> List[Dict]:
+    async def save_blocks(self, blocks: typing.Iterable[Dict]) -> List[Dict]:
         resp = list(
             await asyncio.gather(
                 *map(
