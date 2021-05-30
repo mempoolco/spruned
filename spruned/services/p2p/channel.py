@@ -59,18 +59,26 @@ class P2PChannel:
     def set_event_callbacks(self, name, callback_f):
         self._events_callbacks[name] = callback_f
 
+    async def get_event(self):
+        try:
+            return await self.connection.peer.next_message()
+        except IncompleteReadError as e:
+            Logger.p2p.error(str(e))
+
+    async def _run(self):
+        while True:
+            event = await self.get_event()
+            if event is None:
+                break
+            name, data = event
+            self._fire_callback(name, data)
+            await asyncio.sleep(0.001)
+
     async def run(self):
         try:
-            while True:
-                event = await self.connection.peer.next_message()
-                if event is None:
-                    break
-                name, data = event
-                self._fire_callback(name, data)
-            await asyncio.sleep(0.001)
-        except (ProtocolError, IncompleteReadError):
+            await self._run()
+        finally:
             self.loop.create_task(self.connection.disconnect())
-            return
 
     def _evaluate_merkleblock_on_pending_responses(self, name, data):
         header = data['header']

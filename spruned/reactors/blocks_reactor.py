@@ -5,7 +5,7 @@ from concurrent.futures.process import ProcessPoolExecutor
 from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
-from spruned.services.p2p.blocks_deserializer import deserialize_block
+from spruned.services.p2p.block_deserializer import deserialize_block
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.interface import P2PInterface
 from spruned.repositories.repository import Repository
@@ -19,7 +19,7 @@ class BlocksReactor:
         interface: P2PInterface,
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
-        keep_block_from_height=None,
+        keep_block_absolute=None,
         max_blocks_per_round=8,
         block_fetch_timeout=15,
         deserialize_workers=8
@@ -29,8 +29,8 @@ class BlocksReactor:
         self.loop = loop or asyncio.get_event_loop()
         self._headers = headers_reactor
         self.keep_blocks_relative = None
-        self.keep_from_height = 650000
-        assert keep_blocks_relative is None or keep_block_from_height is None  # one must be none
+        self.keep_blocks_absolute = 0  # 650000
+        assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
         self.max_blocks_per_round = max_blocks_per_round
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
@@ -121,7 +121,7 @@ class BlocksReactor:
     async def start(self, *a, **kw):
         assert not self._started
         self._started = True
-        if self.keep_blocks_relative is None and self.keep_from_height is None:
+        if self.keep_blocks_relative is None and self.keep_blocks_absolute is None:
             Logger.p2p.debug('No fetching rules for the BlocksReactor')
             return
         await self._fetch_blocks_loop()
@@ -171,7 +171,7 @@ class BlocksReactor:
                 self._local_current_block_height or 0
             )
         else:
-            m = max(self.keep_from_height, self._local_current_block_height or 1)
+            m = max(self.keep_blocks_absolute, self._local_current_block_height or 1)
             if head > m:
                 return m
 

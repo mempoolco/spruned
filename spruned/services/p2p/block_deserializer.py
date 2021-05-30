@@ -42,18 +42,10 @@ def deserialize_block(data):
                 'header': header.as_bin(),
                 'size': len(block.as_bin()),
                 'hash': bytes.fromhex(str(header.hash())),
-                'txs': tuple(
-                    map(
-                        parse_tx,
-                        block.txs
-                    )
-                )
+                'txs': tuple(map(parse_tx, block.txs))
             }
         }
     except Exception as e:
         logging.getLogger('root').exception('Exception deserializing block')
-        data = {
-            'success': False,
-            'error': str(e)
-        }
+        data = {'success': False, 'error': str(e)}
     return data

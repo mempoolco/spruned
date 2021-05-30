@@ -70,10 +70,7 @@ class Peer:
         header_size = len(self._magic_header)
         # read magic header
         reader = self._reader
-        try:
-            blob = await reader.readexactly(header_size)
-        except IncompleteReadError as e:
-            raise ProtocolError from e
+        blob = await reader.readexactly(header_size)
         self._bytes_read += header_size
         if blob != self._magic_header:
             raise ProtocolError("bad magic: got %s" % binascii.hexlify(blob))
