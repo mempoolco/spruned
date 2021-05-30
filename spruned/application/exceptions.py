@@ -40,7 +40,7 @@ class InvalidHeaderException(SprunedException):
 
 
 class RetryException(SprunedException):
-    def __init__(self, *a, fail_silent=False, **kw):
+    def __init__(self, *a, fail_silent=False):
         super(RetryException).__init__(*a)
         self.fail_silent = fail_silent
 

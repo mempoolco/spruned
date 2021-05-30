@@ -300,4 +300,4 @@ class HeadersReactor:
                     return self._evaluate_agreement_for_headers(headers, responses, peer)
                 except ConsensusNotReachedException:
                     continue
-        raise exceptions.PeersDoesNotAgreeOnHeadersException(responses)
+        raise exceptions.PeersDoesNotAgreeOnHeadersException

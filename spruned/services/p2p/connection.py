@@ -35,7 +35,7 @@ class P2PConnection(BaseConnection):
             network: Network = MAINNET,
             loop=asyncio.get_event_loop(),
             proxy: typing.Optional[str] = None,
-            start_score: int = 10,
+            start_score: int = 5,
             is_online_checker: typing.Optional[callable] = None,
             timeout: int = 10,
             delayer: callable = async_delayed_task,
@@ -292,7 +292,7 @@ class P2PConnection(BaseConnection):
 
     def _on_ping(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         self.peer.send_msg("pong", nonce=data["nonce"])
-        Logger.p2p.debug('Handle ping: %s, %s, %s', event_handler, name, data)
+        #Logger.p2p.debug('Handle ping: %s, %s, %s', event_handler, name, data)
 
     async def _process_inv(self, event_handler: P2PChannel, name: str, data: typing.Dict):
         txs = 0
@@ -303,7 +303,7 @@ class P2PConnection(BaseConnection):
                     self.loop.create_task(callback(self, item))
             else:
                 Logger.p2p.debug('Unhandled InvType: %s, %s, %s', event_handler, name, item)
-        Logger.p2p.debug('Received %s items, txs: %s', len(data.get('items')), txs)
+        #Logger.p2p.debug('Received %s items, txs: %s', len(data.get('items')), txs)
 
     async def request_invitem(self, inv_item: InvItem) -> None:
         """

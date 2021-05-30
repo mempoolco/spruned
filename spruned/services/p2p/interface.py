@@ -124,10 +124,11 @@ class P2PInterface:
             "block_bytes": response['data'].read()
         }
 
-    async def request_block(self, block_hash, segwit=True):
+    async def request_block(self, block_hash: bytes, segwit=True):
         connection: P2PConnection = self.pool.get_connection()
         block_type = segwit and ITEM_TYPE_SEGWIT_BLOCK or ITEM_TYPE_BLOCK
-        inv_item = InvItem(block_type, h2b_rev(block_hash))
+        inv_item = InvItem(block_type, block_hash[::-1])
+        connection.add_request()
         await connection.request_invitem(inv_item)
 
     async def get_headers_after_hash(

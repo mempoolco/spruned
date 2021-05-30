@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import IncompleteReadError
 from io import BytesIO
 
 import typing
@@ -67,7 +68,7 @@ class P2PChannel:
                 name, data = event
                 self._fire_callback(name, data)
             await asyncio.sleep(0.001)
-        except ProtocolError:
+        except (ProtocolError, IncompleteReadError):
             self.loop.create_task(self.connection.disconnect())
             return
 

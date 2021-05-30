@@ -76,7 +76,9 @@ if settings.TESTING:
 elif ctx.debug:  # pragma: no cover
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger('root').setLevel(logging.DEBUG)
+    logging.getLogger('jsonrpcserver.dispatcher.request').setLevel(logging.WARNING)
     logging.getLogger('jsonrpcserver.dispatcher.response').setLevel(logging.WARNING)
+    logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
     logging.getLogger('pycoin').setLevel(logging.ERROR)
     logging.getLogger('p2p').setLevel(logging.DEBUG)
     logging.getLogger('connectrum').setLevel(logging.DEBUG)

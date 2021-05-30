@@ -99,7 +99,8 @@ class Peer:
         actual_hash = double_sha256(message_data)[:4]
         if actual_hash != transmitted_hash:
             raise ProtocolError("checksum is WRONG: %s instead of %s" % (
-                binascii.hexlify(actual_hash), binascii.hexlify(transmitted_hash)))
+                binascii.hexlify(actual_hash), binascii.hexlify(transmitted_hash))
+                                )
         logger.debug("message %s: %s (%d byte payload)", self, message_name, len(message_data))
         if unpack_to_dict:
             message_data = self._parse_from_data(message_name, message_data)
