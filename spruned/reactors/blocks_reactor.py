@@ -106,15 +106,16 @@ class BlocksReactor:
             else:
                 break
 
-        saved_blocks = await self.repo.blockchain.save_blocks(
-            map(
-                lambda block_height: self._blocks_to_save.pop(block_height),
-                contiguous
-            )
-        )
-        assert len(contiguous) == len(saved_blocks)
-        if saved_blocks:
-            current_height = saved_blocks[-1]['height']
+        #saved_blocks = await self.repo.blockchain.save_blocks(
+        #    map(
+        #        lambda block_height: self._blocks_to_save.pop(block_height),
+        #        contiguous
+        #    )
+        #)
+        #assert len(contiguous) == len(saved_blocks)
+        #if saved_blocks:
+        if contiguous:
+            current_height = contiguous[-1]
             Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
             self._local_current_block_height = current_height
 
