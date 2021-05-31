@@ -63,14 +63,14 @@ class UTXODataTypes(Enum):
     BLOCK_HEIGHT = 2
 
 
-class DBDataType(Enum):
+class DBPrefix(Enum):
     UTXO_BY_SCRIPT = 0
     UTXO_BY_OUTPOINT = 1
     BEST_HEIGHT = 2
 
 
 class UTXORepository:
-    def __init__(self, leveldb_session):
+    def __init__(self, leveldb_session, max_cached_entries=1000000):
         self._max_height: typing.Dict[Command:int] = {Command.ADD: 0, Command.REM: 0}
         self._utxo_by_outpoint: typing.Dict[bytes:typing.Dict[str:bytes]] = dict()
         self._idx_by_script: typing.Dict[bytes:typing.List[bytes]] = dict()
@@ -78,8 +78,9 @@ class UTXORepository:
         self._stack: typing.List[typing.List[Command, str]] = list()
         self._lock = asyncio.Lock()
         self.session = leveldb_session
+        self._max_cached_entries = max_cached_entries
 
-    def _get_db_key(self, db_data_type: DBDataType, val: bytes):
+    def _get_db_key(self, db_data_type: DBPrefix, val: bytes):
         pass
 
     async def get_max_height(self):
@@ -87,6 +88,9 @@ class UTXORepository:
 
     def _append(self, cmd: Command, key: bytes):
         self._stack.append([cmd, key])
+
+    async def parse_block(self, block: typing.Dict):
+        pass
 
     async def add(self, unspents: BlockUnspents):
         assert unspents.height == self._max_height[Command.ADD] + 1
@@ -121,9 +125,9 @@ class UTXORepository:
         cached = self._utxo_by_outpoint.get(outpoint.serialize())
         if cached:
             return Unspent.deserialize(outpoint, cached)
-        self.session.get(self._get_db_key(
-            DBDataType.UTXO_BY_OUTPOINT, outpoint.serialize()
-        ))
+        self.session.get(
+            self._get_db_key(DBPrefix.UTXO_BY_OUTPOINT, outpoint.serialize())
+        )
 
     async def get_many_by_script(self, script: str):
         pass

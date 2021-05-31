@@ -20,7 +20,7 @@ class BlocksReactor:
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_block_absolute=None,
-        max_blocks_per_round=8,
+        max_blocks_per_round=16,
         block_fetch_timeout=15,
         deserialize_workers=8
     ):
@@ -42,7 +42,16 @@ class BlocksReactor:
         self._started = False
         self._blocks_to_save = dict()
         self._local_current_block_height = None
+        self._persisted_block_height = None
         self._lock = asyncio.Lock()
+        self._blocks_queue = asyncio.Queue()
+
+    async def _save_blocks_to_disk(self):
+        items = await self._blocks_queue.get()
+        await self.repo.blockchain.save_blocks(items)
+        self._persisted_block_height = items[-1]['height']
+        await asyncio.sleep(0.001)
+        self.loop.create_task(self._save_blocks_to_disk())
 
     async def _deserialize_block(self, block: typing.Dict):
         block_bytes = block['header_bytes'] + block['data'].read()
@@ -105,19 +114,18 @@ class BlocksReactor:
                 contiguous.append(_h)
             else:
                 break
-
-        #saved_blocks = await self.repo.blockchain.save_blocks(
-        #    map(
-        #        lambda block_height: self._blocks_to_save.pop(block_height),
-        #        contiguous
-        #    )
-        #)
-        #assert len(contiguous) == len(saved_blocks)
-        #if saved_blocks:
-        if contiguous:
-            current_height = contiguous[-1]
-            Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
-            self._local_current_block_height = current_height
+        if not contiguous:
+            return
+        blocks_to_save = list(
+            map(
+                lambda block_height: self._blocks_to_save.pop(block_height),
+                contiguous
+            )
+        )
+        await self._blocks_queue.put(blocks_to_save)
+        current_height = contiguous[-1]
+        Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
+        self._local_current_block_height = current_height
 
     async def start(self, *a, **kw):
         assert not self._started
@@ -125,6 +133,7 @@ class BlocksReactor:
         if self.keep_blocks_relative is None and self.keep_blocks_absolute is None:
             Logger.p2p.debug('No fetching rules for the BlocksReactor')
             return
+        self.loop.create_task(self._save_blocks_to_disk())
         await self._fetch_blocks_loop()
 
     async def _check_pending_blocks(self):
@@ -147,21 +156,23 @@ class BlocksReactor:
 
     async def _fetch_blocks(self):
         if not self.is_connected:
-            return self._reschedule_fetch_blocks(5)
+            return self._reschedule_fetch_blocks(1)
         if self._headers.initial_headers_download:
-            return self._reschedule_fetch_blocks(5)
+            return self._reschedule_fetch_blocks(1)
+        if self._blocks_queue.qsize() > 50:
+            return self._reschedule_fetch_blocks(1)
         self._pending_blocks and await self._check_pending_blocks()
 
         head = await self.repo.blockchain.get_best_header()
         start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
         if start_fetch_from_height is None:
-            return self._reschedule_fetch_blocks(3)
+            return self._reschedule_fetch_blocks(1)
         elif self._local_current_block_height is not None \
                 and start_fetch_from_height < self._local_current_block_height:
             self.initial_blocks_download = False
-            return self._reschedule_fetch_blocks(3)
+            return self._reschedule_fetch_blocks(1)
         if self._local_current_block_height is None:
-            self._local_current_block_height = start_fetch_from_height - 1
+            self._persisted_block_height = self._local_current_block_height = start_fetch_from_height - 1
         await self._request_missing_blocks(start_fetch_from_height)
         return self._reschedule_fetch_blocks(0.01)
 
@@ -189,7 +200,7 @@ class BlocksReactor:
         continue to fetches and stack new blocks, filling holes made by failures.
         """
         round_slots = min(
-            max(0, self.interface.get_free_slots() - len(self._pending_blocks)),
+            max(0, self.interface.get_free_slots() * 2 - len(self._pending_blocks)),
             max(0, self.max_blocks_per_round - len(self._pending_blocks))
         )
         if not round_slots:

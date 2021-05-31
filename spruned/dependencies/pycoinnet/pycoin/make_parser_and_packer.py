@@ -279,15 +279,15 @@ def make_parser_and_packer(streamer, message_dict, message_post_unpacks):
         f = io.BytesIO()
         the_fields = the_struct.split(" ")
         pairs = [t.split(":") for t in the_fields]
-        for name, type in pairs:
-            if type[0] == '[':
+        for name, _type in pairs:
+            if _type[0] == '[':
                 streamer.stream_struct("I", f, len(kwargs[name]))
                 for v in kwargs[name]:
                     if not isinstance(v, (tuple, list)):
                         v = [v]
-                    streamer.stream_struct(type[1:-1], f, *v)
+                    streamer.stream_struct(_type[1:-1], f, *v)
             else:
-                streamer.stream_struct(type, f, kwargs[name])
+                streamer.stream_struct(_type, f, kwargs[name])
         return f.getvalue()
 
     return parse_from_data, pack_from_data
