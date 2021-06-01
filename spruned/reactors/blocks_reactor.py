@@ -19,10 +19,10 @@ class BlocksReactor:
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_block_absolute=None,
-        max_blocks_per_round=16,
+        max_blocks_per_round=8,
         block_fetch_timeout=15,
-        deserialize_workers=4,
-        max_blocks_buffer_megabytes=250
+        deserialize_workers=2,
+        max_blocks_buffer_megabytes=20
     ):
 
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
@@ -237,10 +237,17 @@ class BlocksReactor:
         i = 0
         while round_slots > len(fetching_blocks):
             block_height = start_fetch_from_height + i
-            total_buffer_size = self._size_items_in_queue + sum(self._blocks_sizes_by_hash.values() or (0, ))
+            blocks_buffer_size = sum(self._blocks_sizes_by_hash.values() or (0, ))
+            total_buffer_size = self._size_items_in_queue + blocks_buffer_size
             if total_buffer_size > self._max_blocks_buffer_bytes:
-                max_pending_height = max(map(lambda b: b['height'], self._blocks_to_save.values()))
-                if not self._blocks_to_save or block_height > max_pending_height:
+                max_pending_height = self._blocks_to_save and \
+                                     max(map(lambda b: b['height'], self._blocks_to_save.values()))
+                if not max_pending_height or block_height > max_pending_height:
+                    await asyncio.sleep(2)
+                    Logger.p2p.debug(
+                        'Buffer size near max value (%s - %s), sleeping',
+                        blocks_buffer_size, self._size_items_in_queue
+                    )
                     break
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
