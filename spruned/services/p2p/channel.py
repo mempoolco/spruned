@@ -8,7 +8,6 @@ import async_timeout
 
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash
-from spruned.dependencies.pycoinnet.peer import ProtocolError
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_SEGWIT_BLOCK, InvItem, ITEM_TYPE_BLOCK, \
     ITEM_TYPE_MERKLEBLOCK
 
@@ -21,6 +20,7 @@ class P2PChannel:
         self._responses_listeners = dict()
         self._lock = asyncio.Lock()
         self._task = self.loop.create_task(self.run())
+        self.stop = False
 
     def send_msg(self, *args, **kwargs):
         self.connection.peer.send_msg(*args, **kwargs)
@@ -63,10 +63,13 @@ class P2PChannel:
         try:
             return await self.connection.peer.next_message()
         except IncompleteReadError as e:
-            Logger.p2p.error(str(e))
+            Logger.p2p.debug(str(e))
+            self.connection.add_error()
 
     async def _run(self):
         while True:
+            if self.stop:
+                break
             event = await self.get_event()
             if event is None:
                 break
@@ -77,8 +80,10 @@ class P2PChannel:
     async def run(self):
         try:
             await self._run()
+        except:
+            Logger.p2p.error('Error with peer %s. Disconnecting.', self.connection.hostname)
         finally:
-            self.loop.create_task(self.connection.disconnect())
+            await self.connection.disconnect()
 
     def _evaluate_merkleblock_on_pending_responses(self, name, data):
         header = data['header']

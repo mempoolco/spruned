@@ -215,7 +215,7 @@ def standard_parsing_functions(Block, Tx):
         ("A", (PeerAddress.parse, lambda f, peer_addr: peer_addr.stream(f))),
         ("v", (InvItem.parse, lambda f, inv_item: inv_item.stream(f))),
         ("T", (Tx.parse, stream_tx)),
-        ("B", (lambda f: Block.parse(f), stream_block)),
+        ("B", (read_blockbytes, stream_blockbytes)),
         ("H", (read_blockbytes, stream_blockbytes)),
         ("z", (Block.parse_as_header, stream_blockheader)),
         ("1", (lambda f: struct.unpack("B", f.read(1))[0], lambda f, b: f.write(struct.pack("B", b)))),

@@ -1,6 +1,5 @@
 import asyncio
 import itertools
-
 import aiohttp_socks
 import async_timeout
 import time
@@ -115,7 +114,7 @@ class P2PConnection(BaseConnection):
 
     def add_error(self, *a, origin=None):
         super().add_error(*a, origin=origin)
-        Logger.p2p.error('Adding error to connection, origin: %s, score: %s', origin, self.score)
+        Logger.p2p.debug('Adding error to connection, origin: %s, score: %s', origin, self.score)
         self._score -= 1
         if self.score <= 0:
             self.loop.create_task(self.disconnect())
@@ -197,13 +196,9 @@ class P2PConnection(BaseConnection):
         try:
             async with async_timeout.timeout(5):
                 await self._handle_connect()
-        except exceptions.PeerHandshakeException as e:
-            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
-            self._on_connection_failed()
-            return
 
         except Exception as e:
-            Logger.p2p.exception('Exception connecting to %s (%s)', self.hostname, str(e))
+            Logger.p2p.debug('Exception connecting to %s (%s)', self.hostname, str(e))
             self._on_connection_failed()
             return
 
@@ -233,12 +228,23 @@ class P2PConnection(BaseConnection):
             self.loop.create_task(callback(self))
 
     async def disconnect(self):
+        if self.failed:
+            return
         self.failed = True
         Logger.p2p.debug(
             'Disconnecting peer %s (%s)' % (self.hostname, self.version and self.version.get('subversion'))
         )
+
+        if getattr(self, '_event_handler', None):
+            self._event_handler.stop = True
+            del self._event_handler
+
         self.pool.ban_peer((self.hostname, self.port))
         self.peer and self.peer.close()
+        if getattr(self, '_event_handler', None):
+            self._event_handler.stop = True
+            del self._event_handler
+        del self.peer
         self.peer = None
         self.pool.cleanup_connections()
 
@@ -335,7 +341,10 @@ class P2PConnection(BaseConnection):
         )
 
     async def getaddr(self):
-        self.peer.send_msg("getaddr")
+        try:
+            self.peer.send_msg("getaddr")
+        except AttributeError:
+            await self.disconnect()
 
     async def getheaders(self, *start_from_hash: str, stop_at_hash: typing.Optional[str] = None):
         self.add_request()
