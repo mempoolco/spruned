@@ -193,8 +193,6 @@ class BlocksReactor:
         if self._headers.initial_headers_download:
             return self._reschedule_fetch_blocks(1)
         self._pending_blocks and await self._check_pending_blocks()
-        if len(self._pending_blocks) + len(self._pending_blocks_no_answer) * .5 > self._max_pending_requests:
-            return self._reschedule_fetch_blocks(1)
         head = await self._repo.blockchain.get_best_header()
         start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
         if start_fetch_from_height is None:
@@ -250,6 +248,15 @@ class BlocksReactor:
                     Logger.p2p.debug(
                         'Buffer size near max value (%s - %s), sleeping',
                         blocks_buffer_size, self._size_items_in_queue
+                    )
+                    break
+                pending_requests = len(self._pending_blocks) + len(self._pending_blocks_no_answer) * .5
+                if pending_requests > self._max_pending_requests and \
+                        not max_pending_height or block_height > max_pending_height:
+                    await asyncio.sleep(2)
+                    Logger.p2p.debug(
+                        'Max pending requests: %s, sleeping',
+                        pending_requests
                     )
                     break
             if block_height in self._processing_blocks_heights or \
