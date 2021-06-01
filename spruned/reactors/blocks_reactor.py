@@ -22,22 +22,25 @@ class BlocksReactor:
         keep_block_absolute=None,
         max_blocks_per_round=16,
         block_fetch_timeout=15,
-        deserialize_workers=8
+        deserialize_workers=8,
+        max_blocks_buffer_megabytes=250
     ):
-        self.repo = repository
-        self.interface = interface
-        self.loop = loop or asyncio.get_event_loop()
-        self._headers = headers_reactor
-        self.keep_blocks_relative = None
-        self.keep_blocks_absolute = 0  # 650000
+
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
-        self.max_blocks_per_round = max_blocks_per_round
+
+        self._repo = repository
+        self._interface = interface
+        self._loop = loop or asyncio.get_event_loop()
+        self._headers = headers_reactor
+        self._keep_blocks_relative = None
+        self._keep_blocks_absolute = 650000
+        self._max_blocks_per_round = max_blocks_per_round
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
         self._pending_heights = set()
+        self._blocks_sizes_by_hash = dict()
         self._block_fetch_timeout = block_fetch_timeout
-        self.executor = ProcessPoolExecutor(max_workers=deserialize_workers)
-        self.initial_blocks_download = True
+        self._executor = ProcessPoolExecutor(max_workers=deserialize_workers)
         self._next_fetch_blocks_schedule = None
         self._started = False
         self._blocks_to_save = dict()
@@ -45,18 +48,23 @@ class BlocksReactor:
         self._persisted_block_height = None
         self._lock = asyncio.Lock()
         self._blocks_queue = asyncio.Queue()
+        self._items_in_queue = 0
+        self._max_blocks_buffer_bytes = max_blocks_buffer_megabytes * 1024000
+
+        self.initial_blocks_download = True
 
     async def _save_blocks_to_disk(self):
         items = await self._blocks_queue.get()
-        await self.repo.blockchain.save_blocks(items)
+        await self._repo.blockchain.save_blocks(items)
+        self._items_in_queue -= len(items)
         self._persisted_block_height = items[-1]['height']
         await asyncio.sleep(0.001)
-        self.loop.create_task(self._save_blocks_to_disk())
+        self._loop.create_task(self._save_blocks_to_disk())
 
     async def _deserialize_block(self, block: typing.Dict):
         block_bytes = block['header_bytes'] + block['data'].read()
-        item = await self.loop.run_in_executor(
-            self.executor,
+        item = await self._loop.run_in_executor(
+            self._executor,
             deserialize_block,
             block_bytes
         )
@@ -67,16 +75,16 @@ class BlocksReactor:
     def _reschedule_fetch_blocks(self, reschedule_in: typing.Union[int, float]):
         assert self._next_fetch_blocks_schedule is None
         if reschedule_in == 0:
-            self.loop.create_task(self._fetch_blocks_loop())
+            self._loop.create_task(self._fetch_blocks_loop())
         else:
-            self._next_fetch_blocks_schedule = self.loop.call_later(
-                reschedule_in, lambda: self.loop.create_task(self._fetch_blocks_loop())
+            self._next_fetch_blocks_schedule = self._loop.call_later(
+                reschedule_in, lambda: self._loop.create_task(self._fetch_blocks_loop())
             )
         return
 
     @property
     def is_connected(self):
-        return self.interface.is_connected()
+        return self._interface.is_connected()
 
     async def on_block(self, connection: P2PConnection, block: typing.Dict):
         if block['block_hash'] in self._pending_blocks or self._pending_blocks_no_answer:
@@ -91,11 +99,13 @@ class BlocksReactor:
         if not pending_task:
             return
         height = pending_task[1]  # height - we really have to fix built-in types.
+        height in self._pending_heights and self._pending_heights.remove(height)
         if height <= self._local_current_block_height:
             return
         deserialized_block = await self._deserialize_block(block)
         deserialized_block['height'] = height
         self._blocks_to_save[height] = deserialized_block
+        self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block['size']
         connection.add_success()
 
     async def _save_blocks(self):
@@ -107,7 +117,8 @@ class BlocksReactor:
         contiguous = []
         for _h in sorted(list(self._blocks_to_save)):
             if _h <= self._local_current_block_height:
-                self._blocks_to_save.pop(_h)
+                block = self._blocks_to_save.pop(_h)
+                self._blocks_sizes_by_hash.pop(block['hash'])
             elif not contiguous and _h == self._local_current_block_height + 1:
                 contiguous.append(_h)
             elif contiguous and _h == contiguous[-1] + 1:
@@ -116,13 +127,13 @@ class BlocksReactor:
                 break
         if not contiguous:
             return
-        blocks_to_save = list(
-            map(
-                lambda block_height: self._blocks_to_save.pop(block_height),
-                contiguous
-            )
-        )
+        blocks_to_save = []
+        for block_height in contiguous:
+            block = self._blocks_to_save.pop(block_height)
+            blocks_to_save.append(block)
+            self._blocks_sizes_by_hash.pop(block['hash'])
         await self._blocks_queue.put(blocks_to_save)
+        self._items_in_queue += len(contiguous)
         current_height = contiguous[-1]
         Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
         self._local_current_block_height = current_height
@@ -130,10 +141,10 @@ class BlocksReactor:
     async def start(self, *a, **kw):
         assert not self._started
         self._started = True
-        if self.keep_blocks_relative is None and self.keep_blocks_absolute is None:
+        if self._keep_blocks_relative is None and self._keep_blocks_absolute is None:
             Logger.p2p.debug('No fetching rules for the BlocksReactor')
             return
-        self.loop.create_task(self._save_blocks_to_disk())
+        self._loop.create_task(self._save_blocks_to_disk())
         await self._fetch_blocks_loop()
 
     async def _check_pending_blocks(self):
@@ -159,11 +170,11 @@ class BlocksReactor:
             return self._reschedule_fetch_blocks(1)
         if self._headers.initial_headers_download:
             return self._reschedule_fetch_blocks(1)
-        if self._blocks_queue.qsize() > 50:
+        if self._items_in_queue > 500:
             return self._reschedule_fetch_blocks(1)
         self._pending_blocks and await self._check_pending_blocks()
 
-        head = await self.repo.blockchain.get_best_header()
+        head = await self._repo.blockchain.get_best_header()
         start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
         if start_fetch_from_height is None:
             return self._reschedule_fetch_blocks(1)
@@ -177,13 +188,13 @@ class BlocksReactor:
         return self._reschedule_fetch_blocks(0.01)
 
     def _get_first_block_to_fetch(self, head: int) -> typing.Optional[int]:
-        if self.keep_blocks_relative is not None:
+        if self._keep_blocks_relative is not None:
             return max(
-                max(1, head - self.keep_blocks_relative + 1),  # enforce min block 1 (genesis block is hardcoded)
+                max(1, head - self._keep_blocks_relative + 1),  # enforce min block 1 (genesis block is hardcoded)
                 self._local_current_block_height or 0
             )
         else:
-            m = max(self.keep_blocks_absolute, self._local_current_block_height or 1)
+            m = max(self._keep_blocks_absolute, self._local_current_block_height or 1)
             if head > m:
                 return m
 
@@ -193,15 +204,15 @@ class BlocksReactor:
         self._pending_blocks[blockhash] = [time.time(), blockheight]
         self._pending_heights.add(blockheight)
         s = time.time()
-        await self.interface.request_block(blockhash)
+        await self._interface.request_block(blockhash)
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
         """
         continue to fetches and stack new blocks, filling holes made by failures.
         """
         round_slots = min(
-            max(0, self.interface.get_free_slots() * 2 - len(self._pending_blocks)),
-            max(0, self.max_blocks_per_round - len(self._pending_blocks))
+            max(0, self._interface.get_free_slots() * 2 - len(self._pending_blocks)),
+            max(0, self._max_blocks_per_round - len(self._pending_blocks))
         )
         if not round_slots:
             return
@@ -209,12 +220,15 @@ class BlocksReactor:
         i = 0
         while round_slots > len(fetching_blocks):
             block_height = start_fetch_from_height + i
+            if sum(self._blocks_sizes_by_hash.values()) > self._max_blocks_buffer_bytes and \
+                    block_height > max(map(lambda b: b['height'], self._blocks_to_save.values())):
+                break
             if block_height not in self._blocks_to_save and block_height not in self._pending_heights:
                 fetching_blocks.append(block_height)
             i += 1
         block_hashes = await asyncio.gather(
             *map(
-                self.repo.blockchain.get_block_hash,
+                self._repo.blockchain.get_block_hash,
                 fetching_blocks
             )
         )
