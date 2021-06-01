@@ -22,7 +22,8 @@ class BlocksReactor:
         max_blocks_per_round=8,
         block_fetch_timeout=15,
         deserialize_workers=2,
-        max_blocks_buffer_megabytes=20
+        max_blocks_buffer_megabytes=20,
+        max_pending_requests=64
     ):
 
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
@@ -51,6 +52,7 @@ class BlocksReactor:
         self._max_blocks_buffer_bytes = max_blocks_buffer_megabytes * 1024000
         self._processing_blocks_heights = set()
         self.initial_blocks_download = True
+        self._max_pending_requests = max_pending_requests
 
     async def _save_blocks_to_disk(self):
         items = await self._blocks_queue.get()
@@ -191,7 +193,8 @@ class BlocksReactor:
         if self._headers.initial_headers_download:
             return self._reschedule_fetch_blocks(1)
         self._pending_blocks and await self._check_pending_blocks()
-
+        if len(self._pending_blocks) + len(self._pending_blocks_no_answer) * .5 > self._max_pending_requests:
+            return self._reschedule_fetch_blocks(1)
         head = await self._repo.blockchain.get_best_header()
         start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
         if start_fetch_from_height is None:
