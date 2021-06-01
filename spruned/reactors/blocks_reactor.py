@@ -2,7 +2,6 @@ import asyncio
 import time
 import typing
 from concurrent.futures.process import ProcessPoolExecutor
-from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
 from spruned.services.p2p.block_deserializer import deserialize_block
@@ -22,7 +21,7 @@ class BlocksReactor:
         keep_block_absolute=None,
         max_blocks_per_round=16,
         block_fetch_timeout=15,
-        deserialize_workers=8,
+        deserialize_workers=4,
         max_blocks_buffer_megabytes=250
     ):
 
@@ -50,7 +49,7 @@ class BlocksReactor:
         self._blocks_queue = asyncio.Queue()
         self._items_in_queue = 0
         self._max_blocks_buffer_bytes = max_blocks_buffer_megabytes * 1024000
-
+        self._processing_blocks_heights = set()
         self.initial_blocks_download = True
 
     async def _save_blocks_to_disk(self):
@@ -63,14 +62,24 @@ class BlocksReactor:
 
     async def _deserialize_block(self, block: typing.Dict):
         block_bytes = block['header_bytes'] + block['data'].read()
-        item = await self._loop.run_in_executor(
-            self._executor,
-            deserialize_block,
-            block_bytes
-        )
-        if not item['success']:
-            raise exceptions.DeserializeBlockException(item['error'])
-        return item['data']
+        try:
+            item = await self._loop.run_in_executor(
+                self._executor,
+                deserialize_block,
+                block_bytes
+            )
+            if not item['success']:
+                return
+            return item['data']
+        except (GeneratorExit, TypeError):
+            Logger.p2p.warning('Error deserializing block')
+            return
+
+    def _remove_processing_height(self, height: int):
+        try:
+            self._processing_blocks_heights.remove(height)
+        except KeyError:
+            pass
 
     def _reschedule_fetch_blocks(self, reschedule_in: typing.Union[int, float]):
         assert self._next_fetch_blocks_schedule is None
@@ -99,13 +108,24 @@ class BlocksReactor:
         if not pending_task:
             return
         height = pending_task[1]  # height - we really have to fix built-in types.
+        block['block_height'] = height
+        if height in self._processing_blocks_heights:
+            return
+
+        self._processing_blocks_heights.add(height)
         height in self._pending_heights and self._pending_heights.remove(height)
         if height <= self._local_current_block_height:
             return
         deserialized_block = await self._deserialize_block(block)
+        if not deserialized_block:
+            connection.add_error()
+            self._processing_blocks_heights.remove(height)
+            return
+
         deserialized_block['height'] = height
         self._blocks_to_save[height] = deserialized_block
         self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block['size']
+        self._processing_blocks_heights.remove(height)
         connection.add_success()
 
     async def _save_blocks(self):
@@ -185,7 +205,7 @@ class BlocksReactor:
         if self._local_current_block_height is None:
             self._persisted_block_height = self._local_current_block_height = start_fetch_from_height - 1
         await self._request_missing_blocks(start_fetch_from_height)
-        return self._reschedule_fetch_blocks(0.01)
+        return self._reschedule_fetch_blocks(0.1)
 
     def _get_first_block_to_fetch(self, head: int) -> typing.Optional[int]:
         if self._keep_blocks_relative is not None:
@@ -203,7 +223,6 @@ class BlocksReactor:
         self._pending_blocks_no_answer.pop(blockhash, None)
         self._pending_blocks[blockhash] = [time.time(), blockheight]
         self._pending_heights.add(blockheight)
-        s = time.time()
         await self._interface.request_block(blockhash)
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
@@ -223,8 +242,12 @@ class BlocksReactor:
             if sum(self._blocks_sizes_by_hash.values()) > self._max_blocks_buffer_bytes and \
                     block_height > max(map(lambda b: b['height'], self._blocks_to_save.values())):
                 break
-            if block_height not in self._blocks_to_save and block_height not in self._pending_heights:
-                fetching_blocks.append(block_height)
+            if block_height in self._processing_blocks_heights or \
+                    block_height in self._blocks_to_save or \
+                    block_height in self._pending_heights:
+                i += 1
+                continue
+            fetching_blocks.append(block_height)
             i += 1
         block_hashes = await asyncio.gather(
             *map(
