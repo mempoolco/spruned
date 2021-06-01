@@ -237,9 +237,11 @@ class BlocksReactor:
         i = 0
         while round_slots > len(fetching_blocks):
             block_height = start_fetch_from_height + i
-            if self._size_items_in_queue + sum(self._blocks_sizes_by_hash.values()) > self._max_blocks_buffer_bytes and \
-                    block_height > max(map(lambda b: b['height'], self._blocks_to_save.values())):
-                break
+            total_buffer_size = self._size_items_in_queue + sum(self._blocks_sizes_by_hash.values() or (0, ))
+            if total_buffer_size > self._max_blocks_buffer_bytes:
+                max_pending_height = max(map(lambda b: b['height'], self._blocks_to_save.values()))
+                if not self._blocks_to_save or block_height > max_pending_height:
+                    break
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
                     block_height in self._pending_heights:
