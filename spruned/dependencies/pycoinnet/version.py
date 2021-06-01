@@ -22,7 +22,7 @@
 #
 # https://github.com/richardkiss/pycoinnet/
 #
-
+import ipaddress
 import os
 import time
 
@@ -69,8 +69,8 @@ NODE_NETWORK_LIMITED = (1 << 10)
 
 
 def ip_2_bin(ip):
-    # TODO: make work for ipv6
-    return bytes(int(x) for x in ip.split("."))
+    ip = ipaddress.ip_address(ip)
+    return ip.packed
 
 
 def make_local_version(
