@@ -47,15 +47,15 @@ class BlocksReactor:
         self._persisted_block_height = None
         self._lock = asyncio.Lock()
         self._blocks_queue = asyncio.Queue()
-        self._items_in_queue = 0
+        self._size_items_in_queue = 0
         self._max_blocks_buffer_bytes = max_blocks_buffer_megabytes * 1024000
         self._processing_blocks_heights = set()
         self.initial_blocks_download = True
 
     async def _save_blocks_to_disk(self):
         items = await self._blocks_queue.get()
+        self._size_items_in_queue -= sum(map(lambda x: x['size'], items))
         await self._repo.blockchain.save_blocks(items)
-        self._items_in_queue -= len(items)
         self._persisted_block_height = items[-1]['height']
         await asyncio.sleep(0.001)
         self._loop.create_task(self._save_blocks_to_disk())
@@ -153,7 +153,7 @@ class BlocksReactor:
             blocks_to_save.append(block)
             self._blocks_sizes_by_hash.pop(block['hash'])
         await self._blocks_queue.put(blocks_to_save)
-        self._items_in_queue += len(contiguous)
+        self._size_items_in_queue += sum(map(lambda x: x['size'], blocks_to_save))
         current_height = contiguous[-1]
         Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
         self._local_current_block_height = current_height
@@ -189,8 +189,6 @@ class BlocksReactor:
         if not self.is_connected:
             return self._reschedule_fetch_blocks(1)
         if self._headers.initial_headers_download:
-            return self._reschedule_fetch_blocks(1)
-        if self._items_in_queue > 500:
             return self._reschedule_fetch_blocks(1)
         self._pending_blocks and await self._check_pending_blocks()
 
@@ -239,7 +237,7 @@ class BlocksReactor:
         i = 0
         while round_slots > len(fetching_blocks):
             block_height = start_fetch_from_height + i
-            if sum(self._blocks_sizes_by_hash.values()) > self._max_blocks_buffer_bytes and \
+            if self._size_items_in_queue + sum(self._blocks_sizes_by_hash.values()) > self._max_blocks_buffer_bytes and \
                     block_height > max(map(lambda b: b['height'], self._blocks_to_save.values())):
                 break
             if block_height in self._processing_blocks_heights or \
