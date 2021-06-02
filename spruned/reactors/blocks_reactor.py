@@ -1,7 +1,6 @@
 import asyncio
 import time
 import typing
-from collections import OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
@@ -23,7 +22,7 @@ class BlocksReactor:
         max_blocks_per_round=8,
         block_fetch_timeout=15,
         deserialize_workers=2,
-        max_blocks_buffer_megabytes=250,
+        max_blocks_buffer_megabytes=100,
         max_pending_requests=20
     ):
 
@@ -159,6 +158,9 @@ class BlocksReactor:
             block = self._blocks_to_save.pop(block_height)
             blocks_to_save.append(block)
             self._blocks_sizes_by_hash.pop(block['hash'])
+            if len(blocks_to_save) >= 10:
+                await self._blocks_queue.put(blocks_to_save)
+                blocks_to_save = []
         await self._blocks_queue.put(blocks_to_save)
         self._size_items_in_queue += sum(map(lambda x: x['size'], blocks_to_save))
         current_height = contiguous[-1]
@@ -228,30 +230,6 @@ class BlocksReactor:
         await self._interface.request_block(blockhash)
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
-
-        def show_coro(c):
-            data = OrderedDict([
-                ('txt', str(c)),
-                ('type', str(type(c))),
-                ('done', c.done()),
-                ('cancelled', False),
-                ('stack', None),
-                ('exception', None),
-            ])
-            if not c.done():
-                data['stack'] = [format_frame(x) for x in c.get_stack()]
-            else:
-                if c.cancelled():
-                    data['cancelled'] = True
-                else:
-                    data['exception'] = str(c.exception())
-            return data
-
-        def format_frame(f):
-            keys = ['f_code', 'f_lineno']
-            return OrderedDict([(k, str(getattr(f, k))) for k in keys])
-        x = [show_coro(c) for c in asyncio.Task.all_tasks()]
-        print(len(x))
         """
         continue to fetches and stack new blocks, filling holes made by failures.
         """
@@ -282,11 +260,8 @@ class BlocksReactor:
                 len(self._pending_blocks_no_answer) * .5
             if pending_requests > self._max_pending_requests and \
                     (not max_pending_height or block_height > max_pending_height):
-                await asyncio.sleep(2)
-                Logger.p2p.debug(
-                    'Max pending requests: %s, sleeping',
-                    pending_requests
-                )
+                await asyncio.sleep(1)
+                Logger.p2p.debug('Max pending requests: %s, sleeping', pending_requests)
                 break
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
