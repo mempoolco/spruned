@@ -161,7 +161,7 @@ class BlocksReactor:
             if len(blocks_to_save) >= 10:
                 await self._blocks_queue.put(blocks_to_save)
                 blocks_to_save = []
-        await self._blocks_queue.put(blocks_to_save)
+        blocks_to_save and await self._blocks_queue.put(blocks_to_save)
         self._size_items_in_queue += sum(map(lambda x: x['size'], blocks_to_save))
         current_height = contiguous[-1]
         Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
