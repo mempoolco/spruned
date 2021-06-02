@@ -1,8 +1,7 @@
-aiohttp==3.7.4ZZ.post0
+aiohttp==3.7.4Z
 aiohttp-socks==0.6.0
 async-timeout==3.0.1
 coloredlogs
-fifolock==0.0.20
 jsonrpcserver==3.5.3
 plyvel==1.3.0
 pycoin==0.80
