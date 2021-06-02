@@ -22,7 +22,7 @@ class BlocksReactor:
         keep_block_absolute=None,
         block_fetch_timeout=15,
         deserialize_workers=4,
-        max_blocks_buffer_megabytes=100
+        max_blocks_buffer_megabytes=50
     ):
 
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
@@ -32,7 +32,7 @@ class BlocksReactor:
         self._loop = loop or asyncio.get_event_loop()
         self._headers = headers_reactor
         self._keep_blocks_relative = None
-        self._keep_blocks_absolute = 0 # 650000
+        self._keep_blocks_absolute = 650000
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
         self._pending_heights = set()
@@ -52,14 +52,15 @@ class BlocksReactor:
         self.initial_blocks_download = True
         self._max_pending_requests = deserialize_workers * 1.5  # give some room for buffering
         self._last_average_block_size = None
+        self._job_queue_max_size = self._max_blocks_buffer_bytes * 0.2
 
     async def _save_blocks_to_disk(self):
-        block_size_in_queue_mul = 2  # block are enqueued with utxo indexing
-        items = await self._blocks_queue.get()
-        self._size_items_in_queue -= sum(map(lambda x: x['size'] * block_size_in_queue_mul, items))
-        await self._repo.blockchain.save_blocks(items)
-        self._persisted_block_height = items[-1]['height']
-        await asyncio.sleep(0.001)
+        block_size_in_queue_mul = 2  # block are enqueued with utxo indexing, causing a double ram occupation
+        blocks = await self._blocks_queue.get()
+        await self._repo.blockchain.save_blocks(blocks)
+        self._size_items_in_queue -= sum(map(lambda x: x['size'] * block_size_in_queue_mul, blocks))
+        self._persisted_block_height = blocks[-1]['height']
+        await asyncio.sleep(0.01)
         self._loop.create_task(self._save_blocks_to_disk())
 
     async def _deserialize_block(self, block: typing.Dict):
@@ -130,7 +131,7 @@ class BlocksReactor:
             return
         deserialized_block = await self._deserialize_block(block)
         if not deserialized_block:
-            connection.add_error('deserialize_block')
+            connection.add_error(origin='deserialize_block')
             self._remove_processing_height(height)
             return
 
@@ -140,7 +141,7 @@ class BlocksReactor:
         self._remove_processing_height(height)
         connection.add_success()
 
-    async def _save_blocks(self):
+    async def _enqueue_blocks_for_save(self):
         """
         wait to stack contiguous blocks to the current height, before saving
         """
@@ -170,11 +171,11 @@ class BlocksReactor:
             block = self._blocks_to_save.pop(block_height)
             blocks_to_save.append(block)
             self._blocks_sizes_by_hash.pop(block['hash'])
-            current_size += block['size']
-            if current_size > self._max_blocks_buffer_bytes * 0.3:
+            current_size += block['size'] * block_size_in_queue_mul
+            if current_size > self._job_queue_max_size:
                 await self._blocks_queue.put(blocks_to_save)
                 blocks_to_save = []
-                self._size_items_in_queue += (current_size * block_size_in_queue_mul)
+                self._size_items_in_queue += current_size
                 current_size = 0
         blocks_to_save and await self._blocks_queue.put(blocks_to_save)
         self._size_items_in_queue += sum(map(lambda x: x['size'] * block_size_in_queue_mul, blocks_to_save))
@@ -199,7 +200,7 @@ class BlocksReactor:
     async def _fetch_blocks_loop(self):
         self._next_fetch_blocks_schedule = None
         try:
-            await self._save_blocks()
+            await self._enqueue_blocks_for_save()
             await self._fetch_blocks()
         finally:
             not self._next_fetch_blocks_schedule and self._reschedule_fetch_blocks(60)
@@ -269,11 +270,8 @@ class BlocksReactor:
             ) or 0
             if total_buffer_size > self._max_blocks_buffer_bytes:
                 if not max_pending_height or block_height > max_pending_height:
+                    Logger.p2p.debug('Buffer limit hit (%s)', blocks_buffer_size + self._size_items_in_queue)
                     await asyncio.sleep(2)
-                    Logger.p2p.debug(
-                        'Buffer size near max value (%s - %s), sleeping',
-                        blocks_buffer_size, self._size_items_in_queue
-                    )
                     break
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
