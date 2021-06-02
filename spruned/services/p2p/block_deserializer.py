@@ -22,9 +22,9 @@ def parse_tx(t):
     return {
         'hash': bytes.fromhex(str(t.hash())),
         'bytes': t.as_bin(),
-        'ins': tuple(map(parse_tx_in, t.txs_in)),
-        'outs': tuple(map(parse_tx_out, t.txs_out)),
-        'gen': bool(t.is_coinbase())
+        #'ins': tuple(map(parse_tx_in, t.txs_in)),
+        #'outs': tuple(map(parse_tx_out, t.txs_out)),
+        #'gen': bool(t.is_coinbase())
     }
 
 

@@ -1,6 +1,7 @@
 import asyncio
 import time
 import typing
+from collections import OrderedDict
 from concurrent.futures.process import ProcessPoolExecutor
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
@@ -22,8 +23,8 @@ class BlocksReactor:
         max_blocks_per_round=8,
         block_fetch_timeout=15,
         deserialize_workers=2,
-        max_blocks_buffer_megabytes=20,
-        max_pending_requests=64
+        max_blocks_buffer_megabytes=250,
+        max_pending_requests=20
     ):
 
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
@@ -46,7 +47,6 @@ class BlocksReactor:
         self._blocks_to_save = dict()
         self._local_current_block_height = None
         self._persisted_block_height = None
-        self._lock = asyncio.Lock()
         self._blocks_queue = asyncio.Queue()
         self._size_items_in_queue = 0
         self._max_blocks_buffer_bytes = max_blocks_buffer_megabytes * 1024000
@@ -98,6 +98,9 @@ class BlocksReactor:
         return self._interface.is_connected()
 
     async def on_block(self, connection: P2PConnection, block: typing.Dict):
+
+        if block['block_hash'] in self._blocks_sizes_by_hash:
+            return
         if block['block_hash'] in self._pending_blocks or self._pending_blocks_no_answer:
             connection.add_success()
             await self._on_block_received(block, connection)
@@ -113,21 +116,23 @@ class BlocksReactor:
         block['block_height'] = height
         if height in self._processing_blocks_heights:
             return
-
+        if height in self._blocks_to_save:
+            return
         self._processing_blocks_heights.add(height)
         height in self._pending_heights and self._pending_heights.remove(height)
         if height <= self._local_current_block_height:
+            self._remove_processing_height(height)
             return
         deserialized_block = await self._deserialize_block(block)
         if not deserialized_block:
             connection.add_error()
-            self._processing_blocks_heights.remove(height)
+            self._remove_processing_height(height)
             return
 
         deserialized_block['height'] = height
         self._blocks_to_save[height] = deserialized_block
         self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block['size']
-        self._processing_blocks_heights.remove(height)
+        self._remove_processing_height(height)
         connection.add_success()
 
     async def _save_blocks(self):
@@ -179,13 +184,11 @@ class BlocksReactor:
 
     async def _fetch_blocks_loop(self):
         self._next_fetch_blocks_schedule = None
-        await self._lock.acquire()
         try:
             await self._save_blocks()
             await self._fetch_blocks()
         finally:
             not self._next_fetch_blocks_schedule and self._reschedule_fetch_blocks(60)
-            self._lock.release()
 
     async def _fetch_blocks(self):
         if not self.is_connected:
@@ -225,6 +228,30 @@ class BlocksReactor:
         await self._interface.request_block(blockhash)
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
+
+        def show_coro(c):
+            data = OrderedDict([
+                ('txt', str(c)),
+                ('type', str(type(c))),
+                ('done', c.done()),
+                ('cancelled', False),
+                ('stack', None),
+                ('exception', None),
+            ])
+            if not c.done():
+                data['stack'] = [format_frame(x) for x in c.get_stack()]
+            else:
+                if c.cancelled():
+                    data['cancelled'] = True
+                else:
+                    data['exception'] = str(c.exception())
+            return data
+
+        def format_frame(f):
+            keys = ['f_code', 'f_lineno']
+            return OrderedDict([(k, str(getattr(f, k))) for k in keys])
+        x = [show_coro(c) for c in asyncio.Task.all_tasks()]
+        print(len(x))
         """
         continue to fetches and stack new blocks, filling holes made by failures.
         """
@@ -240,9 +267,9 @@ class BlocksReactor:
             block_height = start_fetch_from_height + i
             blocks_buffer_size = sum(self._blocks_sizes_by_hash.values() or (0, ))
             total_buffer_size = self._size_items_in_queue + blocks_buffer_size
+            max_pending_height = self._blocks_to_save and \
+                                 max(map(lambda b: b['height'], self._blocks_to_save.values())) or 0
             if total_buffer_size > self._max_blocks_buffer_bytes:
-                max_pending_height = self._blocks_to_save and \
-                                     max(map(lambda b: b['height'], self._blocks_to_save.values()))
                 if not max_pending_height or block_height > max_pending_height:
                     await asyncio.sleep(2)
                     Logger.p2p.debug(
@@ -250,15 +277,17 @@ class BlocksReactor:
                         blocks_buffer_size, self._size_items_in_queue
                     )
                     break
-                pending_requests = len(self._pending_blocks) + len(self._pending_blocks_no_answer) * .5
-                if pending_requests > self._max_pending_requests and \
-                        not max_pending_height or block_height > max_pending_height:
-                    await asyncio.sleep(2)
-                    Logger.p2p.debug(
-                        'Max pending requests: %s, sleeping',
-                        pending_requests
-                    )
-                    break
+            pending_requests = len(self._processing_blocks_heights) + \
+                len(self._pending_blocks) + \
+                len(self._pending_blocks_no_answer) * .5
+            if pending_requests > self._max_pending_requests and \
+                    (not max_pending_height or block_height > max_pending_height):
+                await asyncio.sleep(2)
+                Logger.p2p.debug(
+                    'Max pending requests: %s, sleeping',
+                    pending_requests
+                )
+                break
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
                     block_height in self._pending_heights:
