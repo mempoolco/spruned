@@ -22,7 +22,7 @@ class BlocksReactor:
         keep_block_absolute=None,
         block_fetch_timeout=15,
         deserialize_workers=4,
-        max_blocks_buffer_megabytes=20
+        max_blocks_buffer_megabytes=100
     ):
 
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
@@ -32,7 +32,7 @@ class BlocksReactor:
         self._loop = loop or asyncio.get_event_loop()
         self._headers = headers_reactor
         self._keep_blocks_relative = None
-        self._keep_blocks_absolute = 650000
+        self._keep_blocks_absolute = 0 # 650000
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
         self._pending_heights = set()
