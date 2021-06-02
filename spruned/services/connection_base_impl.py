@@ -3,6 +3,8 @@ import asyncio
 import time
 import uuid
 from typing import Dict, List
+
+from spruned.application.logging_factory import Logger
 from spruned.application.tools import async_delayed_task
 from spruned.services.abstracts import ConnectionAbstract
 
@@ -39,24 +41,44 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._busy = False
         self._busy_lock = asyncio.Lock()
         self.uid = uuid.uuid4()
+        self._max_concurrent_tasks = 1
+        self._pending_tasks = dict()
+        self._received_data_size = []
+        self._bandwidth_monitor_timeframe = 30
+        self._max_bandwidth_per_second = 250
+        self._task_timeout = 2000000 / self._max_bandwidth_per_second
+
+    @property
+    def bandwidth_usage_second(self):
+        now = time.time()
+        self._received_data_size = list(
+            filter(
+                lambda x: now - x[1] < self._bandwidth_monitor_timeframe,
+                self._received_data_size
+            )
+        )
+
+        return sum(map(lambda x: x[0], self._received_data_size)) / self._bandwidth_monitor_timeframe
+
+    def _track_received_data_size(self, size: int):
+        self._received_data_size.append([size, time.time()])
+
+    @property
+    def pending_tasks(self):
+        now = time.time()
+        current = len(self._pending_tasks)
+        self._pending_tasks = {
+            p: v for p, v in self._pending_tasks.items() if now - v < self._task_timeout
+        }
+        if current != len(self._pending_tasks):
+            Logger.p2p.debug('Expired pending tasks. Adding error for peer %s', self.hostname)
+            self.add_error(origin='expired_tasks')
+        return self._pending_tasks
 
     @property
     def busy(self):
-        return self._busy
-
-    async def mark_busy(self):
-        try:
-            await self._busy_lock.acquire()
-            self._busy = True
-        finally:
-            self._busy_lock.release()
-
-    async def mark_free(self):
-        try:
-            await self._busy_lock.acquire()
-            self._busy = False
-        finally:
-            self._busy_lock.release()
+        return len(self.pending_tasks) >= self._max_concurrent_tasks or \
+               self.bandwidth_usage_second // 1024 >= self._max_bandwidth_per_second
 
     @property
     def proxy(self):

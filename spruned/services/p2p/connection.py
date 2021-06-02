@@ -15,7 +15,8 @@ from spruned.services.p2p.channel import P2PChannel
 from spruned.services.p2p.types import P2PInvItemResponse
 from spruned.dependencies.pycoinnet.peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
-from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX, InvItem
+from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX, InvItem, ITEM_TYPE_BLOCK, \
+    ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_MERKLEBLOCK
 from spruned.dependencies.pycoinnet.version import make_local_version, NODE_NONE, NODE_WITNESS
 
 
@@ -74,8 +75,25 @@ class P2PConnection(BaseConnection):
         self.last_block_index = None
         self.version_checker = version_checker
         self.failed = False
-        self._antispam = []
         self.pool = None
+
+    def add_pending_task_for_inv_item(self, inv_item: InvItem):
+        if inv_item.item_type not in (ITEM_TYPE_BLOCK, ITEM_TYPE_SEGWIT_BLOCK):
+            return
+        rev_blockhash = inv_item.data
+        self._pending_tasks[b'block:%s' % rev_blockhash] = time.time()
+
+    def remove_pending_task_for_inv_item(self, inv_item: InvItem):
+        if inv_item.item_type not in (ITEM_TYPE_BLOCK, ITEM_TYPE_SEGWIT_BLOCK):
+            return
+        rev_blockhash = inv_item.data
+        self._pending_tasks.pop(b'block:%s' % rev_blockhash, None)
+
+    def remove_pending_task_for_block(self, block: typing.Dict):
+        if not block.get('block_hash'):
+            return
+        rev_blockhash = block['block_hash'][::-1]
+        self._pending_tasks.pop(b'block:%s' % rev_blockhash, None)
 
     def ping(self, timeout=None):
         self.peer.send_msg('ping', int(time.time()))
@@ -263,6 +281,8 @@ class P2PConnection(BaseConnection):
         pass
 
     def _on_block(self, event_handler: P2PChannel, name: str, data: typing.Dict):
+        self._track_received_data_size(data['data'].__sizeof__())
+        self.remove_pending_task_for_block(data)
         assert len(self._on_block_callbacks) == 1
         # fixme - going on with lazy reading we can't use multiple callbacks
         # and actually there was no need at all
@@ -317,16 +337,19 @@ class P2PConnection(BaseConnection):
         expect to have hooked an event handler to get the result.
         """
         self.peer.send_msg("getdata", items=[inv_item])
+        self.add_pending_task_for_inv_item(inv_item)
 
     async def get_invitem(self, inv_item: InvItem, timeout: int) -> P2PInvItemResponse:
         """
         get data from a peer or fail, return the related peer with the response
         """
+        self.add_pending_task_for_inv_item(inv_item)
         self.add_request()
         done, pending = await asyncio.wait(
             (self.peer_event_handler.get_inv_item(inv_item),),
             timeout=timeout
         )
+        self.remove_pending_task_for_inv_item(inv_item)
         if not done:
             _ = map(
                 lambda x: x.cancel(),

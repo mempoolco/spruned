@@ -64,7 +64,7 @@ class P2PChannel:
             return await self.connection.peer.next_message()
         except IncompleteReadError as e:
             Logger.p2p.debug(str(e))
-            self.connection.add_error()
+            self.connection.add_error(origin='incomplete_read')
 
     async def _run(self):
         while True:

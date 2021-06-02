@@ -4,6 +4,7 @@ import typing
 from concurrent.futures.process import ProcessPoolExecutor
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
+from spruned.services.exceptions import NoConnectionsAvailableException
 from spruned.services.p2p.block_deserializer import deserialize_block
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.interface import P2PInterface
@@ -19,11 +20,9 @@ class BlocksReactor:
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_block_absolute=None,
-        max_blocks_per_round=8,
         block_fetch_timeout=15,
-        deserialize_workers=2,
-        max_blocks_buffer_megabytes=100,
-        max_pending_requests=20
+        deserialize_workers=4,
+        max_blocks_buffer_megabytes=20
     ):
 
         assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
@@ -34,7 +33,6 @@ class BlocksReactor:
         self._headers = headers_reactor
         self._keep_blocks_relative = None
         self._keep_blocks_absolute = 650000
-        self._max_blocks_per_round = max_blocks_per_round
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
         self._pending_heights = set()
@@ -48,10 +46,12 @@ class BlocksReactor:
         self._persisted_block_height = None
         self._blocks_queue = asyncio.Queue()
         self._size_items_in_queue = 0
+        self._processing_blocks_size = 0
         self._max_blocks_buffer_bytes = max_blocks_buffer_megabytes * 1024000
         self._processing_blocks_heights = set()
         self.initial_blocks_download = True
-        self._max_pending_requests = max_pending_requests
+        self._max_pending_requests = deserialize_workers * 1.5  # give some room for buffering
+        self._last_average_block_size = None
 
     async def _save_blocks_to_disk(self):
         items = await self._blocks_queue.get()
@@ -62,8 +62,11 @@ class BlocksReactor:
         self._loop.create_task(self._save_blocks_to_disk())
 
     async def _deserialize_block(self, block: typing.Dict):
-        block_bytes = block['header_bytes'] + block['data'].read()
+        size = 0
         try:
+            block_bytes = block['header_bytes'] + block['data'].read()
+            size = len(block_bytes)
+            self._processing_blocks_size += size
             item = await self._loop.run_in_executor(
                 self._executor,
                 deserialize_block,
@@ -75,6 +78,8 @@ class BlocksReactor:
         except (GeneratorExit, TypeError):
             Logger.p2p.warning('Error deserializing block')
             return
+        finally:
+            self._processing_blocks_size -= size
 
     def _remove_processing_height(self, height: int):
         try:
@@ -124,7 +129,7 @@ class BlocksReactor:
             return
         deserialized_block = await self._deserialize_block(block)
         if not deserialized_block:
-            connection.add_error()
+            connection.add_error('deserialize_block')
             self._remove_processing_height(height)
             return
 
@@ -153,19 +158,24 @@ class BlocksReactor:
                 break
         if not contiguous:
             return
+        current_height = contiguous[-1]
+        Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
+        self._local_current_block_height = current_height
+
         blocks_to_save = []
+        current_size = 0
         for block_height in contiguous:
             block = self._blocks_to_save.pop(block_height)
             blocks_to_save.append(block)
             self._blocks_sizes_by_hash.pop(block['hash'])
-            if len(blocks_to_save) >= 10:
+            current_size += block['size']
+            if current_size > self._max_blocks_buffer_bytes * 0.3:
                 await self._blocks_queue.put(blocks_to_save)
                 blocks_to_save = []
+                self._size_items_in_queue += current_size
+                current_size = 0
         blocks_to_save and await self._blocks_queue.put(blocks_to_save)
         self._size_items_in_queue += sum(map(lambda x: x['size'], blocks_to_save))
-        current_height = contiguous[-1]
-        Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
-        self._local_current_block_height = current_height
 
     async def start(self, *a, **kw):
         assert not self._started
@@ -209,7 +219,7 @@ class BlocksReactor:
         if self._local_current_block_height is None:
             self._persisted_block_height = self._local_current_block_height = start_fetch_from_height - 1
         await self._request_missing_blocks(start_fetch_from_height)
-        return self._reschedule_fetch_blocks(0.1)
+        return self._reschedule_fetch_blocks(0.01)
 
     def _get_first_block_to_fetch(self, head: int) -> typing.Optional[int]:
         if self._keep_blocks_relative is not None:
@@ -229,13 +239,20 @@ class BlocksReactor:
         self._pending_heights.add(blockheight)
         await self._interface.request_block(blockhash)
 
+    def _get_average_block_size(self):
+        if self._blocks_sizes_by_hash:
+            avg = sum(self._blocks_sizes_by_hash.values()) / len(self._blocks_sizes_by_hash.values())
+            self._last_average_block_size = avg
+        return self._last_average_block_size or 1000000
+
     async def _request_missing_blocks(self, start_fetch_from_height: int):
         """
         continue to fetches and stack new blocks, filling holes made by failures.
+        allocate slots based on average block size.
         """
         round_slots = min(
-            max(0, self._interface.get_free_slots() * 2 - len(self._pending_blocks)),
-            max(0, self._max_blocks_per_round - len(self._pending_blocks))
+            self._interface.get_free_slots(),
+            min(self._max_blocks_buffer_bytes // self._get_average_block_size(), 64)
         )
         if not round_slots:
             return
@@ -244,9 +261,10 @@ class BlocksReactor:
         while round_slots > len(fetching_blocks):
             block_height = start_fetch_from_height + i
             blocks_buffer_size = sum(self._blocks_sizes_by_hash.values() or (0, ))
-            total_buffer_size = self._size_items_in_queue + blocks_buffer_size
-            max_pending_height = self._blocks_to_save and \
-                                 max(map(lambda b: b['height'], self._blocks_to_save.values())) or 0
+            total_buffer_size = self._size_items_in_queue + blocks_buffer_size + self._processing_blocks_size
+            max_pending_height = self._blocks_to_save and max(
+                map(lambda b: b['height'], self._blocks_to_save.values())
+            ) or 0
             if total_buffer_size > self._max_blocks_buffer_bytes:
                 if not max_pending_height or block_height > max_pending_height:
                     await asyncio.sleep(2)
@@ -255,14 +273,6 @@ class BlocksReactor:
                         blocks_buffer_size, self._size_items_in_queue
                     )
                     break
-            pending_requests = len(self._processing_blocks_heights) + \
-                len(self._pending_blocks) + \
-                len(self._pending_blocks_no_answer) * .5
-            if pending_requests > self._max_pending_requests and \
-                    (not max_pending_height or block_height > max_pending_height):
-                await asyncio.sleep(1)
-                Logger.p2p.debug('Max pending requests: %s, sleeping', pending_requests)
-                break
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
                     block_height in self._pending_heights:
@@ -281,4 +291,8 @@ class BlocksReactor:
             if not blockhash:
                 break
             blockhash_bytes = bytes.fromhex(blockhash)
-            await self._request_block(blockhash_bytes, height)
+            try:
+                await self._request_block(blockhash_bytes, height)
+            except NoConnectionsAvailableException:
+                await asyncio.sleep(0.1)
+                break

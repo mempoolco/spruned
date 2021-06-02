@@ -99,13 +99,18 @@ class BaseConnectionPool(ConnectionPoolAbstract, metaclass=abc.ABCMeta):
 
     @property
     def free_connections(self):
-        return list(filter(lambda c: c.score > 0 and c.connected, self.connections))
+        return list(filter(lambda c: c.score > 0 and c.connected and not c.busy, self.connections))
 
-    def get_connection(self):
-        if not self.free_connections:
+    def get_connection(self, use_busy=False):
+        if not self.free_connections and not use_busy:
             raise exceptions.NoConnectionsAvailableException()
-        connection = random.choice(self.free_connections)
-        return connection
+        connections = self.free_connections
+        if use_busy and not connections:
+            connections = self.established_connections
+        try:
+            return random.choice(connections)
+        except IndexError:
+            raise exceptions.NoConnectionsAvailableException()
 
     async def get_multiple_connections(self, count: int) -> List:
         try:

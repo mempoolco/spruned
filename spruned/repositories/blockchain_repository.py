@@ -45,6 +45,7 @@ class BlockchainRepository:
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=64)
         self.lock = FifoLock()
+        self._best_header = None
 
     def _ensure_brand_new_db(self, batch_session):
         from spruned.application.database import BRAND_NEW_DB_PLACEHOLDER
@@ -301,6 +302,7 @@ class BlockchainRepository:
             saved_headers.append(self._save_header(header, batch_session))
             last_header = header
         assert last_header
+        self._best_header = last_header
         self._save_best_height(last_header['block_height'], batch_session)
         batch_session.write()
         return saved_headers
@@ -398,11 +400,13 @@ class BlockchainRepository:
         return best_height
 
     async def get_best_header(self, verbose=True) -> typing.Dict:
-        return await self.loop.run_in_executor(
-            self.executor,
-            self._get_best_header,
-            verbose
-        )
+        if not self._best_header:
+            self._best_header = await self.loop.run_in_executor(
+                self.executor,
+                self._get_best_header,
+                verbose
+            )
+        return self._best_header
 
     def _get_best_header(self, verbose):
         best_height = self._get_best_height()
@@ -411,6 +415,7 @@ class BlockchainRepository:
     def _save_best_height(self, height: int, batch_session):
         key = self._get_db_key(DBPrefix.BEST_HEIGHT)
         batch_session.put(key, height.to_bytes(4, 'little'))
+
         return height
 
     async def get_block_hash(self, height: int):

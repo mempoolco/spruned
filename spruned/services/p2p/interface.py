@@ -61,7 +61,10 @@ class P2PInterface:
         self.pool.set_local_current_header(header)
 
     def get_free_slots(self) -> int:
-        return int(len(self.pool and self.pool.free_connections or []))
+        try:
+            return int(len(self.pool and self.pool.free_connections or []))
+        except exceptions.NoConnectionsAvailableException:
+            return 0
 
     async def on_connect(self):
         for callback in self._on_connect_callbacks:
@@ -137,7 +140,7 @@ class P2PInterface:
             stop_at_hash: typing.Optional[str] = None,
             connection: typing.Optional[P2PConnection] = None
     ):
-        connection: P2PConnection = connection or self.pool.get_connection()
+        connection: P2PConnection = connection or self.pool.get_connection(use_busy=True)
         await connection.getheaders(*start_from_hash, stop_at_hash=stop_at_hash)
         return connection
 
