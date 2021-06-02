@@ -4,25 +4,12 @@ from functools import partial
 from typing import Dict, List
 
 import typing
-from fifolock import FifoLock
 
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header
 from spruned.services import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
 
 import asyncio
-
-
-class Read(asyncio.Future):
-    @staticmethod
-    def is_compatible(holds):
-        return not holds[Write]
-
-
-class Write(asyncio.Future):
-    @staticmethod
-    def is_compatible(holds):
-        return not holds[Read] and not holds[Write]
 
 
 class DBPrefix(Enum):
@@ -44,7 +31,6 @@ class BlockchainRepository:
         self._cache = None
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=64)
-        self.lock = FifoLock()
         self._best_header = None
 
     def _ensure_brand_new_db(self, batch_session):

@@ -53,6 +53,7 @@ class BlocksReactor:
         self._max_pending_requests = deserialize_workers * 1.5  # give some room for buffering
         self._last_average_block_size = None
         self._job_queue_max_size = self._max_blocks_buffer_bytes * 0.2
+        self._buffer_hit = False
 
     async def _save_blocks_to_disk(self):
         block_size_in_queue_mul = 2  # block are enqueued with utxo indexing, causing a double ram occupation
@@ -268,11 +269,16 @@ class BlocksReactor:
             max_pending_height = self._blocks_to_save and max(
                 map(lambda b: b['height'], self._blocks_to_save.values())
             ) or 0
-            if total_buffer_size > self._max_blocks_buffer_bytes:
-                if not max_pending_height or block_height > max_pending_height:
-                    Logger.p2p.debug('Buffer limit hit (%s)', blocks_buffer_size + self._size_items_in_queue)
-                    await asyncio.sleep(2)
-                    break
+            if total_buffer_size > self._max_blocks_buffer_bytes and \
+                    (not max_pending_height or block_height > max_pending_height):
+                not self._buffer_hit and Logger.p2p.debug(
+                    'Buffer limit hit (%s)', blocks_buffer_size + self._size_items_in_queue
+                )
+                self._buffer_hit = True
+                await asyncio.sleep(2)
+                break
+            else:
+                self._buffer_hit = False
             if block_height in self._processing_blocks_heights or \
                     block_height in self._blocks_to_save or \
                     block_height in self._pending_heights:
