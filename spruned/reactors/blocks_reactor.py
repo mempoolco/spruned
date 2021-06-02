@@ -20,7 +20,7 @@ class BlocksReactor:
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_block_absolute=None,
-        block_fetch_timeout=15,
+        block_fetch_timeout=5,
         deserialize_workers=4,
         max_blocks_buffer_megabytes=50
     ):

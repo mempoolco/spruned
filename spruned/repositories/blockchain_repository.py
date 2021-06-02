@@ -1,3 +1,4 @@
+import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 from functools import partial
@@ -5,6 +6,7 @@ from typing import Dict, List
 
 import typing
 
+from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash, deserialize_header
 from spruned.services import exceptions as daemon_exceptions  # fixme remove
 from spruned.application import exceptions
@@ -144,18 +146,23 @@ class BlockchainRepository:
         )
 
     async def save_blocks(self, blocks: typing.Iterable[Dict]) -> List[Dict]:
-        return await self.loop.run_in_executor(
+        start = time.time()
+        res = await self.loop.run_in_executor(
             self.executor,
             self._save_blocks,
             blocks
         )
+        Logger.repository.debug('Saved %s blocks in %s', len(res), time.time() - start)
+        return res
 
     def _save_blocks(self, blocks: typing.Iterable[Dict]) -> List[Dict]:
         batch_session = self.session.write_batch()
         response = []
         for block in blocks:
             response.append(self._save_block(block, batch_session))
+        s = time.time()
         batch_session.write()
+        Logger.repository.debug('Blocks batch saved in %s', time.time() - s)
         return response
 
     def _save_transaction(self, transaction: Dict, block_hash: bytes, batch_session) -> Dict:

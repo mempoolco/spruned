@@ -76,6 +76,7 @@ class P2PConnection(BaseConnection):
         self.version_checker = version_checker
         self.failed = False
         self.pool = None
+        self.available = False
 
     def add_pending_task_for_inv_item(self, inv_item: InvItem):
         if inv_item.item_type not in (ITEM_TYPE_BLOCK, ITEM_TYPE_SEGWIT_BLOCK):
@@ -196,6 +197,7 @@ class P2PConnection(BaseConnection):
         self.peer = peer
         self.connected_at = int(time.time())
         self._setup_events_handler()
+        self.available = True
 
     def _do_more_handshake(self, peer):
         peer.send_msg('sendheaders')

@@ -47,6 +47,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._bandwidth_monitor_timeframe = 30
         self._max_bandwidth_per_second = 250
         self._task_timeout = 2000000 / self._max_bandwidth_per_second
+        self.available = False
 
     @property
     def bandwidth_usage_second(self):
