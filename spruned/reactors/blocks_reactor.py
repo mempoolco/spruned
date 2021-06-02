@@ -2,6 +2,8 @@ import asyncio
 import time
 import typing
 from concurrent.futures.process import ProcessPoolExecutor
+
+from spruned.application import consensus, exceptions
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
 from spruned.services.exceptions import NoConnectionsAvailableException
@@ -137,6 +139,12 @@ class BlocksReactor:
             return
 
         deserialized_block['height'] = height
+        block_merkle_root = consensus.get_merkle_root(
+            list(map(lambda x: x['hash'], deserialized_block['txs']))
+        )
+        if block_merkle_root != deserialized_block['merkle_root']:
+            connection.add_error(score_penalty=10)
+            raise exceptions.BlockMerkleRootValidationFailedException
         self._blocks_to_save[height] = deserialized_block
         self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block['size']
         self._remove_processing_height(height)

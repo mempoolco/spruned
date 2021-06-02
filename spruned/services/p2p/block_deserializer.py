@@ -40,6 +40,7 @@ def deserialize_block(data):
             'success': True,
             'data': {
                 'header': header.as_bin(),
+                'merkle_root': bytes.fromhex(str(header.merkle_root)),
                 'size': len(block.as_bin()),
                 'hash': bytes.fromhex(str(header.hash())),
                 'txs': tuple(map(parse_tx, block.txs))

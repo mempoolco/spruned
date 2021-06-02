@@ -63,3 +63,7 @@ class DatabaseDataNotFoundException(SprunedException):
 
 class DeserializeBlockException(SprunedException):
     pass
+
+
+class BlockMerkleRootValidationFailedException(SprunedException):
+    pass

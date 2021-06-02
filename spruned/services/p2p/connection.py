@@ -131,10 +131,10 @@ class P2PConnection(BaseConnection):
     def peer_event_handler(self) -> P2PChannel:
         return self._event_handler
 
-    def add_error(self, *a, origin=None):
+    def add_error(self, *a, origin=None, score_penalty=None):
         super().add_error(*a, origin=origin)
         Logger.p2p.debug('Adding error to connection, origin: %s, score: %s', origin, self.score)
-        self._score -= 1
+        self._score -= score_penalty or 1
         if self.score <= 0:
             self.loop.create_task(self.disconnect())
 
