@@ -54,8 +54,9 @@ class BlocksReactor:
         self._last_average_block_size = None
 
     async def _save_blocks_to_disk(self):
+        block_size_in_queue_mul = 2  # block are enqueued with utxo indexing
         items = await self._blocks_queue.get()
-        self._size_items_in_queue -= sum(map(lambda x: x['size'], items))
+        self._size_items_in_queue -= sum(map(lambda x: x['size'] * block_size_in_queue_mul, items))
         await self._repo.blockchain.save_blocks(items)
         self._persisted_block_height = items[-1]['height']
         await asyncio.sleep(0.001)
@@ -164,6 +165,7 @@ class BlocksReactor:
 
         blocks_to_save = []
         current_size = 0
+        block_size_in_queue_mul = 2  # block are enqueued with utxo indexing
         for block_height in contiguous:
             block = self._blocks_to_save.pop(block_height)
             blocks_to_save.append(block)
@@ -172,10 +174,10 @@ class BlocksReactor:
             if current_size > self._max_blocks_buffer_bytes * 0.3:
                 await self._blocks_queue.put(blocks_to_save)
                 blocks_to_save = []
-                self._size_items_in_queue += current_size
+                self._size_items_in_queue += (current_size * block_size_in_queue_mul)
                 current_size = 0
         blocks_to_save and await self._blocks_queue.put(blocks_to_save)
-        self._size_items_in_queue += sum(map(lambda x: x['size'], blocks_to_save))
+        self._size_items_in_queue += sum(map(lambda x: x['size'] * block_size_in_queue_mul, blocks_to_save))
 
     async def start(self, *a, **kw):
         assert not self._started
