@@ -33,7 +33,7 @@ class BlocksReactor:
         self._interface = interface
         self._loop = loop or asyncio.get_event_loop()
         self._headers = headers_reactor
-        self._keep_blocks_relative = None
+        self._keep_blocks_relative = keep_blocks_relative
         self._keep_blocks_absolute = 650000
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
@@ -121,17 +121,21 @@ class BlocksReactor:
         )
         if not pending_task:
             return
-        height = pending_task[1]  # height - we really have to fix built-in types.
+
+        height = pending_task[1]  # height - this is wild. we really have to fix built-in types.
         block['block_height'] = height
         if height in self._processing_blocks_heights:
             return
+
         if height in self._blocks_to_save:
             return
+
         self._processing_blocks_heights.add(height)
         height in self._pending_heights and self._pending_heights.remove(height)
         if height <= self._local_current_block_height:
             self._remove_processing_height(height)
             return
+
         deserialized_block = await self._deserialize_block(block)
         if not deserialized_block:
             connection.add_error(origin='deserialize_block')
@@ -145,6 +149,7 @@ class BlocksReactor:
         if block_merkle_root != deserialized_block['merkle_root']:
             connection.add_error(score_penalty=10)
             raise exceptions.BlockMerkleRootValidationFailedException
+
         self._blocks_to_save[height] = deserialized_block
         self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block['size']
         self._remove_processing_height(height)
@@ -217,17 +222,21 @@ class BlocksReactor:
     async def _fetch_blocks(self):
         if not self.is_connected:
             return self._reschedule_fetch_blocks(1)
+
         if self._headers.initial_headers_download:
             return self._reschedule_fetch_blocks(1)
+
         self._pending_blocks and await self._check_pending_blocks()
         head = await self._repo.blockchain.get_best_header()
         start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
         if start_fetch_from_height is None:
             return self._reschedule_fetch_blocks(1)
+
         elif self._local_current_block_height is not None \
                 and start_fetch_from_height < self._local_current_block_height:
             self.initial_blocks_download = False
             return self._reschedule_fetch_blocks(1)
+
         if self._local_current_block_height is None:
             self._persisted_block_height = self._local_current_block_height = start_fetch_from_height - 1
         await self._request_missing_blocks(start_fetch_from_height)
@@ -259,8 +268,10 @@ class BlocksReactor:
 
     async def _request_missing_blocks(self, start_fetch_from_height: int):
         """
-        continue to fetches and stack new blocks, filling holes made by failures.
-        allocate slots based on average block size.
+        continue to fetches and stack new blocks.
+        fill missing slots, as a defragmentation tool.
+        privilege missing slots once hitting the max buffer size.
+        tune available slots based on average block size.
         """
         round_slots = min(
             self._interface.get_free_slots(),

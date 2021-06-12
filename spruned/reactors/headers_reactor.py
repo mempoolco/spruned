@@ -194,6 +194,9 @@ class HeadersReactor:
         self.loop.create_task(self._fetch_headers_loop())
 
     def _get_headers_for_agreement(self, headers):
+        """
+        Return a chunk of headers from the known best_chain, to be checked for agreement between multiple peers.
+        """
         assert headers[0]['prev_block_hash'] == self._best_chain[-1]['block_hash']
         for i, h in enumerate(headers, start=1):
             h['block_height'] = self._best_chain[-1]['block_height'] + i
@@ -201,14 +204,17 @@ class HeadersReactor:
 
     async def _fetch_headers(self):
         """
-        fetch headers random check to neighbors for the blockchain they know from a bit back in time.
+        fetch headers from a certain point.
         """
         if not self._best_chain:
+            # we know nothing on the current chain
             return
         elif len(self._best_chain) == 1:
             chain = self._best_chain
         else:
             chain = self._best_chain[-6:-3]
+        # ask for an header, set the peer responding as the last connection we talked with.
+
         self._last_connection = await self.interface.get_headers_after_hash(
             *map(
                 lambda h: h['block_hash'],
