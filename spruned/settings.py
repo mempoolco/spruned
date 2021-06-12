@@ -18,11 +18,11 @@ CHECK_NETWORK_HOST = [
     'l.root-servers.net',
     'm.root-servers.net'
 ]
-SQLITE_DBNAME = ''
-LEVELDB_PATH = '/tmp/%s-test.session' % binascii.hexlify(os.urandom(8))
+LEVELDB_INDEX_PATH = '/tmp/%s-test.index' % binascii.hexlify(os.urandom(8))
+BLOCKS_PATH = '/tmp/%s-test.blocks' % binascii.hexlify(os.urandom(8))
 
 if not TESTING:
     STORAGE_ADDRESS = '%s/storage/' % ctx.datadir
     LOGFILE = '%s/spruned.log' % ctx.datadir
-    SQLITE_DBNAME = '%sheaders.db' % STORAGE_ADDRESS
-    LEVELDB_PATH = '%sdatabase.session' % STORAGE_ADDRESS
+    LEVELDB_INDEX_PATH = '%sindex' % STORAGE_ADDRESS
+    BLOCKS_PATH = '%sblocks' % STORAGE_ADDRESS
