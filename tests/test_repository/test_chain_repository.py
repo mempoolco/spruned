@@ -2,12 +2,12 @@ from aiodiskdb import ItemLocation
 
 from spruned import networks
 from spruned.application.tools import blockheader_to_blockhash
-from spruned.repositories.repository_types import Block
+from spruned.repositories.repository_types import Block, BlockHeader
 from . import RepositoryTestCase
 
 
 class TestChainRepository(RepositoryTestCase):
-    async def test(self):
+    async def test_genesis(self, stop_db=True):
         await self._run_diskdb()
         genesis_block = bytes.fromhex(networks.bitcoin.regtest['genesis_block'])
         initialize_response = await self.sut.initialize(
@@ -22,7 +22,67 @@ class TestChainRepository(RepositoryTestCase):
         self.assertEqual(initialize_response.height, 0)
         self.assertEqual(initialize_response.hash, blockheader_to_blockhash(genesis_block))
         get_block_response = await self.sut.get_block_hash(0)
-        self.assertEqual(get_block_response, initialize_response.hash.hex())
+        self.assertEqual(get_block_response, initialize_response.hash)
         get_best_height_response = await self.sut.get_best_height()
         self.assertEqual(get_best_height_response, 0)
-        await self.diskdb.stop()
+        get_header_response = await self.sut.get_header(
+            bytes.fromhex(blockheader_to_blockhash(networks.bitcoin.regtest['genesis_block']))
+        )
+        expected_header = BlockHeader(
+            data=b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                 b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00;\xa3\xed\xfdz{\x12\xb2z\xc7,>gv\x8fa\x7f' +
+                 b'\xc8\x1b\xc3\x88\x8aQ2:\x9f\xb8\xaaK\x1e^J\xda\xe5IM\xff\xff\x7f \x02\x00\x00\x00',
+            height=0,
+            hash=b'\x0f\x91\x88\xf1<\xb7\xb2\xc7\x1f*3^:O\xc3(\xbf[\xebC`\x12\xaf\xcaY\x0b\x1a\x11Fn"\x06'
+        )
+        self.assertEqual(len(expected_header.data), 80)
+        self.assertEqual(expected_header, get_header_response)
+        self._init_leveldb()
+        initialize_response_2 = await self.sut.initialize(
+            Block(
+                data=genesis_block,
+                hash=blockheader_to_blockhash(genesis_block),
+                height=0
+            )
+        )
+        self.assertEqual(initialize_response_2, initialize_response)
+        if stop_db:
+            await self.diskdb.stop()
+
+    async def test_save_headers(self):
+        headers = [
+            BlockHeader(
+                data=b'\x00\x00\x00 \x06"nF\x11\x1a\x0bY\xca\xaf\x12`C\xeb[\xbf(\xc3O:^3*\x1f\xc7\xb2\xb7<\xf1'
+                     b'\x88\x91\x0f\xb3D\x97\xc7Ca\xc5\xa0\xcb*b\x93V\x05\xb8\x88K\x8d\xc1MY\xe4\xd9\x13l'
+                     b'\xc9WK@\x85\xae\xdf\x8b\xb0\x01\\\xff\xff\x7f \x00\x00\x00\x00',
+                height=1,
+                hash=b'>\x1cG|\xc6\x9d\x0275$\xc7\x07\xa6\xba\xfc=F\x04\x07\xea\x86\xd1w\xc5\x17\xdb\r\xe3\xb2,p\xfd'
+            ),
+            BlockHeader(
+                data=b'\x00\x00\x00 \xfdp,\xb2\xe3\r\xdb\x17\xc5w\xd1\x86\xea\x07\x04F=\xfc\xba\xa6\x07\xc7$57'
+                     b'\x02\x9d\xc6|G\x1c>\x08\xba\x1ey\xea\xb2z\x1e\xfb\x8e\xa7\x12Z\x95\x00\x1c\x95\xad\x12!D'
+                     b'\xb8u;\x96<\xf7\xa84\x87\xf9/\x8c\xb0\x01\\\xff\xff\x7f \x01\x00\x00\x00',
+                height=2,
+                hash=b'Ee\xc6\x05\xdb\xc2\xf3\x02-7\xbf\x93\x9d\xcb\x014BF\xe5aL\x01\x1b\xeeBuIn\xa9k\xa8\x82'
+            ), BlockHeader(
+                data=b'\x00\x00\x00 \x82\xa8k\xa9nIuB\xee\x1b\x01La\xe5FB4\x01\xcb\x9d\x93\xbf7-\x02\xf3\xc2'
+                     b'\xdb\x05\xc6eEx\x8d\xdaj\xde\x00!#\x1d\xeeZ\xcfi\x89\x85\x9eIb\xab(0\xc9\x82\xe5\x81'
+                     b'\xf4x\xb4\x97%\x87\xb1\x8c\xb0\x01\\\xff\xff\x7f \x01\x00\x00\x00',
+                height=3,
+                hash=b"D\xc3\x155\xe0y\xa6Q\xf9>\x19B\x15\xe1\xcc6\x85'&l\xe2\xf5\xf2\x14O\xa4\xd57\xe19n;"
+            )
+        ]
+        await self.test_genesis(stop_db=False)
+        saved_headers = await self.sut.save_headers(headers)
+        self.assertEqual(headers, saved_headers)
+        self.assertEqual(3, await self.sut.get_best_height())
+
+        headers.insert(0, await self.sut.get_header(
+            bytes.fromhex(blockheader_to_blockhash(networks.bitcoin.regtest['genesis_block']))
+        ))
+        for height in range(0, 4):
+            block_hash_response = await self.sut.get_block_hash(height)
+            self.assertEqual(headers[height].hash, block_hash_response)
+            get_header_response = await self.sut.get_header(block_hash_response)
+            self.assertEqual(headers[height].hash, get_header_response.hash)
+            self.assertEqual(headers[height], get_header_response)

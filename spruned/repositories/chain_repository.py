@@ -57,31 +57,6 @@ class BlockchainRepository:
         batch_session = self.leveldb.write_batch()
         genesis_block.location = await self.diskdb.add(genesis_block.data)
         self._ensure_brand_new_db(batch_session)
-        self._initialize_genesis_block(genesis_block, batch_session)
-        batch_session.put(
-            self._get_db_key(DBPrefix.DB_VERSION),
-            self.CURRENT_VERSION.to_bytes(2, 'little')
-        )
-        batch_session.write()
-        await self.diskdb.flush()
-        return genesis_block
-
-    async def _ensure_genesis_block(self, genesis_block: Block):
-        key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, int(0).to_bytes(4, 'little'))
-        current_genesis_hash = self.leveldb.get(key)
-        expected_genesis_hash = blockheader_to_blockhash(genesis_block.data)
-        if current_genesis_hash != expected_genesis_hash:
-            raise exceptions.DatabaseInconsistencyException('invalid genesis hash stored')
-        location = self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_block.hash)
-        if not location:
-            raise exceptions.DatabaseInconsistencyException('inconsistency db exception on diskdb')
-        block_bytes = await self.diskdb.read(ItemLocation.deserialize(location))
-        if blockheader_to_blockhash(block_bytes) != genesis_block.hash:
-            raise exceptions.DatabaseInconsistencyException('inconsistency db exception on hash')
-        genesis_block.location = location
-        return genesis_block
-
-    def _initialize_genesis_block(self, genesis_block: Block, batch_session: plyvel.DB) -> None:
         genesis_block_height = int(0).to_bytes(4, 'little')
         genesis_header = genesis_block.data[:80]
         genesis_hash = blockheader_to_blockhash(genesis_header)
@@ -97,9 +72,33 @@ class BlockchainRepository:
             self._get_db_key(DBPrefix.BEST_HEIGHT), genesis_block_height
         )
         batch_session.put(
-            self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_header),
+            self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_hash),
             genesis_block.location.serialize()
         )
+        batch_session.put(
+            self._get_db_key(DBPrefix.DB_VERSION),
+            self.CURRENT_VERSION.to_bytes(2, 'little')
+        )
+        batch_session.write()
+        await self.diskdb.flush()
+        return genesis_block
+
+    async def _ensure_genesis_block(self, genesis_block: Block):
+        key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, int(0).to_bytes(4, 'little'))
+        current_genesis_hash = self.leveldb.get(key)
+        expected_genesis_hash = blockheader_to_blockhash(genesis_block.data)
+        if current_genesis_hash != expected_genesis_hash:
+            raise exceptions.DatabaseInconsistencyException('invalid genesis hash stored')
+        location = self.leveldb.get(
+            self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_block.hash)
+        )
+        if not location:
+            raise exceptions.DatabaseInconsistencyException('inconsistency db exception on diskdb')
+        block_bytes = await self.diskdb.read(ItemLocation.deserialize(location))
+        if not block_bytes or blockheader_to_blockhash(block_bytes) != genesis_block.hash:
+            raise exceptions.DatabaseInconsistencyException('inconsistency db exception on hash')
+        genesis_block.location = ItemLocation.deserialize(location)
+        return genesis_block
 
     @staticmethod
     def _get_db_key(prefix: DBPrefix, name: bytes = b''):
@@ -120,7 +119,9 @@ class BlockchainRepository:
         """
         best_header = self._get_best_header()
         if best_header.hash != headers[0].prev_block_header:
-            raise exceptions.DatabaseInconsistencyException
+            raise exceptions.DatabaseInconsistencyException('hash')
+        if best_header.height != headers[0].height - 1:
+            raise exceptions.DatabaseInconsistencyException('height')
         batch_session = self.leveldb.write_batch()
         saved_headers = []
         last_header = None
@@ -136,31 +137,35 @@ class BlockchainRepository:
         return saved_headers
 
     def _save_header(self, header: BlockHeader, batch_session: plyvel.DB) -> BlockHeader:
-        header_key = self._get_db_key(DBPrefix.HEADER, header.hash)
-        header_height = header.height.to_bytes(4, 'little')
-        height_key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, header_height)
-        batch_session.put(header_key, header.data)
-        batch_session.put(height_key, header.hash)
+        assert header.height
+        height = int(header.height).to_bytes(4, 'little')
+        batch_session.put(
+            self._get_db_key(DBPrefix.HEADERS_INDEX, header.hash),
+            header.data + height
+        )
+        batch_session.put(
+            self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, header.height.to_bytes(4, 'little')),
+            header.hash
+        )
         return header
 
-    async def get_header(self, blockhash: str, verbose=True) -> BlockHeader:
+    async def get_header(self, blockhash: bytes) -> BlockHeader:
         return await self.loop.run_in_executor(
             self.executor,
             self._get_header,
-            bytes.fromhex(blockhash),
-            verbose
+            blockhash
         )
 
     def _get_header(self, blockhash: bytes) -> BlockHeader:
-        key = self._get_db_key(DBPrefix.HEADER, blockhash)
+        key = self._get_db_key(DBPrefix.HEADERS_INDEX, blockhash)
         data = self.leveldb.get(key)
         if not data:
-            raise exceptions.DatabaseDataNotFoundException
-        if len(data) in (84,):
-            header = data[:80]
-            height = int.from_bytes(header[80:], 'little')
-        else:
+            raise exceptions.DatabaseDataNotFoundException(blockhash)
+        print('get', data)
+        if len(data) not in (84,):
             raise exceptions.DatabaseInconsistencyException
+        header = data[:80]
+        height = int.from_bytes(data[80:], 'little')
         return BlockHeader(
             data=header,
             height=height,
@@ -195,12 +200,11 @@ class BlockchainRepository:
             headers.append(n_header)
         return headers
 
-    async def get_header_at_height(self, height: int, verbose: bool = True):
+    async def get_header_at_height(self, height: int) -> BlockHeader:
         return await self.loop.run_in_executor(
             self.executor,
             self._get_header_at_height,
-            height.to_bytes(4, 'little'),
-            verbose
+            height.to_bytes(4, 'little')
         )
 
     def _get_header_at_height(self, height: bytes) -> BlockHeader:
@@ -242,7 +246,7 @@ class BlockchainRepository:
 
         return height
 
-    async def get_block_hash(self, height: int):
+    async def get_block_hash(self, height: int) -> bytes:
         resp = (
             await self.loop.run_in_executor(
                 self.executor,
@@ -250,7 +254,7 @@ class BlockchainRepository:
                 height.to_bytes(4, 'little')
             )
         )
-        return resp and resp.hex()
+        return resp
 
     def _get_block_hash(self, height: bytes):
         key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, height)
