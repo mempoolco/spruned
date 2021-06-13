@@ -232,7 +232,7 @@ class P2PConnection(BaseConnection):
         return
 
     async def _verify_peer(self, version_data: typing.Dict):
-        if self.best_header and self.best_header['block_height'] - version_data['last_block_index'] > 5:
+        if self.best_header and self.best_header['height'] - version_data['last_block_index'] > 5:
             Logger.p2p.debug('Disconnecting peer %s:%s: PeerBlockchainBehindException', self.hostname, self.port)
             await self.disconnect()
             raise exceptions.PeerBlockchainBehindException

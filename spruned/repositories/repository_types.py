@@ -14,6 +14,13 @@ class BlockHeader:
     def prev_block_hash(self):
         return self.data and self.data[4:36][::-1]
 
+    def as_dict(self):
+        return {
+            'data': self.data,
+            'height': self.height,
+            'hash': self.hash
+        }
+
 
 @dataclass
 class Block:

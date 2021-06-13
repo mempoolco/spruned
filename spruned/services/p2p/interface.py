@@ -59,7 +59,7 @@ class P2PInterface:
         for connection in self.pool.connections:
             if connection.last_block_index and connection.last_block_index < header.height:
                 self.loop.create_task(self._check_connection_sync(connection, header))
-        self.pool.set_local_current_header(header)
+        self.pool.set_local_current_header(header.as_dict())
 
     def get_free_slots(self) -> int:
         try:

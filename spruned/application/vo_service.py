@@ -196,7 +196,7 @@ class VOService(RPCAPIService):
             elif _best_header.height == header.height + 1:
                 next_block_hash = _best_header.hash
             else:
-                _next_header = self.repository.blockchain.get_header_at_height(header.height + 1)
+                _next_header = await self.repository.blockchain.get_header_at_height(header.height + 1)
                 next_block_hash = _next_header.hash
             res = self._serialize_header(header, next_block_hash=next_block_hash)
             res["confirmations"] = _best_header.height - header.height + 1
@@ -252,13 +252,13 @@ class VOService(RPCAPIService):
         from spruned import __version__ as spruned_version
         from spruned import __bitcoind_version_emulation__ as bitcoind_version
         best_header = await self.repository.blockchain.get_best_header()
-        _deserialized_header = deserialize_header(best_header['header_bytes'])
+        _deserialized_header = deserialize_header(best_header.data)
         return {
             "chain": self.network_rules['chain'],
             "warning": "spruned %s, emulating bitcoind v%s" % (spruned_version, bitcoind_version),
-            "blocks": best_header["block_height"],
-            "blockchain": best_header["block_height"],
-            "bestblockhash": best_header["block_hash"],
+            "blocks": best_header.height,
+            "blockchain": best_header.height,
+            "bestblockhash": best_header.hash.hex(),
             "difficulty": 0,
             "chainwork": '00'*32,
             "mediantime": _deserialized_header["timestamp"],

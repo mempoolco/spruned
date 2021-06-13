@@ -228,7 +228,7 @@ class BlocksReactor:
 
         self._pending_blocks and await self._check_pending_blocks()
         head = await self._repo.blockchain.get_best_header()
-        start_fetch_from_height = self._get_first_block_to_fetch(head['block_height'])
+        start_fetch_from_height = self._get_first_block_to_fetch(head.height)
         if start_fetch_from_height is None:
             return self._reschedule_fetch_blocks(1)
 
@@ -305,7 +305,7 @@ class BlocksReactor:
                 continue
             fetching_blocks.append(block_height)
             i += 1
-        block_hashes = await asyncio.gather(
+        block_hashes: typing.Sequence[bytes] = await asyncio.gather(
             *map(
                 self._repo.blockchain.get_block_hash,
                 fetching_blocks
@@ -315,9 +315,8 @@ class BlocksReactor:
             height, blockhash = height_and_hash
             if not blockhash:
                 break
-            blockhash_bytes = bytes.fromhex(blockhash)
             try:
-                await self._request_block(blockhash_bytes, height)
+                await self._request_block(blockhash, height)
             except NoConnectionsAvailableException:
                 await asyncio.sleep(0.1)
                 break

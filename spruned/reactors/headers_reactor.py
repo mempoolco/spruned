@@ -113,7 +113,7 @@ class HeadersReactor:
         match_headers = self._best_chain[pos-1:]
         if any(
             filter(
-                lambda h: str(h[0].prev_block_hash) != h[1].hash,
+                lambda h: h[0].prev_block_hash != h[1].hash,
                 zip(headers, match_headers)
             )
         ):
@@ -182,8 +182,8 @@ class HeadersReactor:
             )
             await self._handle_new_headers(new_headers)
             connection.add_success(score=2)  # ack & reward
-        except exceptions.HeadersInconsistencyException:
-            raise ValueError  # fixme - wait wait, let's do the happy path...
+        except exceptions.HeadersInconsistencyException as e:
+            raise ValueError from e  # fixme - wait wait, let's do the happy path...
         except exceptions.InvalidConsensusRulesException:
             Logger.p2p.exception('Connection %s has invalid blocks, asking for disconnection', connection)
             await connection.disconnect()
