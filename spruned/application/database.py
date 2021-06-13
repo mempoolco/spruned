@@ -1,6 +1,4 @@
 import plyvel
-from aiodiskdb import AioDiskDB
-
 from spruned import settings
 
 BRAND_NEW_DB_PLACEHOLDER = b'brand_new_db'
@@ -22,13 +20,6 @@ def init_ldb_storage(leveldb_path: str):
         )
         _storage_ldb.put(BRAND_NEW_DB_PLACEHOLDER, BRAND_NEW_DB_PLACEHOLDER)
     return _storage_ldb
-
-
-def init_disk_db(diskdb_path: str):
-    return AioDiskDB(
-        diskdb_path,
-        create_if_not_exists=True
-    )
 
 
 def erase_ldb_storage():

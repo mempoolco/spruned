@@ -1,5 +1,3 @@
-from aiodiskdb import ItemLocation
-
 from spruned import networks
 from spruned.application import exceptions
 from spruned.application.tools import blockheader_to_blockhash
@@ -9,7 +7,6 @@ from . import RepositoryTestCase
 
 class TestChainRepository(RepositoryTestCase):
     async def test_genesis(self, stop_db=True):
-        await self._run_diskdb()
         genesis_block = bytes.fromhex(networks.bitcoin.regtest['genesis_block'])
         initialize_response = await self.sut.initialize(
             Block(
@@ -18,7 +15,6 @@ class TestChainRepository(RepositoryTestCase):
                 height=0
             )
         )
-        self.assertEqual(initialize_response.location, ItemLocation(0, 0, 285))
         self.assertEqual(initialize_response.data, genesis_block)
         self.assertEqual(initialize_response.height, 0)
         self.assertEqual(initialize_response.hash, blockheader_to_blockhash(genesis_block))
