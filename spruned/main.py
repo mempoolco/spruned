@@ -1,8 +1,7 @@
 from spruned.builder import headers_reactor, jsonrpc_server, p2p_interface, blocks_reactor, repository
 
 
-async def main_task(loop):  # pragma: no cover
-    await repository.run()
+async def main_task(loop):  # pragma: no cover)
     loop.create_task(jsonrpc_server.start())
     loop.create_task(p2p_interface.start())
     loop.create_task(headers_reactor.start())

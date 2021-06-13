@@ -7,10 +7,7 @@ BRAND_NEW_DB_PLACEHOLDER = b'brand_new_db'
 
 
 def init_ldb_storage(leveldb_path: str):
-    leveldb_settings = dict(
-        compression=None,
-        block_size=16 * 1024 * 1024
-    )
+    leveldb_settings = dict(compression=None)
     try:
         _storage_ldb = plyvel.DB(
             leveldb_path,

@@ -7,7 +7,6 @@ import typing
 from functools import partial
 
 import plyvel
-from aiodiskdb import AioDiskDB, ItemLocation
 
 from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
@@ -28,10 +27,8 @@ class BlockchainRepository:
 
     def __init__(
         self,
-        diskdb: AioDiskDB,
         leveldb: plyvel.DB
     ):
-        self.diskdb = diskdb
         self.leveldb = leveldb
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=64)
@@ -56,7 +53,6 @@ class BlockchainRepository:
     async def _save_genesis_block(self, genesis_block: Block):
         assert isinstance(genesis_block, Block)
         batch_session = self.leveldb.write_batch()
-        genesis_block.location = await self.diskdb.add(genesis_block.data)
         self._ensure_brand_new_db(batch_session)
         genesis_block_height = int(0).to_bytes(4, 'little')
         genesis_header = genesis_block.data[:80]
@@ -74,14 +70,13 @@ class BlockchainRepository:
         )
         batch_session.put(
             self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_hash),
-            genesis_block.location.serialize()
+            genesis_block.data
         )
         batch_session.put(
             self._get_db_key(DBPrefix.DB_VERSION),
             self.CURRENT_VERSION.to_bytes(2, 'little')
         )
         batch_session.write()
-        await self.diskdb.flush()
         return genesis_block
 
     async def _ensure_genesis_block(self, genesis_block: Block):
@@ -90,15 +85,11 @@ class BlockchainRepository:
         expected_genesis_hash = blockheader_to_blockhash(genesis_block.data)
         if current_genesis_hash != expected_genesis_hash:
             raise exceptions.DatabaseInconsistencyException('invalid genesis hash stored')
-        location = self.leveldb.get(
+        block_bytes = self.leveldb.get(
             self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_block.hash)
         )
-        if not location:
-            raise exceptions.DatabaseInconsistencyException('inconsistency db exception on diskdb')
-        block_bytes = await self.diskdb.read(ItemLocation.deserialize(location))
         if not block_bytes or blockheader_to_blockhash(block_bytes) != genesis_block.hash:
             raise exceptions.DatabaseInconsistencyException('inconsistency db exception on hash')
-        genesis_block.location = ItemLocation.deserialize(location)
         return genesis_block
 
     @staticmethod
@@ -296,49 +287,40 @@ class BlockchainRepository:
     async def save_block(self, block: Block) -> Block:
         if block.height > self._best_header.height:
             raise exceptions.DatabaseInconsistencyException('cannot save a block > header')
-
-        block.location = await self.diskdb.add(block.data)
         await self.loop.run_in_executor(
             self.executor,
             partial(self._save_block, block, self.leveldb)
         )
-        await self.diskdb.flush()
         return block
 
     def _save_block(self, block: Block, batch_session: plyvel.DB) -> Block:
         batch_session.put(
             self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
-            block.location.serialize()
+            block.data
         )
         return block
 
     async def save_blocks(self, blocks: typing.Iterable[Block]) -> typing.List[Block]:
         start = time.time()
-        transaction = await self.diskdb.transaction()
-        for block in blocks:
-            transaction.add(block.data)
-        locations = await transaction.commit()
         res = await self.loop.run_in_executor(
             self.executor,
             self._save_blocks,
-            blocks, locations
+            blocks
         )
         Logger.repository.debug('Saved %s blocks in %s', len(res), time.time() - start)
         return res
 
     def _save_blocks(
             self,
-            blocks: typing.Iterable[Block],
-            locations: typing.List[ItemLocation]
+            blocks: typing.Iterable[Block]
     ) -> typing.List[Block]:
         batch_session = self.leveldb.write_batch()
         response = []
         for i, block in enumerate(blocks):
             batch_session.put(
                 self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
-                locations[i].serialize()
+                block.data
             )
-            block.location = locations[i]
             response.append(self._save_block(block, batch_session))
         s = time.time()
         batch_session.write()
@@ -346,30 +328,28 @@ class BlockchainRepository:
         return response
 
     async def get_block(self, block_hash: bytes) -> typing.Optional[Block]:
-        get_data_resp = (
+        response = (
             await self.loop.run_in_executor(
                 self.executor,
-                self._get_block_location,
+                self._get_block,
                 block_hash
             )
         )
-        if not get_data_resp:
+        if not response:
             return
-        location, height = get_data_resp
-        block_data = await self.diskdb.read(ItemLocation.deserialize(location))
+        block_data, height = response
         return Block(
             hash=block_hash,
             data=block_data,
-            height=height,
-            location=location
+            height=height
         )
 
-    def _get_block_location(self, block_hash: bytes) -> (bytes, int):
-        block_location = self.leveldb.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
-        if block_location is None:
+    def _get_block(self, block_hash: bytes) -> (bytes, int):
+        block_data = self.leveldb.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
+        if block_data is None:
             return
         block_heaader_and_height = self.leveldb.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
         if block_heaader_and_height is None:
             return
         assert len(block_heaader_and_height) == 84
-        return block_location, int.from_bytes(block_heaader_and_height[80:], 'little')
+        return block_data, int.from_bytes(block_heaader_and_height[80:], 'little')

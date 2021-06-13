@@ -27,7 +27,6 @@ class Block:
     hash: bytes
     data: bytes
     height: int
-    location: typing.Optional[ItemLocation] = None
 
     @property
     def header(self):
