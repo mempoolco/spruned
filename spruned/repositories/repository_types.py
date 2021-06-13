@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 import typing
-from aiodiskdb import ItemLocation
 
 
 @dataclass
