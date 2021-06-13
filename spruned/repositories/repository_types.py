@@ -11,7 +11,7 @@ class BlockHeader:
     hash: bytes
 
     @property
-    def prev_block_header(self):
+    def prev_block_hash(self):
         return self.data and self.data[4:36][::-1]
 
 

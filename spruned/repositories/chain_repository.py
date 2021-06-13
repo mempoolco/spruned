@@ -105,7 +105,7 @@ class BlockchainRepository:
         assert isinstance(name, bytes)
         return b'%s:%s' % (int.to_bytes(prefix.value, 2, "big"), name)
 
-    async def save_headers(self, headers: typing.List[Block]):
+    async def save_headers(self, headers: typing.List[BlockHeader]):
         resp = await self.loop.run_in_executor(
             self.executor,
             self._save_headers,
@@ -118,7 +118,7 @@ class BlockchainRepository:
         append only storage, accept only headers subsequent to the existing stored.
         """
         best_header = self._get_best_header()
-        if best_header.hash != headers[0].prev_block_header:
+        if best_header.hash != headers[0].prev_block_hash:
             raise exceptions.DatabaseInconsistencyException('hash')
         if best_header.height != headers[0].height - 1:
             raise exceptions.DatabaseInconsistencyException('height')
@@ -149,19 +149,18 @@ class BlockchainRepository:
         )
         return header
 
-    async def get_header(self, blockhash: bytes) -> BlockHeader:
+    async def get_header(self, blockhash: bytes) -> typing.Optional[BlockHeader]:
         return await self.loop.run_in_executor(
             self.executor,
             self._get_header,
             blockhash
         )
 
-    def _get_header(self, blockhash: bytes) -> BlockHeader:
+    def _get_header(self, blockhash: bytes) -> typing.Optional[BlockHeader]:
         key = self._get_db_key(DBPrefix.HEADERS_INDEX, blockhash)
         data = self.leveldb.get(key)
         if not data:
-            raise exceptions.DatabaseDataNotFoundException(blockhash)
-        print('get', data)
+            return
         if len(data) not in (84,):
             raise exceptions.DatabaseInconsistencyException
         header = data[:80]
@@ -172,11 +171,11 @@ class BlockchainRepository:
             hash=blockhash
         )
 
-    def get_headers(self, start_hash: str):
+    def get_headers(self, start_hash: bytes):
         return self.loop.run_in_executor(
             self.executor,
             self._get_headers,
-            bytes.fromhex(start_hash)
+            start_hash
         )
 
     def _get_headers(self, start_hash: bytes) -> typing.List[BlockHeader]:
@@ -193,7 +192,7 @@ class BlockchainRepository:
             )
             if not n_header:
                 break
-            assert cur_hash == n_header.hash, (cur_hash, n_header)
+            assert cur_hash == n_header.prev_block_hash, (cur_hash, n_header.hash, n_header.height)
             assert n_header.height == cur_height + 1
             cur_hash = n_header.hash
             cur_height = n_header.height
@@ -261,19 +260,19 @@ class BlockchainRepository:
         block_hash = self.leveldb.get(key)
         return block_hash and block_hash
 
-    async def get_best_block_hash(self):
+    async def get_best_block_hash(self) -> bytes:
         return (
             await self.loop.run_in_executor(
                 self.executor,
                 self._get_best_block_hash
             )
-        ).hex()
+        )
 
     def _get_best_block_hash(self):
         best_height = self._get_best_height()
         return self._get_block_hash(best_height)
 
-    async def get_block_hashes_in_range(self, start_from_height: int, limit: int):
+    async def get_block_hashes_in_range(self, start_from_height: int, limit: int) -> typing.List[bytes]:
         return await self.loop.run_in_executor(
             self.executor,
             self._get_block_hashes_in_range,
@@ -284,27 +283,23 @@ class BlockchainRepository:
 
     def _get_block_hashes_in_range(
             self, start_from_height: int, limit: int, serialize: bool
-    ) -> typing.Iterable[typing.Optional[str]]:
+    ) -> typing.List[typing.Optional[bytes]]:
         def fn(_h):
             res = self._get_block_hash(int.to_bytes(_h, 4, 'little'))
             if res and serialize:
-                return res.hex()
+                return res
             return res
 
-        return list(map(fn, range(start_from_height, start_from_height + limit)))
+        return list(map(fn, range(start_from_height, start_from_height + 1 + limit)))
 
-    async def save_block(
-            self, block: Block, batch_session: typing.Optional[plyvel.DB] = None
-    ) -> Block:
-        session = batch_session or self.leveldb
+    async def save_block(self, block: Block) -> Block:
+        if block.height > self._best_header.height:
+            raise exceptions.DatabaseInconsistencyException('cannot save a block > header')
+
         block.location = await self.diskdb.add(block.data)
         await self.loop.run_in_executor(
             self.executor,
-            partial(
-                self._save_block,
-                block,
-                batch_session=session
-            )
+            partial(self._save_block, block, self.leveldb)
         )
         await self.diskdb.flush()
         return block
@@ -342,8 +337,38 @@ class BlockchainRepository:
                 self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
                 locations[i].serialize()
             )
+            block.location = locations[i]
             response.append(self._save_block(block, batch_session))
         s = time.time()
         batch_session.write()
         Logger.repository.debug('Blocks batch saved in %s', time.time() - s)
         return response
+
+    async def get_block(self, block_hash: bytes) -> typing.Optional[Block]:
+        get_data_resp = (
+            await self.loop.run_in_executor(
+                self.executor,
+                self._get_block_location,
+                block_hash
+            )
+        )
+        if not get_data_resp:
+            return
+        location, height = get_data_resp
+        block_data = await self.diskdb.read(ItemLocation.deserialize(location))
+        return Block(
+            hash=block_hash,
+            data=block_data,
+            height=height,
+            location=location
+        )
+
+    def _get_block_location(self, block_hash: bytes) -> (bytes, int):
+        block_location = self.leveldb.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
+        if block_location is None:
+            return
+        block_heaader_and_height = self.leveldb.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
+        if block_heaader_and_height is None:
+            return
+        assert len(block_heaader_and_height) == 84
+        return block_location, int.from_bytes(block_heaader_and_height[80:], 'little')
