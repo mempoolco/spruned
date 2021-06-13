@@ -1,0 +1,2 @@
+class FetchHeadersResponse(dict):
+    pass

@@ -12,6 +12,7 @@ from spruned.application.tools import deserialize_header, script_to_scripthash, 
     ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
+from spruned.repositories.repository_types import BlockHeader
 from spruned.services.exceptions import ElectrumMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
@@ -180,27 +181,35 @@ class VOService(RPCAPIService):
             pass
         return res
 
-    async def getblockhash(self, blockheight: int):
-        return await self.repository.blockchain.get_block_hash(blockheight)
+    async def getblockhash(self, blockheight: int) -> str:
+        resp = await self.repository.blockchain.get_block_hash(blockheight)
+        return resp and resp.hex()
 
     async def getblockheader(self, blockhash: str, verbose=True):
-        header = await self.repository.blockchain.get_header(blockhash)
+        header = await self.repository.blockchain.get_header(bytes.fromhex(blockhash))
         if not header:
             return
         if verbose:
             _best_header = await self.repository.blockchain.get_best_header()
-            res = self._serialize_header(header)
-            res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
+            if _best_header.height == header.height:
+                next_block_hash = None
+            elif _best_header.height == header.height + 1:
+                next_block_hash = _best_header.hash
+            else:
+                _next_header = self.repository.blockchain.get_header_at_height(header.height + 1)
+                next_block_hash = _next_header.hash
+            res = self._serialize_header(header, next_block_hash=next_block_hash)
+            res["confirmations"] = _best_header.height - header.height + 1
         else:
-            res = binascii.hexlify(header['header_bytes']).decode()
+            res = header.data.hex()
         return res
 
     @staticmethod
-    def _serialize_header(header):
-        _deserialized_header = deserialize_header(header['header_bytes'], fmt='hex')
+    def _serialize_header(header: BlockHeader, next_block_hash: bytes = None):
+        _deserialized_header = deserialize_header(header.data, fmt='hex')
         return {
             "hash": _deserialized_header['hash'],
-            "height": header['block_height'],
+            "height": header.height,
             "version": _deserialized_header['version'],
             "versionHex": "",
             "merkleroot": _deserialized_header['merkle_root'],
@@ -211,7 +220,7 @@ class VOService(RPCAPIService):
             "difficulty": 0,
             "chainwork": '00'*32,
             "previousblockhash": _deserialized_header['prev_block_hash'],
-            "nextblockhash": header.get('next_block_hash')
+            "nextblockhash": next_block_hash and next_block_hash.hex()
         }
 
     async def getblockcount(self) -> int:

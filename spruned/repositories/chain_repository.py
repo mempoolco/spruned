@@ -54,6 +54,7 @@ class BlockchainRepository:
             return await self._ensure_genesis_block(genesis_block)
 
     async def _save_genesis_block(self, genesis_block: Block):
+        assert isinstance(genesis_block, Block)
         batch_session = self.leveldb.write_batch()
         genesis_block.location = await self.diskdb.add(genesis_block.data)
         self._ensure_brand_new_db(batch_session)
@@ -245,7 +246,7 @@ class BlockchainRepository:
 
         return height
 
-    async def get_block_hash(self, height: int) -> bytes:
+    async def get_block_hash(self, height: int) -> typing.Optional[bytes]:
         resp = (
             await self.loop.run_in_executor(
                 self.executor,
@@ -255,10 +256,10 @@ class BlockchainRepository:
         )
         return resp
 
-    def _get_block_hash(self, height: bytes):
+    def _get_block_hash(self, height: bytes) -> typing.Optional[bytes]:
         key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, height)
         block_hash = self.leveldb.get(key)
-        return block_hash and block_hash
+        return block_hash
 
     async def get_best_block_hash(self) -> bytes:
         return (

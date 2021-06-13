@@ -7,8 +7,8 @@ from aiodiskdb import ItemLocation
 @dataclass
 class BlockHeader:
     data: bytes
-    height: int
     hash: bytes
+    height: typing.Optional[int] = None
 
     @property
     def prev_block_hash(self):
