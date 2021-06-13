@@ -8,6 +8,7 @@ from pycoin.serialize import h2b_rev
 from spruned.application import consensus
 from spruned.application.context import ctx
 from spruned.application.logging_factory import Logger
+from spruned.repositories.repository_types import BlockHeader
 from spruned.services import exceptions
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.connectionpool import P2PConnectionPool
@@ -25,8 +26,7 @@ class P2PInterface:
             connection_pool: P2PConnectionPool,
             loop=asyncio.get_event_loop(),
             network=MAINNET,
-            peers_bootstrapper=utils.dns_bootstrap_servers,
-            mempool_repository=None
+            peers_bootstrapper=utils.dns_bootstrap_servers
     ):
         self.pool: P2PConnectionPool = connection_pool
         self._on_connect_callbacks = []
@@ -34,12 +34,11 @@ class P2PInterface:
         self.network = network
         self._bootstrap_status = 0
         self._get_peers_from_seed = peers_bootstrapper
-        self.mempool = mempool_repository
 
     def is_connected(self):
         return bool(len(self.pool.established_connections))
 
-    async def on_peer_disagreement(self, local_header: typing.Dict, peer: P2PConnection):
+    async def on_peer_disagreement(self, local_header: BlockHeader, peer: P2PConnection):
         pass  # TODO FIXME
         """
         - track disagreements
@@ -47,18 +46,20 @@ class P2PInterface:
         """
 
     @async_retry(retries=2, wait=0.1, on_exception=exceptions.RetryException)
-    async def _check_connection_sync(self, connection: P2PConnection, header: typing.Dict):
+    async def _check_connection_sync(self, connection: P2PConnection, header: BlockHeader):
+        assert isinstance(header, BlockHeader)
         headers = await connection.fetch_headers_blocking(
-            header['prev_block_hash'],
-            stop_at_hash=header['block_hash']
+            header.prev_block_hash,
+            stop_at_hash=header.hash
         )
         pass
 
-    def set_local_current_header(self, header: typing.Dict):
+    def set_local_current_header(self, header: BlockHeader):
+        assert isinstance(header, BlockHeader)
         for connection in self.pool.connections:
-            if connection.last_block_index and connection.last_block_index < header['block_height']:
+            if connection.last_block_index and connection.last_block_index < header.height:
                 self.loop.create_task(self._check_connection_sync(connection, header))
-        self.pool.set_local_current_header(header)
+        self.pool.set_local_current_header(header.as_dict())
 
     def get_free_slots(self) -> int:
         try:
@@ -136,8 +137,8 @@ class P2PInterface:
 
     async def get_headers_after_hash(
             self,
-            *start_from_hash: str,
-            stop_at_hash: typing.Optional[str] = None,
+            *start_from_hash: bytes,
+            stop_at_hash: typing.Optional[bytes] = None,
             connection: typing.Optional[P2PConnection] = None
     ):
         connection: P2PConnection = connection or self.pool.get_connection(use_busy=True)

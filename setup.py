@@ -43,5 +43,5 @@ setup(
             'spruned = spruned.app:main'
         ]
     },
-    include_package_data=True
+    include_package_data=True,
 )

@@ -1,17 +1,12 @@
 import asyncio
 import binascii
-import io
 import itertools
-import time
-
-from pycoin.block import Block
-from pycoin.tx.Tx import Tx
-
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, \
     ElectrumMerkleVerify, is_address
 from spruned.application import exceptions
 from spruned.application.abstracts import RPCAPIService
+from spruned.repositories.repository_types import BlockHeader
 from spruned.services.exceptions import ElectrumMissingResponseException
 from spruned.dependencies.pybitcointools import deserialize
 
@@ -41,91 +36,21 @@ class VOService(RPCAPIService):
     def available(self):
         raise NotImplementedError
 
-    async def get_block_object(self, blockhash: str):
-        block_header = self.repository.blockchain.get_block_header(blockhash)
-        if not block_header:
-            return
-        block = await self._get_block(block_header)
-        return await Block.from_bin(block['header_bytes'] + block['block_bytes'])
-
     async def getblock(self, blockhash: str, mode: int = 1):
-        start = time.time()
-        if mode == 2:
+        if mode in (1, 2):
             raise NotImplementedError
-        block_header = await self.repository.blockchain.get_header(blockhash)
+        block_header = await self.repository.blockchain.get_header(bytes.fromhex(blockhash))
         if not block_header:
             return
-        if mode == 1:
-            block_size, transaction_ids = await self.repository.blockchain.get_block_size_and_transaction_ids(
-                block_header['block_hash']
-            )
-            if transaction_ids:
-                block = self._serialize_header(block_header)
-                block.update({
-                    'tx': transaction_ids,
-                    'size': block_size
-                })
-                best_header = await self.repository.blockchain.get_best_header()
-                block['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
-                Logger.p2p.info(
-                    'Verbose block %s (%s) provided from local storage in %ss)',
-                    block_header['block_height'],
-                    blockhash,
-                    '{:.4f}'.format(time.time() - start)
-                )
-                return block
-            p2p_block = await self._get_block(block_header, verbose=True)
-            Logger.p2p.info(
-                'Verbose block %s (%s) provided from P2P in %ss)',
-                block_header['block_height'],
-                blockhash,
-                '{:.4f}'.format(time.time() - start)
-            )
-            return p2p_block['verbose']
-        else:
-            block_size, transactions = await self.repository.blockchain.get_transactions_by_block_hash(
-                blockhash
-            )
-            if transactions:
-                Logger.p2p.info(
-                    'Raw block %s (%s) provided from local storage in %ss)',
-                    block_header['block_height'],
-                    blockhash,
-                    '{:.4f}'.format(time.time() - start)
-                )
+        block = await self.repository.blockchain.get_block(block_header.hash)
+        if not block:
+            block = await self._get_block_from_p2p(block_header)
+        return block.data.hex()
 
-                block = Block.parse(io.BytesIO(block_header['header_bytes']), include_transactions=False)
-                block.set_txs([Tx.from_bin(t['transaction_bytes']) for t in transactions])
-                return block.as_hex()
-
-            p2p_block = await self._get_block(block_header)
-            Logger.p2p.info(
-                'Raw block %s (%s) provided from P2P in %ss)',
-                block_header['block_height'],
-                blockhash,
-                '{:.4f}'.format(time.time() - start)
-            )
-            return binascii.hexlify(p2p_block['block_bytes']).decode()
-
-    async def _make_verbose_block(self, block: dict, block_header) -> dict:
-        block_data = block['header_bytes'] + block['block_bytes']
-        block_object = Block.from_bin(block_data)
-        serialized = self._serialize_header(block_header or deserialize_header(block['header_bytes']))
-        serialized['tx'] = [tx.id() for tx in block_object.txs]
-        serialized['size'] = len(block_data)
-        return serialized
-
-    async def _get_block(self, blockheader, verbose=False):
-        blockhash = blockheader['block_hash']
-        block = await self.p2p_interface.get_block(blockhash)
+    async def _get_block_from_p2p(self, block_hash: bytes):
+        block = await self.p2p_interface.get_block(block_hash)
         if not block:
             raise exceptions.ServiceException
-
-        if verbose and not block.get('verbose'):
-            block['verbose'] = await self._make_verbose_block(block, blockheader)
-        #self.loop.create_task(
-        #    self.repository.blockchain.save_block(block)
-        #)
         return block
 
     async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):
@@ -180,27 +105,35 @@ class VOService(RPCAPIService):
             pass
         return res
 
-    async def getblockhash(self, blockheight: int):
-        return await self.repository.blockchain.get_block_hash(blockheight)
+    async def getblockhash(self, blockheight: int) -> str:
+        resp = await self.repository.blockchain.get_block_hash(blockheight)
+        return resp and resp.hex()
 
     async def getblockheader(self, blockhash: str, verbose=True):
-        header = await self.repository.blockchain.get_header(blockhash)
+        header = await self.repository.blockchain.get_header(bytes.fromhex(blockhash))
         if not header:
             return
         if verbose:
             _best_header = await self.repository.blockchain.get_best_header()
-            res = self._serialize_header(header)
-            res["confirmations"] = _best_header['block_height'] - header['block_height'] + 1
+            if _best_header.height == header.height:
+                next_block_hash = None
+            elif _best_header.height == header.height + 1:
+                next_block_hash = _best_header.hash
+            else:
+                _next_header = await self.repository.blockchain.get_header_at_height(header.height + 1)
+                next_block_hash = _next_header.hash
+            res = self._serialize_header(header, next_block_hash=next_block_hash)
+            res["confirmations"] = _best_header.height - header.height + 1
         else:
-            res = binascii.hexlify(header['header_bytes']).decode()
+            res = header.data.hex()
         return res
 
     @staticmethod
-    def _serialize_header(header):
-        _deserialized_header = deserialize_header(header['header_bytes'], fmt='hex')
+    def _serialize_header(header: BlockHeader, next_block_hash: bytes = None):
+        _deserialized_header = deserialize_header(header.data, fmt='hex')
         return {
             "hash": _deserialized_header['hash'],
-            "height": header['block_height'],
+            "height": header.height,
             "version": _deserialized_header['version'],
             "versionHex": "",
             "merkleroot": _deserialized_header['merkle_root'],
@@ -211,7 +144,7 @@ class VOService(RPCAPIService):
             "difficulty": 0,
             "chainwork": '00'*32,
             "previousblockhash": _deserialized_header['prev_block_hash'],
-            "nextblockhash": header.get('next_block_hash')
+            "nextblockhash": next_block_hash and next_block_hash.hex()
         }
 
     async def getblockcount(self) -> int:
@@ -243,13 +176,13 @@ class VOService(RPCAPIService):
         from spruned import __version__ as spruned_version
         from spruned import __bitcoind_version_emulation__ as bitcoind_version
         best_header = await self.repository.blockchain.get_best_header()
-        _deserialized_header = deserialize_header(best_header['header_bytes'])
+        _deserialized_header = deserialize_header(best_header.data)
         return {
             "chain": self.network_rules['chain'],
             "warning": "spruned %s, emulating bitcoind v%s" % (spruned_version, bitcoind_version),
-            "blocks": best_header["block_height"],
-            "blockchain": best_header["block_height"],
-            "bestblockhash": best_header["block_hash"],
+            "blocks": best_header.height,
+            "blockchain": best_header.height,
+            "bestblockhash": best_header.hash.hex(),
             "difficulty": 0,
             "chainwork": '00'*32,
             "mediantime": _deserialized_header["timestamp"],

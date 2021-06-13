@@ -68,6 +68,7 @@ class P2PConnectionPool(BaseConnectionPool):
         return self._proxy
 
     def set_local_current_header(self, value: typing.Dict):
+        assert isinstance(value, dict)
         self._local_header = value
 
     @property

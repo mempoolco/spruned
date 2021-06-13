@@ -163,7 +163,7 @@ if sys.version > '3.5.2':  # pragma: no cover
         def start():  # pragma: no cover
             from spruned.application.logging_factory import Logger
             from spruned.builder import repository
-
+            main_loop = asyncio.get_event_loop()
             repository.initialize()
 
             if args.daemon:
@@ -171,7 +171,7 @@ if sys.version > '3.5.2':  # pragma: no cover
                       ' future versions. Use an init script, instead.\n'
                 Logger.root.warning(MSG)
             Logger.root.debug('Arguments: %s', args)
-            main_loop = asyncio.get_event_loop()
+
             main_loop.create_task(main_task(main_loop))
             main_loop.run_forever()
 

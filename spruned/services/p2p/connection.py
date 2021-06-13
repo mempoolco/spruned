@@ -232,7 +232,7 @@ class P2PConnection(BaseConnection):
         return
 
     async def _verify_peer(self, version_data: typing.Dict):
-        if self.best_header and self.best_header['block_height'] - version_data['last_block_index'] > 5:
+        if self.best_header and self.best_header['height'] - version_data['last_block_index'] > 5:
             Logger.p2p.debug('Disconnecting peer %s:%s: PeerBlockchainBehindException', self.hostname, self.port)
             await self.disconnect()
             raise exceptions.PeerBlockchainBehindException
@@ -371,36 +371,35 @@ class P2PConnection(BaseConnection):
         except AttributeError:
             await self.disconnect()
 
-    async def getheaders(self, *start_from_hash: str, stop_at_hash: typing.Optional[str] = None):
+    async def getheaders(self, *start_from_hash: bytes, stop_at_hash: typing.Optional[bytes] = None):
         self.add_request()
         if stop_at_hash is not None:
-            assert len(stop_at_hash) == 64
+            assert len(stop_at_hash) == 32
 
         for x in start_from_hash:
-            assert len(x) == 64, x
+            assert len(x) == 32, x
         self.peer.send_msg(
             "getheaders",
             version=70015,
             hash_count=len(start_from_hash),
-            hashes=[bytes.fromhex(s)[::-1] for s in start_from_hash],
-            hash_stop=bytes.fromhex(stop_at_hash or '0'*64)
+            hashes=[s[::-1] for s in start_from_hash],
+            hash_stop=stop_at_hash or bytes.fromhex('0'*64)
         )
 
-    async def fetch_headers_blocking(self, *start_from_hash: str, stop_at_hash: str):
+    async def fetch_headers_blocking(self, *start_from_hash: bytes, stop_at_hash: bytes):
         self.add_request()
         if stop_at_hash is not None:
-            assert len(stop_at_hash) == 64, stop_at_hash
+            assert len(stop_at_hash) == 32, stop_at_hash
 
         for x in start_from_hash:
-            assert len(x) == 64, x
+            assert len(x) == 32, x
         return await self.peer_event_handler.get(
             "getheaders",
-            start_from_hash[0],
+            start_from_hash[0].hex(),
             dict(
                 version=70015,
                 hash_count=len(start_from_hash),
-                hashes=[bytes.fromhex(s)[::-1] for s in start_from_hash],
-                hash_stop=bytes.fromhex(stop_at_hash)
+                hashes=[s[::-1] for s in start_from_hash],
+                hash_stop=stop_at_hash
             )
         )
-
