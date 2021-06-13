@@ -1,12 +1,6 @@
 import asyncio
 import binascii
-import io
 import itertools
-import time
-
-from pycoin.block import Block
-from pycoin.tx.Tx import Tx
-
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import deserialize_header, script_to_scripthash, \
     ElectrumMerkleVerify, is_address
@@ -42,91 +36,21 @@ class VOService(RPCAPIService):
     def available(self):
         raise NotImplementedError
 
-    async def get_block_object(self, blockhash: str):
-        block_header = self.repository.blockchain.get_block_header(blockhash)
-        if not block_header:
-            return
-        block = await self._get_block(block_header)
-        return await Block.from_bin(block['header_bytes'] + block['block_bytes'])
-
     async def getblock(self, blockhash: str, mode: int = 1):
-        start = time.time()
-        if mode == 2:
+        if mode in (1, 2):
             raise NotImplementedError
-        block_header = await self.repository.blockchain.get_header(blockhash)
+        block_header = await self.repository.blockchain.get_header(bytes.fromhex(blockhash))
         if not block_header:
             return
-        if mode == 1:
-            block_size, transaction_ids = await self.repository.blockchain.get_block_size_and_transaction_ids(
-                block_header['block_hash']
-            )
-            if transaction_ids:
-                block = self._serialize_header(block_header)
-                block.update({
-                    'tx': transaction_ids,
-                    'size': block_size
-                })
-                best_header = await self.repository.blockchain.get_best_header()
-                block['confirmations'] = best_header['block_height'] - block_header['block_height'] + 1
-                Logger.p2p.info(
-                    'Verbose block %s (%s) provided from local storage in %ss)',
-                    block_header['block_height'],
-                    blockhash,
-                    '{:.4f}'.format(time.time() - start)
-                )
-                return block
-            p2p_block = await self._get_block(block_header, verbose=True)
-            Logger.p2p.info(
-                'Verbose block %s (%s) provided from P2P in %ss)',
-                block_header['block_height'],
-                blockhash,
-                '{:.4f}'.format(time.time() - start)
-            )
-            return p2p_block['verbose']
-        else:
-            block_size, transactions = await self.repository.blockchain.get_transactions_by_block_hash(
-                blockhash
-            )
-            if transactions:
-                Logger.p2p.info(
-                    'Raw block %s (%s) provided from local storage in %ss)',
-                    block_header['block_height'],
-                    blockhash,
-                    '{:.4f}'.format(time.time() - start)
-                )
+        block = await self.repository.blockchain.get_block(block_header.hash)
+        if not block:
+            block = await self._get_block_from_p2p(block_header)
+        return block.data.hex()
 
-                block = Block.parse(io.BytesIO(block_header['header_bytes']), include_transactions=False)
-                block.set_txs([Tx.from_bin(t['transaction_bytes']) for t in transactions])
-                return block.as_hex()
-
-            p2p_block = await self._get_block(block_header)
-            Logger.p2p.info(
-                'Raw block %s (%s) provided from P2P in %ss)',
-                block_header['block_height'],
-                blockhash,
-                '{:.4f}'.format(time.time() - start)
-            )
-            return binascii.hexlify(p2p_block['block_bytes']).decode()
-
-    async def _make_verbose_block(self, block: dict, block_header) -> dict:
-        block_data = block['header_bytes'] + block['block_bytes']
-        block_object = Block.from_bin(block_data)
-        serialized = self._serialize_header(block_header or deserialize_header(block['header_bytes']))
-        serialized['tx'] = [tx.id() for tx in block_object.txs]
-        serialized['size'] = len(block_data)
-        return serialized
-
-    async def _get_block(self, blockheader, verbose=False):
-        blockhash = blockheader['block_hash']
-        block = await self.p2p_interface.get_block(blockhash)
+    async def _get_block_from_p2p(self, block_hash: bytes):
+        block = await self.p2p_interface.get_block(block_hash)
         if not block:
             raise exceptions.ServiceException
-
-        if verbose and not block.get('verbose'):
-            block['verbose'] = await self._make_verbose_block(block, blockheader)
-        #self.loop.create_task(
-        #    self.repository.blockchain.save_block(block)
-        #)
         return block
 
     async def _get_electrum_transaction(self, txid: str, verbose=False, retries=0):

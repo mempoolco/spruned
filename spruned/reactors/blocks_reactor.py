@@ -6,6 +6,8 @@ from concurrent.futures.process import ProcessPoolExecutor
 from spruned.application import consensus, exceptions
 from spruned.application.logging_factory import Logger
 from spruned.reactors.headers_reactor import HeadersReactor
+from spruned.reactors.reactor_types import DeserializedBlock
+from spruned.repositories.repository_types import Block
 from spruned.services.exceptions import NoConnectionsAvailableException
 from spruned.services.p2p.block_deserializer import deserialize_block
 from spruned.services.p2p.connection import P2PConnection
@@ -61,25 +63,30 @@ class BlocksReactor:
         block_size_in_queue_mul = 2  # block are enqueued with utxo indexing, causing a double ram occupation
         blocks = await self._blocks_queue.get()
         await self._repo.blockchain.save_blocks(blocks)
-        self._size_items_in_queue -= sum(map(lambda x: x['size'] * block_size_in_queue_mul, blocks))
-        self._persisted_block_height = blocks[-1]['height']
+        self._size_items_in_queue -= sum(map(lambda x: x.size * block_size_in_queue_mul, blocks))
+        self._persisted_block_height = blocks[-1].height
         await asyncio.sleep(0.01)
         self._loop.create_task(self._save_blocks_to_disk())
 
-    async def _deserialize_block(self, block: typing.Dict):
+    async def _deserialize_block(self, block: typing.Dict) -> typing.Optional[DeserializedBlock]:
         size = 0
         try:
             block_bytes = block['header_bytes'] + block['data'].read()
             size = len(block_bytes)
             self._processing_blocks_size += size
             item = await self._loop.run_in_executor(
-                self._executor,
-                deserialize_block,
-                block_bytes
+                self._executor, deserialize_block, block_bytes
             )
             if not item['success']:
                 return
-            return item['data']
+            return DeserializedBlock(
+                block=Block(
+                    hash=item['data'].pop('hash'),
+                    data=block_bytes,
+                    height=block['block_height'],
+                ),
+                deserialized=item['data']
+            )
         except (GeneratorExit, TypeError):
             Logger.p2p.warning('Error deserializing block')
             return
@@ -107,7 +114,6 @@ class BlocksReactor:
         return self._interface.is_connected()
 
     async def on_block(self, connection: P2PConnection, block: typing.Dict):
-
         if block['block_hash'] in self._blocks_sizes_by_hash:
             return
         if block['block_hash'] in self._pending_blocks or self._pending_blocks_no_answer:
@@ -142,16 +148,16 @@ class BlocksReactor:
             self._remove_processing_height(height)
             return
 
-        deserialized_block['height'] = height
+        deserialized_block.block.height = height
         block_merkle_root = consensus.get_merkle_root(
-            list(map(lambda x: x['hash'], deserialized_block['txs']))
+            list(map(lambda x: x['hash'], deserialized_block.deserialized['txs']))
         )
-        if block_merkle_root != deserialized_block['merkle_root']:
+        if block_merkle_root != deserialized_block.deserialized['merkle_root']:
             connection.add_error(score_penalty=10)
             raise exceptions.BlockMerkleRootValidationFailedException
 
-        self._blocks_to_save[height] = deserialized_block
-        self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block['size']
+        self._blocks_to_save[height] = deserialized_block.block
+        self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block.block.size
         self._remove_processing_height(height)
         connection.add_success()
 
@@ -165,7 +171,7 @@ class BlocksReactor:
         for _h in sorted(list(self._blocks_to_save)):
             if _h <= self._local_current_block_height:
                 block = self._blocks_to_save.pop(_h)
-                self._blocks_sizes_by_hash.pop(block['hash'])
+                self._blocks_sizes_by_hash.pop(block.hash)
             elif not contiguous and _h == self._local_current_block_height + 1:
                 contiguous.append(_h)
             elif contiguous and _h == contiguous[-1] + 1:
@@ -184,15 +190,15 @@ class BlocksReactor:
         for block_height in contiguous:
             block = self._blocks_to_save.pop(block_height)
             blocks_to_save.append(block)
-            self._blocks_sizes_by_hash.pop(block['hash'])
-            current_size += block['size'] * block_size_in_queue_mul
+            self._blocks_sizes_by_hash.pop(block.hash)
+            current_size += block.size * block_size_in_queue_mul
             if current_size > self._job_queue_max_size:
                 await self._blocks_queue.put(blocks_to_save)
                 blocks_to_save = []
                 self._size_items_in_queue += current_size
                 current_size = 0
         blocks_to_save and await self._blocks_queue.put(blocks_to_save)
-        self._size_items_in_queue += sum(map(lambda x: x['size'] * block_size_in_queue_mul, blocks_to_save))
+        self._size_items_in_queue += sum(map(lambda x: x.size * block_size_in_queue_mul, blocks_to_save))
 
     async def start(self, *a, **kw):
         assert not self._started
@@ -286,7 +292,7 @@ class BlocksReactor:
             blocks_buffer_size = sum(self._blocks_sizes_by_hash.values() or (0, ))
             total_buffer_size = self._size_items_in_queue + blocks_buffer_size + self._processing_blocks_size
             max_pending_height = self._blocks_to_save and max(
-                map(lambda b: b['height'], self._blocks_to_save.values())
+                map(lambda b: b.height, self._blocks_to_save.values())
             ) or 0
             if total_buffer_size > self._max_blocks_buffer_bytes and \
                     (not max_pending_height or block_height > max_pending_height):

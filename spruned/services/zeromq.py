@@ -112,7 +112,7 @@ def build_zmq(ctx, mempool_observer, headers_reactor: HeadersReactor, mempool_st
     async def processblock(data, retries=0):
         blockhash = data['block_hash']
         try:
-            block = await vo_service.get_block_object(blockhash)
+            block = await vo_service.get_block(bytes.fromhex(blockhash))
         except exceptions.NoPeersException:
             if retries < 10:
                 await asyncio.sleep(10)

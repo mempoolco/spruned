@@ -37,3 +37,6 @@ class Block:
             hash=self.hash
         )
 
+    @property
+    def size(self):
+        return len(self.data)

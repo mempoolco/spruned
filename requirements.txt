@@ -1,4 +1,4 @@
-aiodiskdb==0.2.2
+aiodiskdb==0.2.4a1
 aiohttp==3.7.4Z
 aiohttp-socks==0.6.0
 async-timeout==3.0.1
