@@ -20,7 +20,11 @@ def builder(ctx: Context):  # pragma: no cover
         p2p_interface
     )
     blocks_reactor = BlocksReactor(
-        headers_reactor, repository, p2p_interface, keep_blocks_relative=ctx.keep_blocks
+        headers_reactor,
+        repository,
+        p2p_interface,
+        keep_blocks_relative=ctx.keep_blocks_relative,
+        keep_blocks_absolute=ctx.keep_blocks_absolute
     )
     service = vo_service.VOService(
         electrum_interface,

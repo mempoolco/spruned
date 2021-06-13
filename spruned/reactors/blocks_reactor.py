@@ -23,20 +23,20 @@ class BlocksReactor:
         interface: P2PInterface,
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
-        keep_block_absolute=None,
+        keep_blocks_absolute=None,
         block_fetch_timeout=5,
         deserialize_workers=4,
         max_blocks_buffer_megabytes=50
     ):
 
-        assert keep_blocks_relative is None or keep_block_absolute is None  # one must be none
+        assert keep_blocks_relative is None or keep_blocks_absolute is None  # one must be none
 
         self._repo = repository
         self._interface = interface
         self._loop = loop or asyncio.get_event_loop()
         self._headers = headers_reactor
         self._keep_blocks_relative = keep_blocks_relative
-        self._keep_blocks_absolute = 650000
+        self._keep_blocks_absolute = keep_blocks_absolute
         self._pending_blocks = dict()
         self._pending_blocks_no_answer = dict()
         self._pending_heights = set()

@@ -26,7 +26,8 @@ class Context(dict):
                     'network': 'bitcoin.mainnet',
                     'debug': False,
                     'cache_size': 50,
-                    'keep_blocks': 6,
+                    'keep_blocks_relative': None,
+                    'keep_blocks_absolute': None,
                     'proxy': None,
                     'tor': False,
                     'no_dns_seed': False,
@@ -48,7 +49,7 @@ class Context(dict):
 
     def load_config(self):
         values = {
-            'i': ['cache_size', 'keep_blocks', 'rpcport'],
+            'i': ['cache_size', 'keep_blocks_relative', 'keep_blocks_absolute', 'rpcport'],
             'b': ['debug']
         }
         import os
@@ -91,8 +92,12 @@ class Context(dict):
         return self._get_param('debug')
 
     @property
-    def keep_blocks(self):
-        return int(self._get_param('keep_blocks') or 6)
+    def keep_blocks_relative(self):
+        return self._get_param('keep_blocks_relative')
+
+    @property
+    def keep_blocks_absolute(self):
+        return self._get_param('keep_blocks_absolute')
 
     @property
     def mempool_size(self):
@@ -169,7 +174,8 @@ class Context(dict):
             'network': args.network,
             'debug': args.debug,
             'cache_size': int(args.cache_size),
-            'keep_blocks': int(args.keep_blocks),
+            'keep_blocks_relative': args.keep_blocks_relative,
+            'keep_blocks_absolute': args.keep_blocks_absolute,
             'proxy': args.proxy,
             'tor': args.tor,
             'no_dns_seed': args.no_dns_seed,
@@ -188,9 +194,12 @@ class Context(dict):
         self.apply_context()
 
     def _get_param(self, key):
-        return self['args'].get(key, None) or \
-               self['configfile'].get(key, None) or \
-               self['default'].get(key, None)
+        r = self['args'].get(key, None)
+        if r is None:
+            r = self['configfile'].get(key, None)
+        if r is None:
+            r = self['default'].get(key, None)
+        return r
 
     def apply_context(self):
         if self.tor:
