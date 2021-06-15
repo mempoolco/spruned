@@ -332,15 +332,13 @@ class BlockchainRepository:
         current_local_chain_height = self.local_chain_height
         batch_session = self.leveldb.write_batch()
         response = []
-        headers = self._get_headers(blocks[0].hash, blocks[-1].hash)
         for i, block in enumerate(blocks):
-            if block.header.data != headers[i].data:
-                raise exceptions.DatabaseInconsistencyException('Headers != Blocks')
+            if block.height > self._best_header.height:
+                raise exceptions.DatabaseInconsistencyException('Blocks > Headers')
             batch_session.put(
                 self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
                 len(block.data).to_bytes(4, 'little')
             )
-            self._disk_db.add(block)
             response.append(block)
             if block.height - 1:
                 assert block.height == current_local_chain_height + 1
