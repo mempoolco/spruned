@@ -339,6 +339,7 @@ class BlockchainRepository:
                 self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
                 len(block.data).to_bytes(4, 'little')
             )
+            self._disk_db.add(block)
             response.append(block)
             if block.height - 1:
                 assert block.height == current_local_chain_height + 1
@@ -381,12 +382,10 @@ class BlockchainRepository:
         block_len = self.leveldb.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
         if block_len is None:
             return
+        block_header_and_height = self.leveldb.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
         block_len = block_len and int.from_bytes(block_len, 'little')
         block_data = self._disk_db.get_block(block_hash)
-        if len(block_data) != block_len:
+        if len(block_data) != block_len or not block_header_and_height:
             raise exceptions.DatabaseInconsistencyException('inconsistency in blocks storage')
-        block_header_and_height = self.leveldb.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
-        if block_header_and_height is None:
-            return
         assert len(block_header_and_height) == 84
         return block_data, int.from_bytes(block_header_and_height[80:], 'little')
