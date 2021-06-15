@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
-
 import typing
-
 from spruned.repositories.repository_types import Block
 
 
@@ -18,6 +16,10 @@ class BlocksDiskDB:
     @staticmethod
     def _get_block_file(path: Path, block_hash: bytes) -> str:
         return f'{str(path)}/{block_hash.hex()}.dat'
+
+    @staticmethod
+    def _get_block_revert_file(path: Path, block_hash: bytes) -> str:
+        return f'{str(path)}/{block_hash.hex()}-rev.dat'
 
     def add(self, *blocks: Block):
         for block in blocks:
@@ -44,6 +46,6 @@ class BlocksDiskDB:
             return
         return tx_data
 
-    def remove(self, *block_hash: bytes):
+    def remove_block(self, *block_hash: bytes):
         for block_hash in block_hash:
             os.remove(path=self._get_block_file(self._get_block_path(block_hash), block_hash))

@@ -52,6 +52,8 @@ import hashlib
 import re
 import binascii
 
+import typing
+
 string_types = str
 string_or_bytes_types = (str, bytes)
 int_types = (int, float)
@@ -321,3 +323,49 @@ def safe_hexlify(a):
 
 def bin_dbl_sha256(s):
     return hashlib.sha256(hashlib.sha256(s).digest()).digest()
+
+
+def deserialize_script(script: bytes) -> typing.List[bytes]:
+    out, pos = [], 0
+    while pos < len(script):
+        code = script[pos]
+        if code == 0:
+            out.append(None)
+            pos += 1
+        elif code <= 75:
+            out.append(script[pos+1:pos+1+code])
+            pos += 1 + code
+        elif code <= 78:
+            sz_sz = pow(2, code - 76)
+            sz = decode(script[pos+sz_sz: pos:-1], 256)
+            out.append(script[pos + 1 + sz_sz:pos + 1 + sz_sz + sz])
+            pos += 1 + sz_sz + sz
+        elif code <= 96:
+            out.append(code - 80)
+            pos += 1
+        else:
+            out.append(code)
+            pos += 1
+    return out
+
+
+def serialize_script_unit(unit: bytes):
+    if unit is None:
+        return b'\x00'
+    elif isinstance(unit, int):
+        return from_int_to_byte(unit + 80) if unit < 16 else from_int_to_byte(unit)
+    elif len(unit) <= 75:
+        return from_int_to_byte(len(unit))+unit
+    elif len(unit) < 256:
+        return from_int_to_byte(76)+from_int_to_byte(len(unit))+unit
+    elif len(unit) < 65536:
+        return from_int_to_byte(77)+encode(len(unit), 256, 2)[::-1]+unit
+    else:
+        return from_int_to_byte(78)+encode(len(unit), 256, 4)[::-1]+unit
+
+
+def serialize_script(script: typing.List[bytes]) -> bytes:
+    result = bytes()
+    for b in map(serialize_script_unit, script):
+        result += b if isinstance(b, bytes) else bytes(b, 'utf-8')
+    return result

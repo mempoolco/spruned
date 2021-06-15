@@ -24,5 +24,8 @@ BLOCKS_PATH = '/tmp/%s-test.blocks' % binascii.hexlify(os.urandom(8))
 if not TESTING:
     STORAGE_ADDRESS = '%s/storage/' % ctx.datadir
     LOGFILE = '%s/spruned.log' % ctx.datadir
-    LEVELDB_INDEX_PATH = '%sindex' % STORAGE_ADDRESS
-    BLOCKS_PATH = '%sblocks' % STORAGE_ADDRESS
+    LEVELDB_INDEX_PATH = '%sblockchain/index' % STORAGE_ADDRESS
+    BLOCKS_PATH = '%sblockchain/blocks' % STORAGE_ADDRESS
+    UTXO_INDEX_PATH = '%utxo/index' % STORAGE_ADDRESS
+    UTXO_REV_STATE_PATH = '%utxo/revstate' % STORAGE_ADDRESS
+

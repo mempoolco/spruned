@@ -32,7 +32,7 @@ class BlockchainRepository:
     ):
         self.leveldb = leveldb
         self.loop = asyncio.get_event_loop()
-        self.executor = ThreadPoolExecutor(max_workers=64)
+        self.executor = ThreadPoolExecutor(max_workers=32)
         self._best_header = None
         self._local_chain_height = None
         self._disk_db = diskdb
