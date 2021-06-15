@@ -16,7 +16,7 @@ from spruned.services.p2p.types import P2PInvItemResponse
 from spruned.dependencies.pycoinnet.peer import Peer, ProtocolError
 from spruned.dependencies.pycoinnet.networks import MAINNET, Network
 from spruned.dependencies.pycoinnet.pycoin.inv_item import ITEM_TYPE_TX, InvItem, ITEM_TYPE_BLOCK, \
-    ITEM_TYPE_SEGWIT_BLOCK, ITEM_TYPE_MERKLEBLOCK
+    ITEM_TYPE_SEGWIT_BLOCK
 from spruned.dependencies.pycoinnet.version import make_local_version, NODE_NONE, NODE_WITNESS
 
 

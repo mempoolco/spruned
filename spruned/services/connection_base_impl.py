@@ -45,7 +45,7 @@ class BaseConnection(ConnectionAbstract, metaclass=abc.ABCMeta):
         self._pending_tasks = dict()
         self._received_data_size = []
         self._bandwidth_monitor_timeframe = 30
-        self._max_bandwidth_per_second = 250
+        self._max_bandwidth_per_second = 2000
         self._task_timeout = 2000000 / self._max_bandwidth_per_second
         self.available = False
 

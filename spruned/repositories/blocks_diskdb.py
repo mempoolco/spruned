@@ -12,7 +12,7 @@ class BlocksDiskDB:
         self._shard = 1000
 
     def _get_block_path(self, block_hash: bytes) -> Path:
-        path = self.path / str(int.from_bytes(block_hash, 'little') % self._shard)
+        path = self.path / str(int.from_bytes(block_hash, 'big') % self._shard)
         return path
 
     @staticmethod
