@@ -1,9 +1,6 @@
 import asyncio
-import signal
-import time
 
 from spruned.application import ioc
-from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash
 from spruned.repositories.chain_repository import BlockchainRepository
 
@@ -12,6 +9,7 @@ class Repository:
     def __init__(self, blockchain_repository):
         self._blockchain_repository = blockchain_repository
         self.leveldb = None
+        self.diskdb = None
         self.loop = asyncio.get_event_loop()
 
     @property
@@ -20,9 +18,10 @@ class Repository:
 
     @classmethod
     def instance(cls):  # pragma: no cover
-        blockchain_repository = BlockchainRepository(ioc.blockchain_level_db)
+        blockchain_repository = BlockchainRepository(ioc.blockchain_level_db, ioc.blockchain_disk_db)
         i = cls(blockchain_repository)
         i.leveldb = ioc.blockchain_level_db
+        i.diskdb = ioc.blockchain_disk_db
         return i
 
     def initialize(self):

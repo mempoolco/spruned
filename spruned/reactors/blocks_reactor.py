@@ -249,10 +249,11 @@ class BlocksReactor:
         return self._reschedule_fetch_blocks(0.01)
 
     def _get_first_block_to_fetch(self, head: int) -> typing.Optional[int]:
+        local_current_height = self._repo.blockchain.local_chain_height
         if self._keep_blocks_relative is not None:
             return max(
                 max(1, head - self._keep_blocks_relative + 1),  # enforce min block 1 (genesis block is hardcoded)
-                self._local_current_block_height or 0
+                0
             )
         else:
             m = max(self._keep_blocks_absolute, self._local_current_block_height or 1)

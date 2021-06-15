@@ -4,14 +4,13 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 
 import typing
-from functools import partial
-
 import plyvel
 
 from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash
-from spruned.repositories.repository_types import Block, BlockHeader
+from spruned.repositories.blocks_diskdb import BlocksDiskDB
+from spruned.repositories.repository_types import Block, BlockHeader, INT4_MAX
 
 
 class DBPrefix(Enum):
@@ -20,6 +19,7 @@ class DBPrefix(Enum):
     HEADERS_INDEX = 3
     BLOCKHASH_BY_HEIGHT = 4
     BEST_HEIGHT = 5
+    LOCAL_CHAIN_HEIGHT = 7
 
 
 class BlockchainRepository:
@@ -27,12 +27,25 @@ class BlockchainRepository:
 
     def __init__(
         self,
-        leveldb: plyvel.DB
+        leveldb: plyvel.DB,
+        diskdb: BlocksDiskDB
     ):
         self.leveldb = leveldb
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=64)
         self._best_header = None
+        self._local_chain_height = None
+        self._disk_db = diskdb
+        self._save_blocks_lock = asyncio.Lock()
+
+    @property
+    def local_chain_height(self):
+        if self._local_chain_height is None:
+            height = self.leveldb.get(
+                self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT)
+            )
+            self._local_chain_height = height and int.from_bytes(height, 'little')
+        return self._local_chain_height
 
     def _ensure_brand_new_db(self, batch_session: plyvel.DB):
         from spruned.application.database import BRAND_NEW_DB_PLACEHOLDER
@@ -69,9 +82,13 @@ class BlockchainRepository:
             self._get_db_key(DBPrefix.BEST_HEIGHT), genesis_block_height
         )
         batch_session.put(
-            self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_hash),
-            genesis_block.data
+            self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT), genesis_block_height
         )
+        batch_session.put(
+            self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_hash),
+            len(genesis_block.data).to_bytes(4, 'little')
+        )
+        self._disk_db.add(genesis_block)
         batch_session.put(
             self._get_db_key(DBPrefix.DB_VERSION),
             self.CURRENT_VERSION.to_bytes(2, 'little')
@@ -85,9 +102,13 @@ class BlockchainRepository:
         expected_genesis_hash = blockheader_to_blockhash(genesis_block.data)
         if current_genesis_hash != expected_genesis_hash:
             raise exceptions.DatabaseInconsistencyException('invalid genesis hash stored')
-        block_bytes = self.leveldb.get(
+        block_len = self.leveldb.get(
             self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_block.hash)
         )
+        block_len = block_len and int.from_bytes(block_len, 'little')
+        block_bytes = self._disk_db.get_block(genesis_block.hash) or b''
+        if block_len != len(block_bytes):
+            raise exceptions.DatabaseInconsistencyException('blocks storage inconsistency')
         if not block_bytes or blockheader_to_blockhash(block_bytes) != genesis_block.hash:
             raise exceptions.DatabaseInconsistencyException('inconsistency db exception on hash')
         return genesis_block
@@ -163,14 +184,15 @@ class BlockchainRepository:
             hash=blockhash
         )
 
-    def get_headers(self, start_hash: bytes):
+    def get_headers(self, start_hash: bytes, stop_hash: typing.Optional[bytes] = None):
         return self.loop.run_in_executor(
             self.executor,
             self._get_headers,
-            start_hash
+            start_hash,
+            stop_hash
         )
 
-    def _get_headers(self, start_hash: bytes) -> typing.List[BlockHeader]:
+    def _get_headers(self, start_hash: bytes, stop_hash: typing.Optional[bytes]) -> typing.List[BlockHeader]:
         headers = []
         header = self._get_header(start_hash)
         if not header:
@@ -189,6 +211,8 @@ class BlockchainRepository:
             cur_hash = n_header.hash
             cur_height = n_header.height
             headers.append(n_header)
+            if n_header.hash == stop_hash:
+                break
         return headers
 
     async def get_header_at_height(self, height: int) -> BlockHeader:
@@ -232,6 +256,9 @@ class BlockchainRepository:
         return self._get_header_at_height(best_height)
 
     def _save_best_height(self, height: int, batch_session: plyvel.DB):
+        """
+        Save the best HEADER height.
+        """
         key = self._get_db_key(DBPrefix.BEST_HEIGHT)
         batch_session.put(key, height.to_bytes(4, 'little'))
 
@@ -284,45 +311,53 @@ class BlockchainRepository:
 
         return list(map(fn, range(start_from_height, start_from_height + 1 + limit)))
 
-    async def save_block(self, block: Block) -> Block:
-        if block.height > self._best_header.height:
-            raise exceptions.DatabaseInconsistencyException('cannot save a block > header')
-        await self.loop.run_in_executor(
-            self.executor,
-            partial(self._save_block, block, self.leveldb)
-        )
-        return block
-
-    def _save_block(self, block: Block, batch_session: plyvel.DB) -> Block:
-        batch_session.put(
-            self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
-            block.data
-        )
-        return block
-
     async def save_blocks(self, blocks: typing.Iterable[Block]) -> typing.List[Block]:
-        start = time.time()
-        res = await self.loop.run_in_executor(
-            self.executor,
-            self._save_blocks,
-            blocks
-        )
-        Logger.repository.debug('Saved %s blocks in %s', len(res), time.time() - start)
-        return res
+        try:
+            await self._save_blocks_lock.acquire()
+            start = time.time()
+            res = await self.loop.run_in_executor(
+                self.executor,
+                self._save_blocks,
+                blocks
+            )
+            Logger.repository.debug('Saved %s blocks in %s', len(res), time.time() - start)
+            return res
+        finally:
+            self._save_blocks_lock.release()
 
     def _save_blocks(
             self,
-            blocks: typing.Iterable[Block]
+            blocks: typing.List[Block]
     ) -> typing.List[Block]:
+        current_local_chain_height = self.local_chain_height
         batch_session = self.leveldb.write_batch()
         response = []
+        headers = self._get_headers(blocks[0].hash, blocks[-1].hash)
         for i, block in enumerate(blocks):
+            if block.header.data != headers[i].data:
+                raise exceptions.DatabaseInconsistencyException('Headers != Blocks')
             batch_session.put(
                 self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
-                block.data
+                len(block.data).to_bytes(4, 'little')
             )
-            response.append(self._save_block(block, batch_session))
+            self._disk_db.add(block)
+            response.append(block)
+            if block.height - 1:
+                assert block.height == current_local_chain_height + 1
+            if not block.height - 1 or (
+                    current_local_chain_height != INT4_MAX and
+                    current_local_chain_height == block.height - 1
+            ):
+                current_local_chain_height = block.height
+            else:
+                current_local_chain_height = INT4_MAX
         s = time.time()
+        if current_local_chain_height != self.local_chain_height:
+            batch_session.put(
+                self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT),
+                current_local_chain_height.to_bytes(4, 'little')
+            )
+            self._local_chain_height = current_local_chain_height
         batch_session.write()
         Logger.repository.debug('Blocks batch saved in %s', time.time() - s)
         return response
@@ -345,11 +380,15 @@ class BlockchainRepository:
         )
 
     def _get_block(self, block_hash: bytes) -> (bytes, int):
-        block_data = self.leveldb.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
-        if block_data is None:
+        block_len = self.leveldb.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
+        if block_len is None:
             return
-        block_heaader_and_height = self.leveldb.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
-        if block_heaader_and_height is None:
+        block_len = block_len and int.from_bytes(block_len, 'little')
+        block_data = self._disk_db.get_block(block_hash)
+        if len(block_data) != block_len:
+            raise exceptions.DatabaseInconsistencyException('inconsistency in blocks storage')
+        block_header_and_height = self.leveldb.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
+        if block_header_and_height is None:
             return
-        assert len(block_heaader_and_height) == 84
-        return block_data, int.from_bytes(block_heaader_and_height[80:], 'little')
+        assert len(block_header_and_height) == 84
+        return block_data, int.from_bytes(block_header_and_height[80:], 'little')

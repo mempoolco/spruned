@@ -4,7 +4,8 @@ import time
 from pathlib import Path
 from unittest import IsolatedAsyncioTestCase
 
-from spruned.application.database import init_ldb_storage, init_disk_db
+from spruned.application.database import init_ldb_storage
+from spruned.repositories.blocks_diskdb import BlocksDiskDB
 from spruned.repositories.chain_repository import BlockchainRepository
 
 
@@ -21,13 +22,14 @@ class RepositoryTestCase(IsolatedAsyncioTestCase):
         return self.session
 
     def _init_sut(self):
-        self.sut = BlockchainRepository(self.session)
+        self.sut = BlockchainRepository(self.session, self.diskdb)
         return self.sut
 
     def setUp(self):
         self.loop = asyncio.get_event_loop()
         self.path = Path('/tmp/spruned_tests')
         self.path.mkdir(exist_ok=True)
+        self.diskdb = BlocksDiskDB(str(self.path) + '/blocks')
         self.session = self._init_leveldb()
         self.sut = self._init_sut()
 

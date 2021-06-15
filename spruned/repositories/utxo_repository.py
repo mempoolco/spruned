@@ -1,21 +1,25 @@
 import asyncio
-import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 
-import typing
-from functools import partial
-
 import plyvel
 
-from spruned.application import exceptions
-from spruned.application.logging_factory import Logger
-from spruned.application.tools import blockheader_to_blockhash
-from spruned.repositories.repository_types import Block, BlockHeader
+from spruned.repositories.repository_types import UTXO
 
 
-class UTXORepository:
-    CURRENT_VERSION = 1
+class DBPrefix(Enum):
+    DB_VERSION = 1
+    CURRENT_BLOCK_HEIGHT = 2
+    UTXO_INDEX = 3
+    UTXO = 4
+    SHARD = 5
+    PATCH = 6
+
+
+class UTXOXORepository:
+    """
+    Repository of the UTXOXO protocol <3.
+    """
 
     def __init__(
         self,
@@ -26,7 +30,12 @@ class UTXORepository:
         self.executor = ThreadPoolExecutor(max_workers=64)
         self._best_header = None
 
-    def add_utxo(self, txid: bytes, index: int, amount: int, script_hash: bytes):
+    def add_utxo(self, utxo: UTXO):
+        self.leveldb.put(
+
+        )
+
+    def add_utxos(self, *utxo: UTXO):
         pass
 
     def get_utxo(self, txid: bytes, index: int) -> bool:
@@ -38,5 +47,5 @@ class UTXORepository:
     def get_last_utxo_shard(self, shard_idx: int):
         pass
 
-    def get_utxo_patches(self, shard_idx):
+    def get_utxo_patches(self, shard_idx: int, from_height: int):
         pass

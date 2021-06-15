@@ -61,7 +61,7 @@ class MempoolObserver:
                 Logger.mempool.debug(
                     'Block %s not cached, saving', block_header['block_hash']
                 )
-                block = await self.repository.blockchain.save_block(block)
+                block = await self.repository.blockchain.save_blocks([block])
 
             Logger.mempool.debug('Block %s, fetch done', block_header['block_hash'])
             block_txids, removed_txids = self.repository.mempool.on_new_block(block['block_object'])

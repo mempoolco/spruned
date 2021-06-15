@@ -6,7 +6,7 @@ from . import RepositoryTestCase
 
 
 class TestChainRepository(RepositoryTestCase):
-    async def test_genesis(self, stop_db=True):
+    async def test_genesis(self):
         genesis_block = bytes.fromhex(networks.bitcoin.regtest['genesis_block'])
         initialize_response = await self.sut.initialize(
             Block(
@@ -43,9 +43,6 @@ class TestChainRepository(RepositoryTestCase):
             )
         )
         self.assertEqual(initialize_response_2, initialize_response)
-        if stop_db:
-            await self.diskdb.stop()
-
     async def test_save_headers(self):
         headers = [
             BlockHeader(
@@ -69,7 +66,7 @@ class TestChainRepository(RepositoryTestCase):
                 hash=b"D\xc3\x155\xe0y\xa6Q\xf9>\x19B\x15\xe1\xcc6\x85'&l\xe2\xf5\xf2\x14O\xa4\xd57\xe19n;"
             )
         ]
-        await self.test_genesis(stop_db=False)
+        await self.test_genesis()
         saved_headers = await self.sut.save_headers(headers)
         self.assertEqual(headers, saved_headers)
         self.assertEqual(3, await self.sut.get_best_height())
@@ -87,7 +84,7 @@ class TestChainRepository(RepositoryTestCase):
         self.assertEqual(headers_batch, headers)
 
     async def test_repo_reinitialize(self):
-        await self.test_genesis(stop_db=False)
+        await self.test_genesis()
         self._init_sut()
         best_header = await self.sut.get_best_header()
         self.assertEqual(best_header, self.header_0)
@@ -146,8 +143,7 @@ class TestChainRepository(RepositoryTestCase):
             ) for height, block in enumerate(raw_blocks, 1)
         ]
         await self.test_save_headers()
-        for block in blocks:
-            await self.sut.save_block(block)
+        await self.sut.save_blocks(blocks)
         for block in blocks:
             fetched = await self.sut.get_block(block.hash)
             self.assertEqual(block.data, fetched.data)
@@ -179,7 +175,7 @@ class TestChainRepository(RepositoryTestCase):
             ) for height, block in enumerate(raw_blocks, 4)
         ]
         with self.assertRaises(exceptions.DatabaseInconsistencyException):
-            await self.sut.save_block(blocks[0])
+            await self.sut.save_blocks(blocks)
         await self.sut.save_headers([blocks[0].header, blocks[1].header])
         await self.sut.save_blocks(blocks)
         self.assertEqual(blocks[-1].header, await self.sut.get_best_header())

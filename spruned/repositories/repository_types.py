@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 import typing
 
+INT4_MAX = 4294967295
+
 
 @dataclass
 class BlockHeader:
@@ -38,3 +40,12 @@ class Block:
     @property
     def size(self):
         return len(self.data)
+
+
+@dataclass
+class UTXO:
+    hash: bytes
+    height: int
+    amount: int
+    script: bytes
+    witness: bytes
