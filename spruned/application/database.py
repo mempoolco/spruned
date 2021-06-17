@@ -1,7 +1,7 @@
 import plyvel
 from spruned import settings
 
-BRAND_NEW_DB_PLACEHOLDER = b'brand_new_db'
+BRAND_NEW_DB_PLACEHOLDER = b'spruned-ldb'
 
 
 def init_ldb_storage(leveldb_path: str):

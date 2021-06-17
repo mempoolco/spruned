@@ -9,6 +9,7 @@ import plyvel
 from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
 from spruned.application.tools import blockheader_to_blockhash
+from spruned.reactors.reactor_types import DeserializedBlock
 from spruned.repositories.blocks_diskdb import BlocksDiskDB
 from spruned.repositories.repository_types import Block, BlockHeader, INT4_MAX
 
@@ -311,28 +312,24 @@ class BlockchainRepository:
 
         return list(map(fn, range(start_from_height, start_from_height + 1 + limit)))
 
-    async def save_blocks(self, blocks: typing.Iterable[Block]) -> typing.List[Block]:
+    async def save_blocks(self, blocks: typing.List[Block]):
         try:
             await self._save_blocks_lock.acquire()
             start = time.time()
-            res = await self.loop.run_in_executor(
+            await self.loop.run_in_executor(
                 self.executor,
                 self._save_blocks,
                 blocks
             )
-            Logger.repository.debug('Saved %s blocks in %s', len(res), time.time() - start)
-            return res
+            Logger.repository.debug('Saved %s blocks in %s', len(blocks), time.time() - start)
         finally:
             self._save_blocks_lock.release()
 
-    def _save_blocks(
-            self,
-            blocks: typing.List[Block]
-    ) -> typing.List[Block]:
+    def _save_blocks(self, blocks: typing.List[DeserializedBlock]):
         current_local_chain_height = self.local_chain_height
         batch_session = self.leveldb.write_batch()
-        response = []
         for i, block in enumerate(blocks):
+            block = block.block
             if block.height > self._best_header.height:
                 raise exceptions.DatabaseInconsistencyException('Blocks > Headers')
             batch_session.put(
@@ -340,7 +337,6 @@ class BlockchainRepository:
                 len(block.data).to_bytes(4, 'little')
             )
             self._disk_db.add(block)
-            response.append(block)
             if block.height - 1:
                 assert block.height == current_local_chain_height + 1
             if not block.height - 1 or (
@@ -359,7 +355,6 @@ class BlockchainRepository:
             self._local_chain_height = current_local_chain_height
         batch_session.write()
         Logger.repository.debug('Blocks batch saved in %s', time.time() - s)
-        return response
 
     async def get_block(self, block_hash: bytes) -> typing.Optional[Block]:
         response = (

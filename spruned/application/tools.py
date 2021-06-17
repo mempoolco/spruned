@@ -175,3 +175,7 @@ def is_address(address, prefix):
 def inject_attribute(obj: callable, attr_name: str, *objects: object):
     for o in objects:
         setattr(o, attr_name, obj)
+
+
+def dblsha256(data: bytes):
+    return hashlib.sha256(hashlib.sha256(data).digest()).digest()

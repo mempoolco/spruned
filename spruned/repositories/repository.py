@@ -28,12 +28,17 @@ class Repository:
     def blockchain(self) -> BlockchainRepository:
         return self._blockchain_repository
 
+    @property
+    def utxo(self) -> UTXOXOFullRepository:
+        return self._utxo_repository
+
     @classmethod
     def instance(cls):  # pragma: no cover
         blockchain_repository = BlockchainRepository(ioc.blockchain_level_db, ioc.blockchain_disk_db)
         utxo_repository = UTXOXOFullRepository(ioc.utxo_level_db, ioc.utxo_disk_db)
         i = cls()
         i.set_blockchain_repository(blockchain_repository)
+        i.set_utxo_repository(utxo_repository)
         i.leveldb = ioc.blockchain_level_db
         i.diskdb = ioc.blockchain_disk_db
         return i

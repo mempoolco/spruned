@@ -4,8 +4,8 @@ from pycoin.block import Block
 
 def parse_tx_in(i):
     return {
-        'hash': i.previous_hash != b'\0' * 32 and i.previous_hash or None,
-        'index': i.previous_index != 4294967295 and i.previous_index or None,
+        'hash': i.previous_hash != b'\0' * 32 and bytes.fromhex(str(i.previous_hash)) or None,
+        'index': None if i.previous_index == 4294967295 else int(i.previous_index).to_bytes(4, 'little'),
         'script': i.script,
         'witness': i.witness
     }
@@ -14,7 +14,7 @@ def parse_tx_in(i):
 def parse_tx_out(o):
     return {
         'script': o.script,
-        'amount': o.coin_value
+        'amount': o.coin_value.to_bytes(8, 'little')
     }
 
 

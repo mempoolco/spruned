@@ -62,10 +62,11 @@ class BlocksReactor:
     async def _save_blocks_to_disk(self):
         block_size_in_queue_mul = 2  # block are enqueued with utxo indexing, causing a double ram occupation
         blocks = await self._blocks_queue.get()
+        await self._repo.utxo.process_blocks(blocks)
         await self._repo.blockchain.save_blocks(blocks)
-        self._size_items_in_queue -= sum(map(lambda x: x.size * block_size_in_queue_mul, blocks))
-        self._persisted_block_height = blocks[-1].height
-        await asyncio.sleep(0.01)
+        self._size_items_in_queue -= sum(map(lambda x: x.block.size * block_size_in_queue_mul, blocks))
+        self._persisted_block_height = blocks[-1].block.height
+        await asyncio.sleep(0.001)
         self._loop.create_task(self._save_blocks_to_disk())
 
     async def _deserialize_block(self, block: typing.Dict) -> typing.Optional[DeserializedBlock]:
@@ -156,7 +157,7 @@ class BlocksReactor:
             connection.add_error(score_penalty=10)
             raise exceptions.BlockMerkleRootValidationFailedException
 
-        self._blocks_to_save[height] = deserialized_block.block
+        self._blocks_to_save[height] = deserialized_block
         self._blocks_sizes_by_hash[block['block_hash']] = deserialized_block.block.size
         self._remove_processing_height(height)
         connection.add_success()
@@ -171,7 +172,7 @@ class BlocksReactor:
         for _h in sorted(list(self._blocks_to_save)):
             if _h <= self._local_current_block_height:
                 block = self._blocks_to_save.pop(_h)
-                self._blocks_sizes_by_hash.pop(block.hash)
+                self._blocks_sizes_by_hash.pop(block.block.hash)
             elif not contiguous and _h == self._local_current_block_height + 1:
                 contiguous.append(_h)
             elif contiguous and _h == contiguous[-1] + 1:
@@ -190,15 +191,15 @@ class BlocksReactor:
         for block_height in contiguous:
             block = self._blocks_to_save.pop(block_height)
             blocks_to_save.append(block)
-            self._blocks_sizes_by_hash.pop(block.hash)
-            current_size += block.size * block_size_in_queue_mul
+            self._blocks_sizes_by_hash.pop(block.block.hash)
+            current_size += block.block.size * block_size_in_queue_mul
             if current_size > self._job_queue_max_size:
                 await self._blocks_queue.put(blocks_to_save)
                 blocks_to_save = []
                 self._size_items_in_queue += current_size
                 current_size = 0
         blocks_to_save and await self._blocks_queue.put(blocks_to_save)
-        self._size_items_in_queue += sum(map(lambda x: x.size * block_size_in_queue_mul, blocks_to_save))
+        self._size_items_in_queue += sum(map(lambda x: x.block.size * block_size_in_queue_mul, blocks_to_save))
 
     async def start(self, *a, **kw):
         assert not self._started
@@ -293,7 +294,7 @@ class BlocksReactor:
             blocks_buffer_size = sum(self._blocks_sizes_by_hash.values() or (0, ))
             total_buffer_size = self._size_items_in_queue + blocks_buffer_size + self._processing_blocks_size
             max_pending_height = self._blocks_to_save and max(
-                map(lambda b: b.height, self._blocks_to_save.values())
+                map(lambda b: b.block.height, self._blocks_to_save.values())
             ) or 0
             if total_buffer_size > self._max_blocks_buffer_bytes and \
                     (not max_pending_height or block_height > max_pending_height):

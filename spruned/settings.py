@@ -26,6 +26,13 @@ if not TESTING:
     LOGFILE = '%s/spruned.log' % ctx.datadir
     LEVELDB_INDEX_PATH = '%sblockchain/index' % STORAGE_ADDRESS
     BLOCKS_PATH = '%sblockchain/blocks' % STORAGE_ADDRESS
-    UTXO_INDEX_PATH = '%utxo/index' % STORAGE_ADDRESS
-    UTXO_REV_STATE_PATH = '%utxo/revstate' % STORAGE_ADDRESS
-
+    UTXO_INDEX_PATH = '%sutxo/index' % STORAGE_ADDRESS
+    UTXO_REV_STATE_PATH = '%sutxo/revstate' % STORAGE_ADDRESS
+    for directory in (
+        STORAGE_ADDRESS,
+        LEVELDB_INDEX_PATH,
+        BLOCKS_PATH,
+        UTXO_REV_STATE_PATH,
+        UTXO_INDEX_PATH,
+    ):
+        os.makedirs(directory, exist_ok=True)
