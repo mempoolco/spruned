@@ -1,11 +1,45 @@
+import asyncio
+import shutil
+import time
+from pathlib import Path
+from unittest import IsolatedAsyncioTestCase
+
 from spruned import networks
 from spruned.application import exceptions
+from spruned.application.database import init_ldb_storage
 from spruned.application.tools import blockheader_to_blockhash
+from spruned.repositories.blocks_diskdb import BlocksDiskDB
+from spruned.repositories.chain_repository import BlockchainRepository
 from spruned.repositories.repository_types import Block, BlockHeader
-from . import RepositoryTestCase
 
 
-class TestChainRepository(RepositoryTestCase):
+class TestChainRepository(IsolatedAsyncioTestCase):
+    def _init_leveldb(self):
+        sess = getattr(self, 'session', None)
+        if sess:
+            self.session.close()
+            while not self.session.close:
+                time.sleep(1)
+        self.session = init_ldb_storage('/tmp/spruned_tests/chain_repository')
+        if getattr(self, 'sut', None):
+            self.sut.leveldb = self.session
+        return self.session
+
+    def _init_sut(self):
+        self.sut = BlockchainRepository(self.session, self.diskdb)
+        return self.sut
+
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.path = Path('/tmp/spruned_tests')
+        self.path.mkdir(exist_ok=True)
+        self.diskdb = BlocksDiskDB(str(self.path) + '/blocks')
+        self.session = self._init_leveldb()
+        self.sut = self._init_sut()
+
+    def tearDown(self):
+        shutil.rmtree(self.path.__str__())
+
     async def test_genesis(self):
         genesis_block = bytes.fromhex(networks.bitcoin.regtest['genesis_block'])
         initialize_response = await self.sut.initialize(

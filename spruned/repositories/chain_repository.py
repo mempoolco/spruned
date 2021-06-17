@@ -325,11 +325,10 @@ class BlockchainRepository:
         finally:
             self._save_blocks_lock.release()
 
-    def _save_blocks(self, blocks: typing.List[DeserializedBlock]):
+    def _save_blocks(self, blocks: typing.List[Block]):
         current_local_chain_height = self.local_chain_height
         batch_session = self.leveldb.write_batch()
         for i, block in enumerate(blocks):
-            block = block.block
             if block.height > self._best_header.height:
                 raise exceptions.DatabaseInconsistencyException('Blocks > Headers')
             batch_session.put(
