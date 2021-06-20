@@ -1,79 +1,147 @@
-import multiprocessing
+import asyncio
+import logging
 import time
+from concurrent.futures.process import ProcessPoolExecutor
+from concurrent.futures.thread import ThreadPoolExecutor
 import typing
-from copy import copy
+
+import rocksdb
+
+loop = asyncio.get_event_loop()
+executor = ProcessPoolExecutor(4)
+threaded = ThreadPoolExecutor(4)
+
+DOUBLE_SPEND_ERROR = 990
+KILL_PILL_RECEIVED = 991
+PARALLEL_SPEND_ERROR = 992
 
 
-def _validate_utxo(cache, vin, block_height):
+class ExitException(Exception):
     pass
 
 
-def _spend_utxo(cache, vin, block_height):
-    if block_height < cache['min_safe_height']:
-        if not _validate_utxo(cache, vin, block_height):
-            return [False, vin]
-        return [True, vin]
-
-
-def _add_utxo(cache, vout, tx, i, height_in_bytes, is_coinbase):
-    return 44
-
-
-def process_block(
+class BlockProcessor:
+    """
+    A multiprocessing-designed blocks processor and UTXO validator.
+    """
+    def __init__(
+        self,
         block: typing.Dict,
-        cache: multiprocessing.Manager
-):
-    """
-    to be used into a multiprocessing pool.
-    """
-    height_in_bytes = block['height'].to_bytes(4, 'little')
-    failed = copy(cache['failed_blocks'].get(block['height'], {}))
-    for vin_coord, entry in failed.items():
-        vin = entry[0]
-        outcome = _spend_utxo(
-            cache, vin, block['height']
-        )
-        if outcome[0]:
-            cache['-utxo'].append(outcome[1])
-            cache['failed_blocks'][block['height']].pop(vin_coord)
+        # the following objects must be multiprocessing.Manager proxies.
+        kill_pill: typing.List,
+        processing_blocks: typing.List,
+        requested_utxo: typing.List,
+        published_utxo: typing.Dict,
+        db_path='/tmp/prova/provaz'
+    ):
+        self.block: typing.Dict = block
+        self.kill_pill = kill_pill
+        self.processing_blocks = processing_blocks
+        self.requested_utxo = requested_utxo
+        self.published_utxo = published_utxo
 
-    if cache['failed_blocks'].get(block['height']) and min(cache['processing_blocks']) < block['height']:
-        time.sleep(0.01)
-        return process_block(block, cache)
+        self.db = rocksdb.DB(db_path, rocksdb.Options(), read_only=True)
+        self._missing_txs = []
+        self._consumed_utxo = dict()
+        self._new_utxo = dict()
+        self._new_utxo_k = set()
+        self._error = None
+        self._exit_code = 0
+        self.logger = logging.getLogger('utxo')
 
-    elif cache['failed_blocks'].get(block['height']):
-        cache['invalid_blocks'].append([block['hash'], block['height']])
-        return False
+    def _check_kill_pill(self):
+        if self.kill_pill:
+            return True
 
-    for tx in block['txs']:
-        if not tx['gen']:
-            for i, vin in tx['ins']:
-                vin_coord = tx['hash'] + i.to_bytes(4, 'little')
-                if vin_coord not in cache['del_utxo'] and \
-                        vin_coord not in cache['failed_blocks'].get(block['height'], {}):
+    def _process_vin(self, vin, local_utxo: typing.Dict, check_in_db) -> bool:
+        outpoint = vin['outpoint']
+        utxo = check_in_db and self.db.get(outpoint)
+        if not utxo and check_in_db:
+            if utxo in self.requested_utxo:
+                self.kill_pill.append(1)
+                self._exit_code = PARALLEL_SPEND_ERROR
+                self._error = outpoint
+                return True
+            self.requested_utxo.append(outpoint)
+            return False
+        elif not utxo:
+            if outpoint in self.published_utxo:
+                utxo = self.published_utxo.pop(outpoint)
+        assert utxo
+        # todo full validation
+        local_utxo[outpoint] = utxo
+        return True
 
-                    outcome = _spend_utxo(
-                        cache, vin, block['height']
-                    )
-                    if outcome[0]:
-                        cache['-utxo'][[outcome[1]['vin_coord']]] = outcome[1]['rev_state']
-                    else:
-                        cache['failed_blocks'].setdefault(block['height'], dict())
-                        cache['failed_blocks'][block['height']][vin_coord] = outcome[1]
-                        cache['missing_utxo'].append(vin_coord)  # request for missing utxo on the main process
+    def _process_vout(self, tx: typing.Dict, i: int, vout: typing.Dict):
+        outpoint = tx['hash'] + i.to_bytes(4, 'little')
+        if outpoint in self._new_utxo_k:
+            self.kill_pill.append(1)
+            self._error = outpoint
+            self._exit_code = DOUBLE_SPEND_ERROR
+        self._new_utxo[outpoint] = vout['script'] + vout['amount']
+        self._new_utxo_k.add(outpoint)
 
+    def _check_requested_utxo(self):
+        requested_utxo = set(self.requested_utxo) & set(self._new_utxo_k)
+        for r in requested_utxo:
+            self.requested_utxo.remove(r)
+            self.published_utxo[r] = self._new_utxo[r]
+            self._new_utxo_k.remove(r)
+            self._new_utxo.pop(r)
+
+    def serialize(self) -> typing.Dict:
+        return {
+            'missing_txs': self._missing_txs,
+            'consumed_utxo': self._consumed_utxo,
+            'new_utxo': self._new_utxo,
+            'error': self._error,
+            'exit_code': self._exit_code
+        }
+
+    @classmethod
+    def process(
+            cls, block, kill_pill, processing_blocks, requested_utxo, published_utxo, path
+    ) -> typing.Dict:
+        self = cls(block, kill_pill, processing_blocks, requested_utxo, published_utxo, path)
+        try:
+            for tx in self.block['txs']:
+                try:
+                    self._process_tx(tx)
+                    self._check_requested_utxo()
+                except ExitException:
+                    break
+        except Exception as e:
+            self.logger.exception('Error in main loop')
+            self.kill_pill.append(1)
+            raise
+
+        self._process_missing_txs()
+        self.processing_blocks.pop(self.block['height'])
+        return self.serialize()
+
+    def _process_tx(self, tx, check_in_db=True):
+        if self._exit_code:
+            raise ExitException
+        if self.kill_pill:
+            self._exit_code = KILL_PILL_RECEIVED
+            raise ExitException
+        local_utxo = dict()
+        for vin in tx['ins']:
+            this_round = self._process_vin(vin, local_utxo, check_in_db)
+            if not this_round:
+                self._missing_txs.append(tx)
+                return
+        self._consumed_utxo.update(local_utxo)
         for i, vout in enumerate(tx['outs']):
-            outpoint = tx['hash'] + i.to_bytes(4, 'little')
-            if outpoint not in cache['+utxo']:
-                cache['+utxo'][outpoint] = _add_utxo(cache, vout, tx, i, height_in_bytes, tx['gen'])
+            self._process_vout(tx, i, vout)
 
-    if cache['failed_blocks'].get(block['height']) and min(cache['processing_blocks']) < block['height']:
-        time.sleep(0.01)
-        return process_block(block, cache)
-
-    elif cache['failed_blocks'][block['height']]:
-        cache['invalid_blocks'].append([block['hash'], block['height']])
-        return False
-
-    cache['processing_blocks'].pop(block['height'])
-    return True
+    def _process_missing_txs(self):
+        if not self._missing_txs:
+            return
+        while 1:
+            if min(self.processing_blocks) < self.block['height']:
+                self.kill_pill.append(1)
+                break
+            for tx in self._missing_txs:
+                self._process_tx(tx, check_in_db=False)
+            time.sleep(0.01)

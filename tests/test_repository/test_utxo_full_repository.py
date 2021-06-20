@@ -5,10 +5,10 @@ from pathlib import Path
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import Mock
 
-from spruned.application.database import init_ldb_storage
+from spruned.application.database import init_rocksdb_storage
 from spruned.reactors.reactor_types import DeserializedBlock
 from spruned.repositories.utxo_diskdb import UTXODiskDB
-from spruned.repositories.utxo_full_repository import UTXOXOFullRepository
+from spruned.repositories.utxo_multiprocessing_repository import UTXOXOFullRepository
 
 
 class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
@@ -18,13 +18,13 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
             self.session.close()
             while not self.session.close:
                 time.sleep(1)
-        self.session = init_ldb_storage('/tmp/spruned_tests/utxo_repository')
+        self.session = init_rocksdb_storage('/tmp/spruned_tests/utxo_repository')
         if getattr(self, 'sut', None):
             self.sut.leveldb = self.session
         return self.session
 
     def _init_sut(self):
-        self.sut = UTXOXOFullRepository(self.session, self.diskdb)
+        self.sut = UTXOXOFullRepository(self.session, '/tmp/spruned_tests/utxo_repository', self.diskdb)
         return self.sut
 
     def setUp(self):
@@ -249,4 +249,4 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                 }
             )
         ]
-        await self.sut.process_blocks(blocks)
+        await self.sut.process_blocks([x.deserialized for x in blocks])

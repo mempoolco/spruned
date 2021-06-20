@@ -2,8 +2,9 @@ import asyncio
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 
-import plyvel
 import typing
+
+import rocksdb
 
 from spruned.application.tools import dblsha256
 from spruned.reactors.reactor_types import DeserializedBlock
@@ -22,11 +23,11 @@ class DBPrefix(Enum):
 class UTXOXOFullRepository:
     def __init__(
         self,
-        leveldb: plyvel.DB,
+        db: rocksdb.DB,
         disk_db: UTXODiskDB,
         shards: typing.Optional[int] = 1000
     ):
-        self.leveldb = leveldb
+        self.db = db
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=32)
         self._best_header = None
@@ -51,7 +52,7 @@ class UTXOXOFullRepository:
 
     def _process_blocks(self, blocks: typing.List[DeserializedBlock]):
         revert_utxo = []
-        session = self.leveldb.write_batch()
+        session = rocksdb.WriteBatch()
         pending = dict()
         for block in blocks:
             height_in_bytes = block.block.height.to_bytes(4, 'little')
@@ -74,7 +75,7 @@ class UTXOXOFullRepository:
                 block.block.height.to_bytes(4, 'little')
             )
             self._disk_db.save_revert_state(block.block.hash, revert_utxo)
-        session.write()
+        self.db.write(session)
         return True
 
     async def revert_block(self, block: DeserializedBlock):
@@ -89,12 +90,12 @@ class UTXOXOFullRepository:
 
     def _verify_utxo(self, vin: typing.Dict, utxo_key: bytes, pending: typing.Dict) -> bytes:
         # todo full validation
-        existing = pending.get(utxo_key, None) or self.leveldb.get(utxo_key)
+        existing = pending.get(utxo_key, None) or self.db.get(utxo_key)
         if existing is None:
             raise exceptions.UTXOInconsistencyException('utxo %s does not exist' % utxo_key)
         return existing
 
-    def _spend_utxo(self, session: plyvel.DB, vin, safe=True, pending: typing.Optional[dict] = None) -> bytes:
+    def _spend_utxo(self, session: rocksdb.WriteBatch, vin, safe=True, pending: typing.Optional[dict] = None) -> bytes:
         outpoint = vin['hash'] + vin['index']
         utxo_key = self._get_db_key(DBPrefix.UTXO, outpoint)
         existing = None if safe else self._verify_utxo(vin, utxo_key, pending)
@@ -106,7 +107,7 @@ class UTXOXOFullRepository:
         return existing
 
     def _backup_utxo_for_rollback(self, session, existing: bytes, utxo_key: bytes):
-        session: plyvel.DB
+        session: rocksdb.WriteBatch
         session.put(
             self._get_db_key(DBPrefix.UTXO_REVERTS, utxo_key[2:]),
             existing
@@ -114,7 +115,7 @@ class UTXOXOFullRepository:
 
     def _add_utxo(
             self,
-            session: plyvel.DB,
+            session: rocksdb.WriteBatch,
             vout: typing.Dict,
             tx: typing.Dict,
             i: int,

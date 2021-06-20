@@ -1,7 +1,21 @@
 import plyvel
+import rocksdb
+
 from spruned import settings
 
 BRAND_NEW_DB_PLACEHOLDER = b'spruned-ldb'
+
+
+def init_rocksdb_storage(rocksdb_path: str):
+    try:
+        db = rocksdb.DB(rocksdb_path, rocksdb.Options())
+        assert db.get(BRAND_NEW_DB_PLACEHOLDER)
+    except:
+        db = rocksdb.DB(rocksdb_path, rocksdb.Options(
+            create_if_missing=True,
+            compression=rocksdb.CompressionType.no_compression))
+        db.put(BRAND_NEW_DB_PLACEHOLDER, BRAND_NEW_DB_PLACEHOLDER)
+    return db
 
 
 def init_ldb_storage(leveldb_path: str):
