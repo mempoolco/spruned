@@ -141,20 +141,20 @@ class BlockProcessor:
             done_blocks, requested_utxo, published_utxo, total_blocks, path
         )
         try:
-            for tx in self.block['txs']:
+            for tx in self.block['txs']:  # first round, process block txs
                 try:
                     self._process_tx(tx)
-                    self._evade_requested_utxo()
+                    self._evade_requested_utxo()  # publish data requested by other workers.
                 except ExitException:
                     break
-            self._process_missing_txs()
-            self._check_requested_unspents()
+            self._process_missing_txs()  # request data from other workers, as it's not available on the UTXO DB.
+            self._check_requested_unspents()  # once missing_txs are processed, publish data for other workers.
         except Exception as e:
             self.logger.exception('Error in main loop')
-            self.kill_pill.append(1)
-            self._exit_code = EXCEPTION
-            self._error = str(e)
-        return self.serialize()
+            self.kill_pill.append(1)  # tell other workers to quit.
+            self._exit_code = EXCEPTION  # gracefully exit.
+            self._error = str(e)  # take not of the error
+        return self.serialize()  # whatever happens, return a serializable output.
 
     def _process_tx(self, tx, check_in_db=True):
         """
