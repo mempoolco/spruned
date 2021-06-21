@@ -25,13 +25,14 @@ class UTXOXOFullRepository:
         db: plyvel.DB,
         db_path: str,
         disk_db: UTXODiskDB,
-        shards: typing.Optional[int] = 1000,
+        processes_pool: ProcessPoolExecutor,
+        shards: typing.Optional[int] = 1000
     ):
         self.db = db
         self.db_path = db_path
         self.loop = asyncio.get_event_loop()
-        self.executor = ThreadPoolExecutor(max_workers=32)
-        self.multiprocessing = ProcessPoolExecutor(max_workers=4)
+        self.executor = ThreadPoolExecutor(max_workers=16)
+        self.multiprocessing = processes_pool
         self._best_header = None
         self._disk_db = disk_db
         self._safe_height = 0
@@ -45,15 +46,33 @@ class UTXOXOFullRepository:
         assert isinstance(name, bytes)
         return b'%s%s' % (int.to_bytes(prefix.value, 2, "big"), name)
 
+    @staticmethod
+    def get_chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
     async def process_blocks(self, blocks: typing.List[typing.Dict]):
-        tasks = []
+        parallelism = self.multiprocessing._max_workers
         with multiprocessing.Manager() as manager:
-            for b in blocks:
-                tasks.append(
-                    self.loop.run_in_executor(
-                        self.multiprocessing, BlockProcessor.process, b, manager.list(),
-                        manager.list(), manager.list(), manager.dict(), self.db_path
+            responses = []
+            for chunk in self.get_chunks(blocks, parallelism):
+                tasks = []
+                kill_pill, processing_blocks, done_blocks = manager.list(), manager.list(), manager.list()
+                requested_utxo, published_utxo = manager.list(), manager.dict()
+                for b in chunk:
+                    tasks.append(
+                        self.loop.run_in_executor(
+                            self.multiprocessing,
+                            BlockProcessor.process,
+                            b,
+                            kill_pill,
+                            processing_blocks,
+                            done_blocks,
+                            requested_utxo,
+                            published_utxo,
+                            min(parallelism, len(chunk)),
+                            self.db_path
+                        )
                     )
-                )
-            responses = await asyncio.gather(*tasks)
+                responses.extend(await asyncio.gather(*tasks))
         return responses

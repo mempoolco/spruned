@@ -1,6 +1,7 @@
 import asyncio
 import shutil
 import time
+from concurrent.futures.process import ProcessPoolExecutor
 from pathlib import Path
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import Mock
@@ -24,7 +25,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
         return self.session
 
     def _init_sut(self):
-        self.sut = UTXOXOFullRepository(self.session, '/tmp/spruned_tests/utxo_repository', self.diskdb)
+        ps_pool = ProcessPoolExecutor(max_workers=4)
+        self.sut = UTXOXOFullRepository(self.session, '/tmp/spruned_tests/utxo_repository', self.diskdb, ps_pool)
         return self.sut
 
     def setUp(self):
@@ -46,6 +48,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                     hash=b'block10'
                 ),
                 deserialized={
+                    'hash': b'block10',
+                    'height': 10,
                     'txs': [
                         {
                             'hash': b'tx0',
@@ -74,6 +78,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                     hash=b'block11'
                 ),
                 deserialized={
+                    'hash': b'block11',
+                    'height': 11,
                     'txs': [
                         {
                             'hash': b'tx1',
@@ -88,7 +94,7 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                             ],
                             'outs': [
                                 {
-                                    'script': b'script10a',
+                                    'script': b'script0000a',
                                     'amount': int(1000000).to_bytes(8, 'little')
                                 }
                             ]
@@ -102,6 +108,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                     hash=b'block12'
                 ),
                 deserialized={
+                    'hash': b'block12',
+                    'height': 12,
                     'txs': [
                         {
                             'hash': b'tx2',
@@ -152,6 +160,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                     hash=b'block13'
                 ),
                 deserialized={
+                    'hash': b'block13',
+                    'height': 13,
                     'txs': [
                         {
                             'hash': b'tx4',
@@ -198,6 +208,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                     hash=b'block14'
                 ),
                 deserialized={
+                    'hash': b'block14',
+                    'height': 14,
                     'txs': [
                         {
                             'hash': b'tx5',
@@ -226,6 +238,8 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                     hash=b'block15'
                 ),
                 deserialized={
+                    'hash': b'block15',
+                    'height': 15,
                     'txs': [
                         {
                             'hash': b'tx6',
@@ -249,4 +263,6 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
                 }
             )
         ]
-        await self.sut.process_blocks([x.deserialized for x in blocks])
+        res = await self.sut.process_blocks([x.deserialized for x in blocks])
+        from pprint import pprint
+        pprint(res)
