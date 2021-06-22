@@ -9,7 +9,7 @@ from spruned.reactors.headers_reactor import HeadersReactor
 from spruned.reactors.reactor_types import DeserializedBlock
 from spruned.repositories.repository_types import Block
 from spruned.services.exceptions import NoConnectionsAvailableException
-from spruned.services.p2p.block_deserializer import deserialize_block
+from spruned.services.p2p.block_deserializer import BlockDeserializer
 from spruned.services.p2p.connection import P2PConnection
 from spruned.services.p2p.interface import P2PInterface
 from spruned.repositories.repository import Repository
@@ -87,7 +87,7 @@ class BlocksReactor:
             size = len(block_bytes)
             self._processing_blocks_size += size
             item = await self._loop.run_in_executor(
-                self._executor, deserialize_block, block_bytes
+                self._executor, BlockDeserializer.deserialize_block, block_bytes
             )
             if not item['success']:
                 return
@@ -194,7 +194,8 @@ class BlocksReactor:
         if not contiguous:
             return
         current_height = contiguous[-1]
-        Logger.p2p.debug('Saved blocks. Set local current block height: %s', current_height)
+        if not current_height % 100:
+            Logger.p2p.debug('Enqueued blocks height: %s', current_height)
         self._local_current_block_height = current_height
 
         blocks_to_save = []

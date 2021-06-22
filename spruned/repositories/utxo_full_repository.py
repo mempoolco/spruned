@@ -52,6 +52,8 @@ class UTXOXOFullRepository:
         processes_pool: ProcessPoolExecutor,
         multiprocessing_manager: multiprocessing.Manager,
         shards: typing.Optional[int] = 1000,
+        parallelism=4,
+        entries_to_fork=100
     ):
         self.db = db
         self.db_path = db_path
@@ -63,6 +65,8 @@ class UTXOXOFullRepository:
         self._safe_height = 0
         self._shards = shards
         self._manager = multiprocessing_manager
+        self.parallelism = parallelism
+        self.entries_to_fork = entries_to_fork
 
     def set_safe_height(self, safe_height: int):
         self._safe_height = safe_height
@@ -83,31 +87,45 @@ class UTXOXOFullRepository:
         Asynchronously prepare the WriteBatch.
         Save the batch using threading.
         """
+        total_entries = sum(map(lambda x: x['total_entries'], blocks))
+        avg_entries = total_entries / len(blocks)
+        fork = avg_entries > self.entries_to_fork
         with self.db.begin(write=True) as batch:
             wip = dict(pending=[], errors=[], rev_states=[])
-            await self._validate_blocks(blocks, batch, wip)
+            await self._validate_blocks(blocks, batch, wip, fork=fork)
             while wip['pending']:
                 if wip['errors']:
                     Logger.root.error('Found error in UTXO, not handled yet. Exiting: %s', wip['errors'])
                     self.loop.stop()
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.001)
+        Logger.utxo.info(
+            'Processed %s UTXO%s. From block %s to %s (avg utxo per block: %s)',
+            total_entries, ' (fork)' if fork else '', blocks[0]['height'], blocks[-1]['height'],
+            int(avg_entries)
+        )
         return True
 
     async def _validate_blocks(
-            self, blocks: typing.List[typing.Dict], write_batch: lmdb.Transaction, wip: typing.Dict
+            self, blocks: typing.List[typing.Dict],
+            write_batch: lmdb.Transaction,
+            wip: typing.Dict, fork: bool = False
     ):
-        parallelism = self.multiprocessing._max_workers
         manager = self._manager
         responses = []
-        for chunk in self.get_chunks(blocks, parallelism):
+        for chunk in self.get_chunks(blocks, self.parallelism):
             tasks = []
-            kill_pill, processing_blocks, done_blocks = manager.list(), manager.list(), manager.list()
-            requested_utxo, published_utxo = manager.list(), manager.dict()
+            if fork:
+                kill_pill, processing_blocks, done_blocks = manager.list(), manager.list(), manager.list()
+                requested_utxo, published_utxo = manager.list(), manager.dict()
+            else:
+                kill_pill, processing_blocks, done_blocks = list(), list(), list()
+                requested_utxo, published_utxo = list(), dict()
             for b in chunk:
                 wip['pending'].append(b['height'])
+                processing_blocks.append(b['height'])
                 tasks.append(
                     self.loop.run_in_executor(
-                        self.multiprocessing,
+                        fork and self.multiprocessing or self.executor,
                         BlockProcessor.process,
                         b,
                         kill_pill,
@@ -115,15 +133,16 @@ class UTXOXOFullRepository:
                         done_blocks,
                         requested_utxo,
                         published_utxo,
-                        min(parallelism, len(chunk)),
+                        min(self.parallelism if fork else 8, len(chunk)),
                         self._shards,
                         self.db_path,
-                        responses
+                        responses,
+                        not fork and self.db
                     )
                 )
             res = await asyncio.gather(*tasks)
-            self.loop.create_task(self._populate_batch(res, write_batch, wip))
             responses.extend(res)
+            self.loop.create_task(self._populate_batch(res, write_batch, wip))
         return responses
 
     async def _populate_batch(
@@ -133,19 +152,23 @@ class UTXOXOFullRepository:
             wip: typing.Dict
     ):
         for r in res:
-            if r['exit_code']:
+            if r['exit_code'] not in (0, 991):
                 Logger.utxo.error('Error! Response has exit code: %s', r)
-                wip['errors'].append(r)
+                wip['errors'].append(
+                    {
+                        'height': r['height'],
+                        'requested_utxo': r['requested_utxo'],
+                        'exit_code': r['exit_code']
+                    }
+                )
                 wip['pending'].remove(r['height'])
                 continue
             if wip['errors']:
                 wip['pending'].remove(r['height'])
                 continue
-            await asyncio.sleep(0.001)
             for outpoint, value in r['consumed_utxo'].items():
                 write_batch.delete(self._get_db_key(DBPrefix.UTXO_BY_SHARD, value[1] + outpoint))
                 write_batch.delete(self._get_db_key(DBPrefix.UTXO, outpoint))
-            await asyncio.sleep(0.001)
             for outpoint, value in r['new_utxo'].items():
                 write_batch.put(self._get_db_key(DBPrefix.UTXO_BY_SHARD, value[1] + outpoint), b'1')
                 write_batch.put(self._get_db_key(DBPrefix.UTXO, outpoint), value[0])
