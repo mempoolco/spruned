@@ -1,6 +1,30 @@
+# The MIT License (MIT)
+#
+# Copyright (c) 2021 - spruned contributors - https://github.com/mempoolco/spruned
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 import asyncio
 
 import typing
+from concurrent.futures.process import ProcessPoolExecutor
 
 from spruned.application import ioc
 from spruned.application.tools import blockheader_to_blockhash
@@ -12,8 +36,6 @@ class Repository:
     def __init__(self):
         self._utxo_repository: typing.Optional[UTXOXOFullRepository] = None
         self._blockchain_repository: typing.Optional[BlockchainRepository] = None
-        self.leveldb = None
-        self.diskdb = None
         self.loop = asyncio.get_event_loop()
 
     def set_blockchain_repository(self, repo: BlockchainRepository):
@@ -33,14 +55,21 @@ class Repository:
         return self._utxo_repository
 
     @classmethod
-    def instance(cls):  # pragma: no cover
-        blockchain_repository = BlockchainRepository(ioc.blockchain_level_db, ioc.blockchain_disk_db)
-        utxo_repository = UTXOXOFullRepository(ioc.utxo_level_db, ioc.utxo_disk_db)
+    def instance(cls, processes_pool: ProcessPoolExecutor):  # pragma: no cover
+        blockchain_repository = BlockchainRepository(
+            ioc.blockchain_db,
+            ioc.blockchain_disk_db
+        )
+        utxo_repository = UTXOXOFullRepository(
+            ioc.utxo_db,
+            ioc.settings.UTXO_INDEX_PATH,
+            ioc.utxo_disk_db,
+            processes_pool,
+            ioc.manager
+        )
         i = cls()
         i.set_blockchain_repository(blockchain_repository)
         i.set_utxo_repository(utxo_repository)
-        i.leveldb = ioc.blockchain_level_db
-        i.diskdb = ioc.blockchain_disk_db
         return i
 
     def initialize(self):

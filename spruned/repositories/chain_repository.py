@@ -1,3 +1,26 @@
+# The MIT License (MIT)
+#
+# Copyright (c) 2021 - spruned contributors - https://github.com/mempoolco/spruned
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 import asyncio
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -5,7 +28,7 @@ from enum import Enum
 
 import typing
 
-import rocksdb
+import lmdb
 
 from spruned.application import exceptions
 from spruned.application.logging_factory import Logger
@@ -28,7 +51,7 @@ class BlockchainRepository:
 
     def __init__(
         self,
-        db: rocksdb.DB,
+        db: lmdb.Environment,
         diskdb: BlocksDiskDB
     ):
         self.db = db
@@ -42,20 +65,20 @@ class BlockchainRepository:
     @property
     def local_chain_height(self):
         if self._local_chain_height is None:
-            height = self.db.get(
+            height = self.db.begin().get(
                 self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT)
             )
             self._local_chain_height = height and int.from_bytes(height, 'little')
         return self._local_chain_height
 
-    def _ensure_brand_new_db(self, batch_session: rocksdb.WriteBatch):
+    def _ensure_brand_new_db(self, batch_session: lmdb.Transaction):
         from spruned.application.database import BRAND_NEW_DB_PLACEHOLDER
-        if not self.db.get(BRAND_NEW_DB_PLACEHOLDER):
+        if not self.db.begin().get(BRAND_NEW_DB_PLACEHOLDER):
             raise exceptions.DatabaseInconsistencyException('brand new flag not found')
         batch_session.delete(BRAND_NEW_DB_PLACEHOLDER)
 
     async def initialize(self, genesis_block: Block):
-        db_version = self.db.get(self._get_db_key(DBPrefix.DB_VERSION))
+        db_version = self.db.begin().get(self._get_db_key(DBPrefix.DB_VERSION))
         db_version = db_version and int.from_bytes(db_version, 'little')
         if db_version is None:
             return await self._save_genesis_block(genesis_block)
@@ -66,44 +89,43 @@ class BlockchainRepository:
 
     async def _save_genesis_block(self, genesis_block: Block):
         assert isinstance(genesis_block, Block)
-        batch_session = rocksdb.WriteBatch()
-        self._ensure_brand_new_db(batch_session)
-        genesis_block_height = int(0).to_bytes(4, 'little')
-        genesis_header = genesis_block.data[:80]
-        genesis_hash = blockheader_to_blockhash(genesis_header)
-        batch_session.put(
-            self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, genesis_block_height),
-            genesis_hash
-        )
-        batch_session.put(
-            self._get_db_key(DBPrefix.HEADERS_INDEX, genesis_hash),
-            genesis_header + genesis_block_height
-        )
-        batch_session.put(
-            self._get_db_key(DBPrefix.BEST_HEIGHT), genesis_block_height
-        )
-        batch_session.put(
-            self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT), genesis_block_height
-        )
-        batch_session.put(
-            self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_hash),
-            len(genesis_block.data).to_bytes(4, 'little')
-        )
-        self._disk_db.add(genesis_block)
-        batch_session.put(
-            self._get_db_key(DBPrefix.DB_VERSION),
-            self.CURRENT_VERSION.to_bytes(2, 'little')
-        )
-        self.db.write(batch_session)
+        with self.db.begin(write=True) as batch_session:
+            self._ensure_brand_new_db(batch_session)
+            genesis_block_height = int(0).to_bytes(4, 'little')
+            genesis_header = genesis_block.data[:80]
+            genesis_hash = blockheader_to_blockhash(genesis_header)
+            batch_session.put(
+                self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, genesis_block_height),
+                genesis_hash
+            )
+            batch_session.put(
+                self._get_db_key(DBPrefix.HEADERS_INDEX, genesis_hash),
+                genesis_header + genesis_block_height
+            )
+            batch_session.put(
+                self._get_db_key(DBPrefix.BEST_HEIGHT), genesis_block_height
+            )
+            batch_session.put(
+                self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT), genesis_block_height
+            )
+            batch_session.put(
+                self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_hash),
+                len(genesis_block.data).to_bytes(4, 'little')
+            )
+            self._disk_db.add(genesis_block)
+            batch_session.put(
+                self._get_db_key(DBPrefix.DB_VERSION),
+                self.CURRENT_VERSION.to_bytes(2, 'little')
+            )
         return genesis_block
 
     async def _ensure_genesis_block(self, genesis_block: Block):
         key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, int(0).to_bytes(4, 'little'))
-        current_genesis_hash = self.db.get(key)
+        current_genesis_hash = self.db.begin().get(key)
         expected_genesis_hash = blockheader_to_blockhash(genesis_block.data)
         if current_genesis_hash != expected_genesis_hash:
             raise exceptions.DatabaseInconsistencyException('invalid genesis hash stored')
-        block_len = self.db.get(
+        block_len = self.db.begin().get(
             self._get_db_key(DBPrefix.BLOCKS_INDEX, genesis_block.hash)
         )
         block_len = block_len and int.from_bytes(block_len, 'little')
@@ -136,21 +158,20 @@ class BlockchainRepository:
             raise exceptions.DatabaseInconsistencyException('hash')
         if best_header.height != headers[0].height - 1:
             raise exceptions.DatabaseInconsistencyException('height')
-        batch_session = rocksdb.WriteBatch()
-        saved_headers = []
-        last_header = None
-        for header in headers:
-            saved_headers.append(
-                self._save_header(header, batch_session)
-            )
-            last_header = header
-        assert last_header
-        self._best_header = last_header
-        self._save_best_height(last_header.height, batch_session)
-        self.db.write(batch_session)
+        with self.db.begin(write=True) as batch_session:
+            saved_headers = []
+            last_header = None
+            for header in headers:
+                saved_headers.append(
+                    self._save_header(header, batch_session)
+                )
+                last_header = header
+            assert last_header
+            self._best_header = last_header
+            self._save_best_height(last_header.height, batch_session)
         return saved_headers
 
-    def _save_header(self, header: BlockHeader, batch_session: rocksdb.WriteBatch) -> BlockHeader:
+    def _save_header(self, header: BlockHeader, batch_session: lmdb.Transaction) -> BlockHeader:
         assert header.height
         height = int(header.height).to_bytes(4, 'little')
         batch_session.put(
@@ -172,7 +193,7 @@ class BlockchainRepository:
 
     def _get_header(self, blockhash: bytes) -> typing.Optional[BlockHeader]:
         key = self._get_db_key(DBPrefix.HEADERS_INDEX, blockhash)
-        data = self.db.get(key)
+        data = self.db.begin().get(key)
         if not data:
             return
         if len(data) not in (84,):
@@ -225,7 +246,7 @@ class BlockchainRepository:
 
     def _get_header_at_height(self, height: bytes) -> BlockHeader:
         height_key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, height)
-        header_hash = self.db.get(height_key)
+        header_hash = self.db.begin().get(height_key)
         if header_hash:
             return self._get_header(header_hash)
 
@@ -241,7 +262,7 @@ class BlockchainRepository:
 
     def _get_best_height(self) -> bytes:
         key = self._get_db_key(DBPrefix.BEST_HEIGHT)
-        best_height = self.db.get(key)
+        best_height = self.db.begin().get(key)
         return best_height
 
     async def get_best_header(self) -> BlockHeader:
@@ -256,7 +277,7 @@ class BlockchainRepository:
         best_height = self._get_best_height()
         return self._get_header_at_height(best_height)
 
-    def _save_best_height(self, height: int, batch_session: rocksdb.WriteBatch):
+    def _save_best_height(self, height: int, batch_session: lmdb.Transaction):
         """
         Save the best HEADER height.
         """
@@ -277,7 +298,7 @@ class BlockchainRepository:
 
     def _get_block_hash(self, height: bytes) -> typing.Optional[bytes]:
         key = self._get_db_key(DBPrefix.BLOCKHASH_BY_HEIGHT, height)
-        block_hash = self.db.get(key)
+        block_hash = self.db.begin().get(key)
         return block_hash
 
     async def get_best_block_hash(self) -> bytes:
@@ -312,48 +333,48 @@ class BlockchainRepository:
 
         return list(map(fn, range(start_from_height, start_from_height + 1 + limit)))
 
-    async def save_blocks(self, blocks: typing.List[Block]):
+    async def save_blocks(self, blocks: typing.Iterable[Block]):
         try:
             await self._save_blocks_lock.acquire()
-            start = time.time()
             await self.loop.run_in_executor(
                 self.executor,
                 self._save_blocks,
                 blocks
             )
-            Logger.repository.debug('Saved %s blocks in %s', len(blocks), time.time() - start)
         finally:
             self._save_blocks_lock.release()
 
-    def _save_blocks(self, blocks: typing.List[Block]):
+    def _save_blocks(self, blocks: typing.Sequence[Block]):
         current_local_chain_height = self.local_chain_height
-        batch_session = rocksdb.WriteBatch()
-        for i, block in enumerate(blocks):
-            if block.height > self._best_header.height:
-                raise exceptions.DatabaseInconsistencyException('Blocks > Headers')
-            batch_session.put(
-                self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
-                len(block.data).to_bytes(4, 'little')
-            )
-            self._disk_db.add(block)
-            if block.height - 1:
-                assert block.height == current_local_chain_height + 1
-            if not block.height - 1 or (
-                    current_local_chain_height != INT4_MAX and
-                    current_local_chain_height == block.height - 1
-            ):
-                current_local_chain_height = block.height
-            else:
-                current_local_chain_height = INT4_MAX
-        s = time.time()
-        if current_local_chain_height != self.local_chain_height:
-            batch_session.put(
-                self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT),
-                current_local_chain_height.to_bytes(4, 'little')
-            )
-            self._local_chain_height = current_local_chain_height
-        self.db.write(batch_session)
+        with self.db.begin(write=True) as batch_session:
+            tot = 0
+            for i, block in enumerate(blocks):
+                tot = i
+                if block.height > self._best_header.height:
+                    raise exceptions.DatabaseInconsistencyException('Blocks > Headers')
+                batch_session.put(
+                    self._get_db_key(DBPrefix.BLOCKS_INDEX, block.hash),
+                    len(block.data).to_bytes(4, 'little')
+                )
+                self._disk_db.add(block)
+                if block.height - 1:
+                    assert block.height == current_local_chain_height + 1
+                if not block.height - 1 or (
+                        current_local_chain_height != INT4_MAX and
+                        current_local_chain_height == block.height - 1
+                ):
+                    current_local_chain_height = block.height
+                else:
+                    current_local_chain_height = INT4_MAX
+            s = time.time()
+            if current_local_chain_height != self.local_chain_height:
+                batch_session.put(
+                    self._get_db_key(DBPrefix.LOCAL_CHAIN_HEIGHT),
+                    current_local_chain_height.to_bytes(4, 'little')
+                )
+                self._local_chain_height = current_local_chain_height
         Logger.repository.debug('Blocks batch saved in %s', time.time() - s)
+        return tot + 1
 
     async def get_block(self, block_hash: bytes) -> typing.Optional[Block]:
         response = (
@@ -373,10 +394,10 @@ class BlockchainRepository:
         )
 
     def _get_block(self, block_hash: bytes) -> (bytes, int):
-        block_len = self.db.get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
+        block_len = self.db.begin().get(self._get_db_key(DBPrefix.BLOCKS_INDEX, block_hash))
         if block_len is None:
             return
-        block_header_and_height = self.db.get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
+        block_header_and_height = self.db.begin().get(self._get_db_key(DBPrefix.HEADERS_INDEX, block_hash))
         block_len = block_len and int.from_bytes(block_len, 'little')
         block_data = self._disk_db.get_block(block_hash)
         if len(block_data) != block_len or not block_header_and_height:

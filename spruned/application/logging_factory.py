@@ -65,6 +65,10 @@ class LoggingFactory:  # pragma: no cover
     def zmq(self):
         return logging.getLogger('zmq')
 
+    @property
+    def utxo(self):
+        return logging.getLogger('utxo')
+
 
 if settings.TESTING:
     Logger = LoggingFactory(
@@ -88,6 +92,7 @@ elif ctx.debug:  # pragma: no cover
     logging.getLogger('leveldb').setLevel(logging.DEBUG)
     logging.getLogger('asyncio').setLevel(logging.INFO)
     logging.getLogger('zmq').setLevel(logging.DEBUG)
+    logging.getLogger('utxo').setLevel(logging.INFO)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
         loglevel=logging.DEBUG,
@@ -107,6 +112,7 @@ else:  # pragma: no cover
     logging.getLogger('leveldb').setLevel(logging.INFO)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)
     logging.getLogger('zmq').setLevel(logging.CRITICAL)
+    logging.getLogger('utxo').setLevel(logging.INFO)
     Logger = LoggingFactory(
         logfile=settings.LOGFILE,
     )  # type: LoggingFactory

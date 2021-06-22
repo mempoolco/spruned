@@ -21,6 +21,7 @@ class BlocksReactor:
         headers_reactor: HeadersReactor,
         repository: Repository,
         interface: P2PInterface,
+        processes_pool: ProcessPoolExecutor,
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_blocks_absolute=None,
@@ -42,7 +43,7 @@ class BlocksReactor:
         self._pending_heights = set()
         self._blocks_sizes_by_hash = dict()
         self._block_fetch_timeout = block_fetch_timeout
-        self._executor = ProcessPoolExecutor(max_workers=deserialize_workers)
+        self._executor = processes_pool
         self._next_fetch_blocks_schedule = None
         self._started = False
         self._blocks_to_save = dict()
@@ -60,12 +61,22 @@ class BlocksReactor:
         self._buffer_hit = False
 
     async def _save_blocks_to_disk(self):
+        s = time.time()
         block_size_in_queue_mul = 2  # block are enqueued with utxo indexing, causing a double ram occupation
         blocks = await self._blocks_queue.get()
-        await self._repo.utxo.process_blocks(blocks)
-        await self._repo.blockchain.save_blocks(blocks)
+        s_utxo = time.time()
+        await self._repo.utxo.process_blocks([b.deserialized for b in blocks])
+        s_blockchain = time.time()
+        await self._repo.blockchain.save_blocks(map(lambda b: b.block, blocks))
+        after_blockchain = time.time()
         self._size_items_in_queue -= sum(map(lambda x: x.block.size * block_size_in_queue_mul, blocks))
         self._persisted_block_height = blocks[-1].block.height
+        Logger.root.debug(
+            'Saved %s blocks in %s (utxo: %s, repo: %s)',
+            len(blocks), round(time.time() - s, 2),
+            round(s_blockchain - s_utxo, 2),
+            round(after_blockchain - s_blockchain, 2)
+        )
         await asyncio.sleep(0.001)
         self._loop.create_task(self._save_blocks_to_disk())
 
@@ -80,6 +91,7 @@ class BlocksReactor:
             )
             if not item['success']:
                 return
+            item['data']['height'] = block['block_height']
             return DeserializedBlock(
                 block=Block(
                     hash=item['data'].pop('hash'),

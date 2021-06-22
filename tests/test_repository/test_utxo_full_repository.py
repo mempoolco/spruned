@@ -6,10 +6,10 @@ from pathlib import Path
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import Mock
 
-from spruned.application.database import init_rocksdb_storage
+from spruned.application.database import init_lmdb
 from spruned.reactors.reactor_types import DeserializedBlock
 from spruned.repositories.utxo_diskdb import UTXODiskDB
-from spruned.repositories.utxo_multiprocessing_repository import UTXOXOFullRepository
+from spruned.repositories.utxo_full_repository import UTXOXOFullRepository
 
 
 class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
@@ -19,13 +19,13 @@ class UTXORepositoryTestCase(IsolatedAsyncioTestCase):
             self.session.close()
             while not self.session.close:
                 time.sleep(1)
-        self.session = init_rocksdb_storage('/tmp/spruned_tests/utxo_repository')
+        self.session = init_lmdb('/tmp/spruned_tests/utxo_repository', readonly=False)
         if getattr(self, 'sut', None):
             self.sut.leveldb = self.session
         return self.session
 
     def _init_sut(self):
-        ps_pool = ProcessPoolExecutor(max_workers=4)
+        ps_pool = ProcessPoolExecutor(max_workers=1)
         self.sut = UTXOXOFullRepository(self.session, '/tmp/spruned_tests/utxo_repository', self.diskdb, ps_pool)
         return self.sut
 

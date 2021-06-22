@@ -1,14 +1,37 @@
+# The MIT License (MIT)
+#
+# Copyright (c) 2021 - spruned contributors - https://github.com/mempoolco/spruned
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 import asyncio
+import multiprocessing
+from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 
 import typing
+import lmdb
 
-import rocksdb
-
-from spruned.application.tools import dblsha256
-from spruned.reactors.reactor_types import DeserializedBlock
-from spruned.repositories import exceptions
+from spruned.application.logging_factory import Logger
+from spruned.repositories.utxo_blocks_processor import BlockProcessor
 from spruned.repositories.utxo_diskdb import UTXODiskDB
 
 
@@ -23,17 +46,23 @@ class DBPrefix(Enum):
 class UTXOXOFullRepository:
     def __init__(
         self,
-        db: rocksdb.DB,
+        db: lmdb.Environment,
+        db_path: str,
         disk_db: UTXODiskDB,
-        shards: typing.Optional[int] = 1000
+        processes_pool: ProcessPoolExecutor,
+        multiprocessing_manager: multiprocessing.Manager,
+        shards: typing.Optional[int] = 1000,
     ):
         self.db = db
+        self.db_path = db_path
         self.loop = asyncio.get_event_loop()
-        self.executor = ThreadPoolExecutor(max_workers=32)
+        self.executor = ThreadPoolExecutor(max_workers=16)
+        self.multiprocessing = processes_pool
         self._best_header = None
         self._disk_db = disk_db
         self._safe_height = 0
         self._shards = shards
+        self._manager = multiprocessing_manager
 
     def set_safe_height(self, safe_height: int):
         self._safe_height = safe_height
@@ -43,94 +72,81 @@ class UTXOXOFullRepository:
         assert isinstance(name, bytes)
         return b'%s%s' % (int.to_bytes(prefix.value, 2, "big"), name)
 
-    async def process_blocks(self, blocks: typing.List[DeserializedBlock]):
-        return await self.loop.run_in_executor(
-            self.executor,
-            self._process_blocks,
-            blocks
-        )
+    @staticmethod
+    def get_chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
 
-    def _process_blocks(self, blocks: typing.List[DeserializedBlock]):
-        revert_utxo = []
-        session = rocksdb.WriteBatch()
-        pending = dict()
-        for block in blocks:
-            height_in_bytes = block.block.height.to_bytes(4, 'little')
-            for tx in block.deserialized['txs']:
-                if not tx['gen']:
-                    for vin in tx['ins']:
-                        revert_utxo.append(
-                            self._spend_utxo(
-                                session,
-                                vin,
-                                safe=block.block.height < self._safe_height,
-                                pending=pending
-                            )
-                        )
-                for i, vout in enumerate(tx['outs']):
-                    utxo = self._add_utxo(session, vout, tx, i, height_in_bytes, tx['gen'])
-                    pending[utxo[0]] = utxo[1]
-            session.put(
-                self._get_db_key(DBPrefix.CURRENT_BLOCK_HEIGHT),
-                block.block.height.to_bytes(4, 'little')
-            )
-            self._disk_db.save_revert_state(block.block.hash, revert_utxo)
-        self.db.write(session)
+    async def process_blocks(self, blocks: typing.List[typing.Dict]):
+        """
+        Process blocks using multiprocessing.
+        Asynchronously prepare the WriteBatch.
+        Save the batch using threading.
+        """
+        with self.db.begin(write=True) as batch:
+            wip = dict(pending=[], errors=[], rev_states=[])
+            await self._validate_blocks(blocks, batch, wip)
+            while wip['pending']:
+                if wip['errors']:
+                    Logger.root.error('Found error in UTXO, not handled yet. Exiting: %s', wip['errors'])
+                    self.loop.stop()
+                await asyncio.sleep(0.1)
         return True
 
-    async def revert_block(self, block: DeserializedBlock):
-        return await self.loop.run_in_executor(
-            self.executor,
-            self._revert_block,
-            block,
-        )
+    async def _validate_blocks(
+            self, blocks: typing.List[typing.Dict], write_batch: lmdb.Transaction, wip: typing.Dict
+    ):
+        parallelism = self.multiprocessing._max_workers
+        manager = self._manager
+        responses = []
+        for chunk in self.get_chunks(blocks, parallelism):
+            tasks = []
+            kill_pill, processing_blocks, done_blocks = manager.list(), manager.list(), manager.list()
+            requested_utxo, published_utxo = manager.list(), manager.dict()
+            for b in chunk:
+                wip['pending'].append(b['height'])
+                tasks.append(
+                    self.loop.run_in_executor(
+                        self.multiprocessing,
+                        BlockProcessor.process,
+                        b,
+                        kill_pill,
+                        processing_blocks,
+                        done_blocks,
+                        requested_utxo,
+                        published_utxo,
+                        min(parallelism, len(chunk)),
+                        self._shards,
+                        self.db_path,
+                        responses
+                    )
+                )
+            res = await asyncio.gather(*tasks)
+            self.loop.create_task(self._populate_batch(res, write_batch, wip))
+            responses.extend(res)
+        return responses
 
-    def _revert_block(self, block: DeserializedBlock) -> bool:
-        raise NotImplementedError
-
-    def _verify_utxo(self, vin: typing.Dict, utxo_key: bytes, pending: typing.Dict) -> bytes:
-        # todo full validation
-        existing = pending.get(utxo_key, None) or self.db.get(utxo_key)
-        if existing is None:
-            raise exceptions.UTXOInconsistencyException('utxo %s does not exist' % utxo_key)
-        return existing
-
-    def _spend_utxo(self, session: rocksdb.WriteBatch, vin, safe=True, pending: typing.Optional[dict] = None) -> bytes:
-        outpoint = vin['hash'] + vin['index']
-        utxo_key = self._get_db_key(DBPrefix.UTXO, outpoint)
-        existing = None if safe else self._verify_utxo(vin, utxo_key, pending)
-        session.delete(utxo_key)
-        pending.pop(utxo_key, None)
-        if self._shards:
-            shard = (int.from_bytes(dblsha256(existing[13:]), 'little') % self._shards).to_bytes(4, 'little')
-            session.delete(self._get_db_key(DBPrefix.UTXO_BY_SHARD, shard + outpoint))
-        return existing
-
-    def _backup_utxo_for_rollback(self, session, existing: bytes, utxo_key: bytes):
-        session: rocksdb.WriteBatch
-        session.put(
-            self._get_db_key(DBPrefix.UTXO_REVERTS, utxo_key[2:]),
-            existing
-        )
-
-    def _add_utxo(
+    async def _populate_batch(
             self,
-            session: rocksdb.WriteBatch,
-            vout: typing.Dict,
-            tx: typing.Dict,
-            i: int,
-            block_height: bytes,
-            is_coinbase: bool
-    ) -> typing.Tuple:
-        outpoint = tx['hash'] + i.to_bytes(4, 'little')
-        utxo_key = self._get_db_key(DBPrefix.UTXO, outpoint)
-        utxo_data = vout['amount'] + is_coinbase.to_bytes(1, 'little') + block_height + vout['script']
-        session.put(utxo_key, utxo_data)
-        if not self._shards:
-            return utxo_key, utxo_data
-        shard = (int.from_bytes(dblsha256(vout['script']), 'little') % self._shards).to_bytes(2, 'little')
-        session.put(self._get_db_key(DBPrefix.UTXO_BY_SHARD, shard + outpoint), b'\x01')
-        return utxo_key, utxo_data
-
-    def get_utxo(self, txid: bytes, index: int) -> bool:
-        pass
+            res: typing.Sequence[typing.Dict],
+            write_batch: lmdb.Transaction,
+            wip: typing.Dict
+    ):
+        for r in res:
+            if r['exit_code']:
+                Logger.utxo.error('Error! Response has exit code: %s', r)
+                wip['errors'].append(r)
+                wip['pending'].remove(r['height'])
+                continue
+            if wip['errors']:
+                wip['pending'].remove(r['height'])
+                continue
+            await asyncio.sleep(0.001)
+            for outpoint, value in r['consumed_utxo'].items():
+                write_batch.delete(self._get_db_key(DBPrefix.UTXO_BY_SHARD, value[1] + outpoint))
+                write_batch.delete(self._get_db_key(DBPrefix.UTXO, outpoint))
+            await asyncio.sleep(0.001)
+            for outpoint, value in r['new_utxo'].items():
+                write_batch.put(self._get_db_key(DBPrefix.UTXO_BY_SHARD, value[1] + outpoint), b'1')
+                write_batch.put(self._get_db_key(DBPrefix.UTXO, outpoint), value[0])
+            wip['pending'].remove(r['height'])

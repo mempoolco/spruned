@@ -1,3 +1,5 @@
+from concurrent.futures.process import ProcessPoolExecutor
+
 from spruned.application.context import ctx as _ctx, Context
 from spruned.services.zeromq import build_zmq
 
@@ -13,7 +15,8 @@ def builder(ctx: Context):  # pragma: no cover
 
     electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
-    repository = Repository.instance()
+    processes_pool = ProcessPoolExecutor(max_workers=4)
+    repository = Repository.instance(processes_pool)
     headers_reactor = HeadersReactor(
         repository.blockchain,
         ctx.network_rules,
@@ -23,6 +26,7 @@ def builder(ctx: Context):  # pragma: no cover
         headers_reactor,
         repository,
         p2p_interface,
+        processes_pool,
         keep_blocks_relative=ctx.keep_blocks_relative,
         keep_blocks_absolute=ctx.keep_blocks_absolute
     )

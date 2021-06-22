@@ -3,7 +3,7 @@ aiohttp-socks==0.6.0
 async-timeout==3.0.1
 coloredlogs
 jsonrpcserver==3.5.3
-python-rocksdb
+lmdb
 pycoin==0.80
 pyzmq==22.0.3
 aiodiskdb==0.1
