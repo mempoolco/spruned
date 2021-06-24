@@ -21,6 +21,8 @@
 # THE SOFTWARE.
 #
 
+_EMPTY_MEM = [b'\x00' * 36 for _ in range(254)]
+
 import asyncio
 import multiprocessing
 from concurrent.futures.process import ProcessPoolExecutor
@@ -28,6 +30,8 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 
 import typing
+from multiprocessing.shared_memory import ShareableList
+
 import lmdb
 
 from spruned.application.logging_factory import Logger
@@ -36,11 +40,11 @@ from spruned.repositories.utxo_diskdb import UTXODiskDB
 
 
 class DBPrefix(Enum):
-    DB_VERSION = 1
-    CURRENT_BLOCK_HEIGHT = 2
-    UTXO = 3
-    UTXO_REVERTS = 4
-    UTXO_BY_SHARD = 5
+    DB_VERSION = b'\x00\x01'
+    CURRENT_BLOCK_HEIGHT = b'\x00\x02'
+    UTXO = b'\x00\x03'
+    UTXO_REVERTS = b'\x00\x04'
+    UTXO_BY_SHARD = b'\x00\x05'
 
 
 class UTXOXOFullRepository:
@@ -52,8 +56,8 @@ class UTXOXOFullRepository:
         processes_pool: ProcessPoolExecutor,
         multiprocessing_manager: multiprocessing.Manager,
         shards: typing.Optional[int] = 1000,
-        parallelism=4,
-        entries_to_fork=100
+        parallelism=16,
+        entries_to_fork=0
     ):
         self.db = db
         self.db_path = db_path
@@ -73,8 +77,7 @@ class UTXOXOFullRepository:
 
     @staticmethod
     def _get_db_key(prefix: DBPrefix, name: bytes = b''):
-        assert isinstance(name, bytes)
-        return b'%s%s' % (int.to_bytes(prefix.value, 2, "big"), name)
+        return prefix.value + name
 
     @staticmethod
     def get_chunks(lst, n):
@@ -110,40 +113,62 @@ class UTXOXOFullRepository:
             write_batch: lmdb.Transaction,
             wip: typing.Dict, fork: bool = False
     ):
-        manager = self._manager
+        if fork:
+            requested_utxo = [ShareableList(_EMPTY_MEM)]
+            published_utxo = self._manager.dict()
         responses = []
+        Logger.utxo.info('Processing blocks, from %s to %s', blocks[0]['height'], blocks[-1]['height'])
         for chunk in self.get_chunks(blocks, self.parallelism):
             tasks = []
             if fork:
-                kill_pill, processing_blocks, done_blocks = manager.list(), manager.list(), manager.list()
-                requested_utxo, published_utxo = manager.list(), manager.dict()
+                lock = self._manager.Lock()
+                processing_blocks = [ShareableList([None for _ in range(len(chunk))])]
+                done_blocks = [ShareableList([None for _ in range(len(chunk))])]
+                kill_pill = [ShareableList([None])]
             else:
-                kill_pill, processing_blocks, done_blocks = list(), list(), list()
+                lock = None
+                processing_blocks = [None for _ in range(len(chunk))]
+                done_blocks = [None for _ in range(len(chunk))]
+                kill_pill = [None]
                 requested_utxo, published_utxo = list(), dict()
-            for b in chunk:
+            for i, b in enumerate(chunk):
+                if kill_pill[0]:
+                    break
                 wip['pending'].append(b['height'])
-                processing_blocks.append(b['height'])
+                processing_blocks[i] = b['height']
                 tasks.append(
                     self.loop.run_in_executor(
                         fork and self.multiprocessing or self.executor,
                         BlockProcessor.process,
                         b,
-                        kill_pill,
-                        processing_blocks,
-                        done_blocks,
-                        requested_utxo,
+                        kill_pill if not fork else kill_pill[0].shm.name,
+                        processing_blocks if not fork else processing_blocks[0].shm.name,
+                        done_blocks if not fork else done_blocks[0].shm.name,
+                        requested_utxo if not fork else requested_utxo[0].shm.name,
                         published_utxo,
                         min(self.parallelism if fork else 8, len(chunk)),
                         self._shards,
                         self.db_path,
                         responses,
-                        not fork and self.db
+                        not fork and self.db,
+                        lock
                     )
                 )
-            res = await asyncio.gather(*tasks)
+            res = tasks and await asyncio.gather(*tasks) or []
+            if fork:
+                processing_blocks[0].shm.unlink()
+                done_blocks[0].shm.unlink()
+                kill_pill[0].shm.unlink()
+                del processing_blocks
+                del done_blocks
+                del kill_pill
             responses.extend(res)
             self.loop.create_task(self._populate_batch(res, write_batch, wip))
-        return responses
+        if fork:
+            assert all(map(lambda x: not x, requested_utxo[0])), requested_utxo
+            requested_utxo[0].shm.unlink()
+            del requested_utxo
+        Logger.utxo.info('Processed blocks, from %s to %s', blocks[0]['height'], blocks[-1]['height'])
 
     async def _populate_batch(
             self,
@@ -166,10 +191,11 @@ class UTXOXOFullRepository:
             if wip['errors']:
                 wip['pending'].remove(r['height'])
                 continue
-            for outpoint, value in r['consumed_utxo'].items():
-                write_batch.delete(self._get_db_key(DBPrefix.UTXO_BY_SHARD, value[1] + outpoint))
-                write_batch.delete(self._get_db_key(DBPrefix.UTXO, outpoint))
             for outpoint, value in r['new_utxo'].items():
-                write_batch.put(self._get_db_key(DBPrefix.UTXO_BY_SHARD, value[1] + outpoint), b'1')
-                write_batch.put(self._get_db_key(DBPrefix.UTXO, outpoint), value[0])
-            wip['pending'].remove(r['height'])
+                write_batch.put(DBPrefix.UTXO_BY_SHARD.value + value[1] + outpoint, b'\x01')
+                write_batch.put(DBPrefix.UTXO.value + outpoint, value[0])
+        for r in res:
+            for outpoint, value in r['consumed_utxo'].items():
+                write_batch.delete(DBPrefix.UTXO_BY_SHARD.value + value[1] + outpoint)
+                write_batch.delete(DBPrefix.UTXO.value + outpoint)
+            r['height'] in wip['pending'] and wip['pending'].remove(r['height'])

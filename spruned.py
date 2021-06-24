@@ -6,6 +6,5 @@
 if __name__ == '__main__':
     import sys
     sys.path.insert(0, './')
-
     from spruned.app import main
     main()

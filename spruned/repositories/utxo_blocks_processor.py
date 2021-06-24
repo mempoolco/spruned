@@ -25,6 +25,8 @@ import logging
 import time
 import typing
 from enum import Enum
+from multiprocessing import Lock
+from multiprocessing.shared_memory import ShareableList
 
 import lmdb
 
@@ -44,6 +46,8 @@ UTXO_ORIGIN_ROUND = 1
 UTXO_ORIGIN_LOCAL = 2
 UTXO_ORIGIN_WORKERS = 3
 
+_EMPTY_DATA = b''
+
 
 class ExitException(Exception):
     pass
@@ -62,16 +66,16 @@ class BlockProcessor:
         self,
         block: typing.Dict,
         # the following objects must be multiprocessing.Manager proxies.
-        kill_pill: typing.List,
-        processing_blocks: typing.List,
-        done_blocks: typing.List,
-        requested_utxo: typing.List,
+        kill_pill: typing.Union[typing.List, ShareableList],
+        processing_blocks: typing.Union[typing.List, ShareableList],
+        done_blocks: typing.Union[typing.List, ShareableList],
+        requested_utxo: typing.Union[typing.List, ShareableList],
         published_utxo: typing.Dict,
         total_blocks: int,
         shards: int,
         db: lmdb.Environment,
         prev_rounds_processed: typing.List[typing.Dict],
-        is_fork: bool
+        fork_lock: typing.Optional[Lock]
     ):
         self.logger = logging.getLogger('utxo')
         self.block: typing.Dict = block
@@ -94,10 +98,12 @@ class BlockProcessor:
         self._local_requested_utxo = set()
         self.height_in_bytes = block['height'].to_bytes(4, 'little')
         self._obtained_from_db = dict()
-        self._is_fork = is_fork
+        self._fork_lock = fork_lock
+        self._retry_on_shareable_error = 10
+        self._tx_hashes = set()
 
     def _check_kill_pill(self):
-        if self.kill_pill:
+        if self.kill_pill[0]:
             return True
 
     @staticmethod
@@ -118,8 +124,6 @@ class BlockProcessor:
         :param outpoint:
         :return:
         """
-        if self.block['height'] == 546:
-            pass
         for res in self.prev_rounds_processed:
             resp = res['new_utxo'].get(outpoint)
             if resp:
@@ -136,7 +140,7 @@ class BlockProcessor:
         outpoint = vin['hash'] + vin['index']
         utxo = origin = shard = None
         if outpoint in local_utxo:
-            self.kill_pill.append(1)
+            self.kill_pill[0] = 1
             self._exit_code = DOUBLE_SPEND_ERROR
             return False
 
@@ -162,11 +166,8 @@ class BlockProcessor:
                 origin = UTXO_ORIGIN_ROUND
                 utxo, shard = data
             elif outpoint not in self._local_requested_utxo:
-                self._local_requested_utxo.add(outpoint)
-                self.logger.debug('block %s is requesting utxo %s' % (self.block['height'], outpoint))
-                self.requested_utxo.append(outpoint)
+                self._request_utxo(outpoint)
                 return False
-
         if not utxo:
             # If the utxo comes from another worker, the shard it's already calculated.
             data = self.published_utxo.get(outpoint, None)
@@ -183,13 +184,43 @@ class BlockProcessor:
             local_utxo[outpoint] = [utxo, shard, origin]
         return True
 
+    def _request_utxo(self, outpoint: bytes):
+        if outpoint[:32] in self._tx_hashes:
+            return
+
+        retries = 0
+        while 1:
+            if self._fork_lock:
+                # processes
+                self._fork_lock.acquire()
+                try:
+                    self.logger.debug('block %s is requesting utxo %s' % (self.block['height'], outpoint))
+                    idx = self.requested_utxo.index(_EMPTY_DATA)
+                    self.requested_utxo[idx] = outpoint
+                    self._local_requested_utxo.add(outpoint)
+                    return
+                except ValueError:
+                    retries += 1
+                    if retries > 5:
+                        return
+                    time.sleep(0.1)
+                    continue
+                finally:
+                    self._fork_lock.release()
+            else:
+                # threads
+                self._local_requested_utxo.add(outpoint)
+                self.logger.debug('block %s is requesting utxo %s' % (self.block['height'], outpoint))
+                self.requested_utxo.append(outpoint)
+                return
+
     def _process_vout(self, tx: typing.Dict, i: int, vout: typing.Dict, is_coinbase: bool):
         """
         Process a transaction output, add UTXO.
         """
         outpoint = tx['hash'] + i.to_bytes(4, 'little')
         if outpoint in self._new_utxo_k:
-            self.kill_pill.append(1)
+            self.kill_pill[0] = 1
             self._error = outpoint
             self._exit_code = DOUBLE_SPEND_ERROR
         self.logger.debug('block %s adding utxo %s' % (self.block['height'], outpoint))
@@ -205,18 +236,29 @@ class BlockProcessor:
         At the same time that the UTXO is passed into the shared memory, is removed from the
         outcome (the new utxo that are going to be saved into the DB).
         """
-        requested_utxo = set(self.requested_utxo) & set(self._new_utxo_k)
+        req_utxo = list(map(lambda x: x + (b'\0' * (36 - len(x))), filter(lambda x: x, self.requested_utxo)))
+        req_utxo and self.logger.debug('Requested utxo: %s' % req_utxo)
+        requested_utxo = set(req_utxo) & set(self._new_utxo_k)
         for r in requested_utxo:
             self.logger.debug('block %s is providing utxo %s' % (self.block['height'], r))
-            self.requested_utxo.remove(r)
-            self.published_utxo[r] = self._new_utxo.pop(r)
+            if self._fork_lock:
+                self._fork_lock.acquire()
+                try:
+                    idx = self.requested_utxo.index(r.rstrip(b'\x00'))
+                    self.requested_utxo[idx] = _EMPTY_DATA
+                    self.published_utxo[r] = self._new_utxo.pop(r)
+                finally:
+                    self._fork_lock.release()
+            else:
+                self.requested_utxo.remove(r)
+                self.published_utxo[r] = self._new_utxo.pop(r)
             self._new_utxo_k.remove(r)
 
     def serialize(self) -> typing.Dict:
         return {
             'height': self.block['height'],
             'missing_txs': self._missing_txs,
-            'requested_utxo': self._exit_code and [x for x in self.requested_utxo],
+            'requested_utxo': self._exit_code and list(self._local_requested_utxo),
             'consumed_utxo': self._consumed_utxo,
             'new_utxo': self._new_utxo,
             'error': self._error,
@@ -227,53 +269,74 @@ class BlockProcessor:
     def process(
             cls,
             block: typing.Dict,
-            kill_pill: typing.List,
-            processing_blocks: typing.List,
-            done_blocks: typing.List,
-            requested_utxo: typing.List,
+            kill_pill: typing.Union[typing.List, str],
+            processing_blocks: typing.Union[typing.List, str],
+            done_blocks: typing.Union[typing.List, str],
+            requested_utxo: typing.Union[typing.List, str],
             published_utxo: typing.Dict,
             total_blocks: int,
             shards: int,
             path: str,
             prev_rounds_processed: typing.List[typing.Dict],
-            existing_db: typing.Optional[lmdb.Environment]
+            existing_db: typing.Optional[lmdb.Environment],
+            fork_lock: typing.Optional[Lock] = None
     ) -> typing.Dict:
         """
         Processor Entry Point, must be used into Repository.process_blocks
         """
+        import warnings
+        warnings.filterwarnings("ignore")
+
         if existing_db:
+            # threads
             return cls._process(
-                block, kill_pill, processing_blocks, done_blocks, requested_utxo,
-                published_utxo, total_blocks, shards, existing_db, prev_rounds_processed, False
+                block, kill_pill, processing_blocks, done_blocks, requested_utxo, published_utxo,
+                total_blocks, shards, existing_db, prev_rounds_processed, fork_lock
             )
         with lmdb.open(path, readonly=True) as db:
-            return cls._process(
-                block, kill_pill, processing_blocks, done_blocks, requested_utxo,
-                published_utxo, total_blocks, shards, db, prev_rounds_processed, True
-            )
+            # processes
+            try:
+                kill_pill = ShareableList(name=kill_pill)
+                processing_blocks = ShareableList(name=processing_blocks)
+                done_blocks = ShareableList(name=done_blocks)
+                requested_utxo = ShareableList(name=requested_utxo)
+                return cls._process(
+                    block, kill_pill, processing_blocks, done_blocks, requested_utxo, published_utxo,
+                    total_blocks, shards, db, prev_rounds_processed, fork_lock
+                )
+            finally:
+                processing_blocks.shm.close()
+                done_blocks.shm.close()
+                kill_pill.shm.close()
+                requested_utxo.shm.close()
+
+    def _index_txs(self):
+        self._tx_hashes = set(map(lambda x: x['hash'], self.block['txs']))
 
     @classmethod
     def _process(
         cls,
         block: typing.Dict,
-        kill_pill: typing.List,
-        processing_blocks: typing.List,
-        done_blocks: typing.List,
-        requested_utxo: typing.List,
+        kill_pill: typing.Union[typing.List, ShareableList],
+        processing_blocks: typing.Union[typing.List, ShareableList],
+        done_blocks: typing.Union[typing.List, ShareableList],
+        requested_utxo: typing.Union[typing.List, ShareableList],
         published_utxo: typing.Dict,
         total_blocks: int,
         shards: int,
         db: lmdb.Environment,
         prev_rounds_processed: typing.List[typing.Dict],
-        is_fork: bool
+        fork_lock: typing.Optional[Lock]
     ):
         self = cls(
             block, kill_pill, processing_blocks,
-            done_blocks, requested_utxo, published_utxo,
+            done_blocks, requested_utxo,
+            published_utxo,
             total_blocks, shards, db,
-            prev_rounds_processed, is_fork
+            prev_rounds_processed, fork_lock
         )
         try:
+            self._index_txs()  # index vouts to avoid requesting outside and just wait the turn.
             for tx in self.block['txs']:  # first round, process block txs
                 try:
                     self._process_tx(tx)
@@ -283,7 +346,7 @@ class BlockProcessor:
             self._check_requested_unspents()  # once missing_txs are processed, publish data for other workers.
         except Exception as e:
             self.logger.exception('Error in main loop')
-            self.kill_pill.append(1)  # tell other workers to quit.
+            self.kill_pill[0] = 1  # tell other workers to quit.
             self._exit_code = EXCEPTION  # gracefully exit.
             self._error = str(e)  # take not of the error
         self.logger.debug('block %s exiting' % self.serialize())
@@ -295,8 +358,6 @@ class BlockProcessor:
         Used both in the first round (blocks transactions)
         and in the second (reprocess missing txs).
         """
-        # gli output devono essere processati e accantonati prima
-        # cosi' da evitare di andarli a chiedere in giro.
         if self._exit_code:
             raise ExitException
         local_utxo = dict()
@@ -320,12 +381,19 @@ class BlockProcessor:
         for outpoint, data in local_utxo.items():
             origin = data[2]
             if origin == UTXO_ORIGIN_WORKERS:
+                self.published_utxo.pop(outpoint)
                 # utxo is popped by the worker itself.
                 continue
             elif origin == UTXO_ORIGIN_LOCAL:
                 # utxo is present on the local new utxo, must remove it.
                 self._new_utxo_k.remove(outpoint)
                 self._new_utxo.pop(outpoint)
+                stripped_outpoint = outpoint.rstrip(b'\x00')
+                try:
+                    idx = self.requested_utxo.index(stripped_outpoint)
+                    self.requested_utxo[idx] = _EMPTY_DATA
+                except ValueError:
+                    continue
                 continue
             # utxo comes from db or other chunk, delete must be issued.
             self._consumed_utxo[outpoint] = data[:2]
@@ -338,8 +406,9 @@ class BlockProcessor:
         next_is_failure = 0
         while 1:
             if self._exit_code:
+                idx = self.processing_blocks.index(self.block['height'])
+                self.done_blocks[idx] = self.block['height']
                 self.logger.debug('marking block as done, bad, %s' % self.block['height'])
-                self.done_blocks.append(self.block['height'])
                 break
             ok = []
             for tx in self._missing_txs:
@@ -348,17 +417,21 @@ class BlockProcessor:
                 ok.append(tx)
             self._missing_txs = [x for x in self._missing_txs if x not in ok]
             if self._missing_txs:
-                if min(self.processing_blocks) == self.block['height']:
-                    if next_is_failure < 100:
+                p = self._get_shared_list(self.processing_blocks)
+                if min(p) == self.block['height']:
+                    if next_is_failure < 32**2:
                         next_is_failure += 1
-                        time.sleep(self._is_fork and 0.01 or 0.001)
+                        time.sleep(self._fork_lock and 0.01 or 0.001)
+                        continue
                     else:
                         self._exit_code = ALONE_WITH_PENDING_UTXO
-                        self.kill_pill.append(1)
+                        self.kill_pill[0] = 1
                         break
+                time.sleep(0.001)
                 continue
             self.logger.debug('marking block as done, good, %s' % self.block['height'])
-            self.done_blocks.append(self.block['height'])
+            idx = self.processing_blocks.index(self.block['height'])
+            self.done_blocks[idx] = self.block['height']
             break
 
     def _check_requested_unspents(self):
@@ -367,11 +440,23 @@ class BlockProcessor:
         If the missing UTXO is found in the local round, pushes it into the shared memory.
         """
         while 1:
-            pending_blocks = set(self.processing_blocks) - set(self.done_blocks)
+            processing = self._get_shared_list(self.processing_blocks)
+            done = self._get_shared_list(self.done_blocks)
+            pending_blocks = set(processing) - set(done)
             if all(map(lambda x: x < self.block['height'], pending_blocks)):
+                self.logger.debug('block %s is exiting, no more work' % self.block['height'])
                 break
-            if self.kill_pill:
+            if self.kill_pill[0]:
                 self._exit_code = self._exit_code or KILL_PILL_RECEIVED
                 break
             self._evade_requested_utxo()
-            time.sleep(self._is_fork and 0.01 or 0.001)
+
+    def _get_shared_list(self, value):
+        errors = 0
+        while 1:
+            try:
+                return [x for x in value if x is not _EMPTY_DATA]
+            except:
+                errors += 1
+                if errors > self._retry_on_shareable_error:
+                    raise

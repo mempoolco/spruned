@@ -15,7 +15,7 @@ def builder(ctx: Context):  # pragma: no cover
 
     electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
-    processes_pool = ProcessPoolExecutor(max_workers=8)
+    processes_pool = ProcessPoolExecutor(max_workers=16)
     repository = Repository.instance(processes_pool)
     headers_reactor = HeadersReactor(
         repository.blockchain,

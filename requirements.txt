@@ -1,4 +1,4 @@
-aiohttp==3.7.4Z
+aiohttp==3.7.4
 aiohttp-socks==0.6.0
 async-timeout==3.0.1
 coloredlogs

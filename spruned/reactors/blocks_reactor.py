@@ -27,7 +27,7 @@ class BlocksReactor:
         keep_blocks_absolute=None,
         block_fetch_timeout=5,
         deserialize_workers=4,
-        max_blocks_buffer_megabytes=50
+        max_blocks_buffer_megabytes=16
     ):
 
         assert keep_blocks_relative is None or keep_blocks_absolute is None  # one must be none
