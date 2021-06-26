@@ -58,7 +58,7 @@ class UTXOXOFullRepository:
         multiprocessing_manager: multiprocessing.Manager,
         shards: typing.Optional[int] = 1000,
         parallelism=4,
-        entries_to_fork=0
+        entries_to_fork=1000
     ):
         self.db = db
         self.db_path = db_path
@@ -139,13 +139,13 @@ class UTXOXOFullRepository:
                 wip['pending'].append(b['height'])
                 processing_blocks[0][i] = b['height']
                 t = self.loop.run_in_executor(
-                    self._multiprocessing.executor,
+                    self._multiprocessing.executor if fork else self.executor,
                     BlockProcessor.process,
                     b,
-                    kill_pill if not fork else kill_pill[0].shm.name,
-                    processing_blocks if not fork else processing_blocks[0].shm.name,
-                    done_blocks if not fork else done_blocks[0].shm.name,
-                    requested_utxo if not fork else requested_utxo[0].shm.name,
+                    kill_pill[0] if not fork else kill_pill[0].shm.name,
+                    processing_blocks[0] if not fork else processing_blocks[0].shm.name,
+                    done_blocks[0] if not fork else done_blocks[0].shm.name,
+                    requested_utxo[0] if not fork else requested_utxo[0].shm.name,
                     published_utxo,
                     min(self.parallelism if fork else 8, len(chunk)),
                     self._shards,
