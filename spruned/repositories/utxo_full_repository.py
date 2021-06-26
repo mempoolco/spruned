@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
+from spruned.application.process_pool_manager import ProcessPoolManager
 
 _EMPTY_MEM = [b'\x00' * 36 for _ in range(254)]
 
@@ -53,17 +54,16 @@ class UTXOXOFullRepository:
         db: lmdb.Environment,
         db_path: str,
         disk_db: UTXODiskDB,
-        processes_pool: ProcessPoolExecutor,
+        multiprocessing_pool: ProcessPoolManager,
         multiprocessing_manager: multiprocessing.Manager,
         shards: typing.Optional[int] = 1000,
-        parallelism=16,
+        parallelism=4,
         entries_to_fork=0
     ):
         self.db = db
         self.db_path = db_path
         self.loop = asyncio.get_event_loop()
         self.executor = ThreadPoolExecutor(max_workers=16)
-        self.multiprocessing = processes_pool
         self._best_header = None
         self._disk_db = disk_db
         self._safe_height = 0
@@ -71,6 +71,7 @@ class UTXOXOFullRepository:
         self._manager = multiprocessing_manager
         self.parallelism = parallelism
         self.entries_to_fork = entries_to_fork
+        self._multiprocessing = multiprocessing_pool
 
     def set_safe_height(self, safe_height: int):
         self._safe_height = safe_height
@@ -116,6 +117,8 @@ class UTXOXOFullRepository:
         if fork:
             requested_utxo = [ShareableList(_EMPTY_MEM)]
             published_utxo = self._manager.dict()
+        else:
+            requested_utxo, published_utxo = [list()], dict()
         responses = []
         Logger.utxo.info('Processing blocks, from %s to %s', blocks[0]['height'], blocks[-1]['height'])
         for chunk in self.get_chunks(blocks, self.parallelism):
@@ -127,34 +130,32 @@ class UTXOXOFullRepository:
                 kill_pill = [ShareableList([None])]
             else:
                 lock = None
-                processing_blocks = [None for _ in range(len(chunk))]
-                done_blocks = [None for _ in range(len(chunk))]
-                kill_pill = [None]
-                requested_utxo, published_utxo = list(), dict()
+                processing_blocks = [[None for _ in range(len(chunk))]]
+                done_blocks = [[None for _ in range(len(chunk))]]
+                kill_pill = [[None]]
             for i, b in enumerate(chunk):
-                if kill_pill[0]:
+                if kill_pill[0][0]:
                     break
                 wip['pending'].append(b['height'])
-                processing_blocks[i] = b['height']
-                tasks.append(
-                    self.loop.run_in_executor(
-                        fork and self.multiprocessing or self.executor,
-                        BlockProcessor.process,
-                        b,
-                        kill_pill if not fork else kill_pill[0].shm.name,
-                        processing_blocks if not fork else processing_blocks[0].shm.name,
-                        done_blocks if not fork else done_blocks[0].shm.name,
-                        requested_utxo if not fork else requested_utxo[0].shm.name,
-                        published_utxo,
-                        min(self.parallelism if fork else 8, len(chunk)),
-                        self._shards,
-                        self.db_path,
-                        responses,
-                        not fork and self.db,
-                        lock
-                    )
+                processing_blocks[0][i] = b['height']
+                t = self.loop.run_in_executor(
+                    self._multiprocessing.executor,
+                    BlockProcessor.process,
+                    b,
+                    kill_pill if not fork else kill_pill[0].shm.name,
+                    processing_blocks if not fork else processing_blocks[0].shm.name,
+                    done_blocks if not fork else done_blocks[0].shm.name,
+                    requested_utxo if not fork else requested_utxo[0].shm.name,
+                    published_utxo,
+                    min(self.parallelism if fork else 8, len(chunk)),
+                    self._shards,
+                    self.db_path,
+                    responses,
+                    not fork and self.db,
+                    lock
                 )
-            res = tasks and await asyncio.gather(*tasks) or []
+                tasks.append(t)
+            res = await asyncio.gather(*tasks)
             if fork:
                 processing_blocks[0].shm.unlink()
                 done_blocks[0].shm.unlink()

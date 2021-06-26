@@ -1,10 +1,11 @@
 import asyncio
 import time
 import typing
-from concurrent.futures.process import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 
 from spruned.application import consensus, exceptions
 from spruned.application.logging_factory import Logger
+from spruned.application.process_pool_manager import ProcessPoolManager
 from spruned.reactors.headers_reactor import HeadersReactor
 from spruned.reactors.reactor_types import DeserializedBlock
 from spruned.repositories.repository_types import Block
@@ -21,13 +22,13 @@ class BlocksReactor:
         headers_reactor: HeadersReactor,
         repository: Repository,
         interface: P2PInterface,
-        processes_pool: ProcessPoolExecutor,
+        multiprocessing_pool: ProcessPoolManager,
         loop=asyncio.get_event_loop(),
         keep_blocks_relative=None,
         keep_blocks_absolute=None,
         block_fetch_timeout=5,
         deserialize_workers=4,
-        max_blocks_buffer_megabytes=16
+        max_blocks_buffer_megabytes=64
     ):
 
         assert keep_blocks_relative is None or keep_blocks_absolute is None  # one must be none
@@ -43,7 +44,6 @@ class BlocksReactor:
         self._pending_heights = set()
         self._blocks_sizes_by_hash = dict()
         self._block_fetch_timeout = block_fetch_timeout
-        self._executor = processes_pool
         self._next_fetch_blocks_schedule = None
         self._started = False
         self._blocks_to_save = dict()
@@ -59,10 +59,11 @@ class BlocksReactor:
         self._last_average_block_size = None
         self._job_queue_max_size = self._max_blocks_buffer_bytes * 0.2
         self._buffer_hit = False
+        self._multiprocessing_pool = multiprocessing_pool
 
     async def _save_blocks_to_disk(self):
         s = time.time()
-        block_size_in_queue_mul = 2  # block are enqueued with utxo indexing, causing a double ram occupation
+        block_size_in_queue_mul = 1  # block are enqueued with utxo indexing, causing a double ram occupation
         blocks = await self._blocks_queue.get()
         s_utxo = time.time()
         await self._repo.utxo.process_blocks([b.deserialized for b in blocks])
@@ -86,9 +87,17 @@ class BlocksReactor:
             block_bytes = block['header_bytes'] + block['data'].read()
             size = len(block_bytes)
             self._processing_blocks_size += size
-            item = await self._loop.run_in_executor(
-                self._executor, BlockDeserializer.deserialize_block, block_bytes
-            )
+            try:
+                item = await self._loop.run_in_executor(
+                    self._multiprocessing_pool.executor,
+                    BlockDeserializer.deserialize_block,
+                    block_bytes
+                )
+            except BrokenProcessPool:
+                Logger.p2p.warning('Error with multiprocessing pool, restarting')
+                self._multiprocessing_pool.restart()
+                return
+
             if not item['success']:
                 return
             item['data']['height'] = block['block_height']
@@ -311,10 +320,11 @@ class BlocksReactor:
             ) or 0
             if total_buffer_size > self._max_blocks_buffer_bytes and \
                     (not max_pending_height or block_height > max_pending_height):
-                not self._buffer_hit and Logger.p2p.debug(
-                    'Buffer limit hit (%s)', blocks_buffer_size + self._size_items_in_queue
-                )
-                self._buffer_hit = True
+                if not self._buffer_hit:
+                    Logger.p2p.debug(
+                        'Buffer limit hit (%s)', blocks_buffer_size + self._size_items_in_queue
+                    )
+                    self._buffer_hit = True
                 await asyncio.sleep(2)
                 break
             else:

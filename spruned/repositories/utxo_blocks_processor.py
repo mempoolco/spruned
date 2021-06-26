@@ -255,7 +255,7 @@ class BlockProcessor:
             self._new_utxo_k.remove(r)
 
     def serialize(self) -> typing.Dict:
-        return {
+        response = {
             'height': self.block['height'],
             'missing_txs': self._missing_txs,
             'requested_utxo': self._exit_code and list(self._local_requested_utxo),
@@ -264,6 +264,7 @@ class BlockProcessor:
             'error': self._error,
             'exit_code': self._exit_code
         }
+        return response
 
     @classmethod
     def process(
@@ -284,9 +285,6 @@ class BlockProcessor:
         """
         Processor Entry Point, must be used into Repository.process_blocks
         """
-        import warnings
-        warnings.filterwarnings("ignore")
-
         if existing_db:
             # threads
             return cls._process(

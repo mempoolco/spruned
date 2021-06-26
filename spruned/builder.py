@@ -1,6 +1,7 @@
 from concurrent.futures.process import ProcessPoolExecutor
 
 from spruned.application.context import ctx as _ctx, Context
+from spruned.application.process_pool_manager import ProcessPoolManager
 from spruned.services.zeromq import build_zmq
 
 
@@ -15,7 +16,7 @@ def builder(ctx: Context):  # pragma: no cover
 
     electrum_connectionpool, electrum_interface = electrum_builder(ctx)
     p2p_connectionpool, p2p_interface = p2p_builder(ctx)
-    processes_pool = ProcessPoolExecutor(max_workers=16)
+    processes_pool = ProcessPoolManager()
     repository = Repository.instance(processes_pool)
     headers_reactor = HeadersReactor(
         repository.blockchain,
@@ -59,6 +60,7 @@ def builder(ctx: Context):  # pragma: no cover
             ctx.mempool_size,
             service
         )
+    processes_pool.initialize()
     return jsonrpc_server, headers_reactor, blocks_reactor, repository, \
            zmq_context, zmq_observer, p2p_interface
 

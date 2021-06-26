@@ -27,6 +27,7 @@ import typing
 from concurrent.futures.process import ProcessPoolExecutor
 
 from spruned.application import ioc
+from spruned.application.process_pool_manager import ProcessPoolManager
 from spruned.application.tools import blockheader_to_blockhash
 from spruned.repositories.chain_repository import BlockchainRepository
 from spruned.repositories.utxo_full_repository import UTXOXOFullRepository
@@ -55,7 +56,7 @@ class Repository:
         return self._utxo_repository
 
     @classmethod
-    def instance(cls, processes_pool: ProcessPoolExecutor):  # pragma: no cover
+    def instance(cls, processes_pool: ProcessPoolManager):  # pragma: no cover
         blockchain_repository = BlockchainRepository(
             ioc.blockchain_db,
             ioc.blockchain_disk_db
