@@ -26,7 +26,6 @@ _EMPTY_MEM = [b'\x00' * 36 for _ in range(254)]
 
 import asyncio
 import multiprocessing
-from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
 
@@ -58,7 +57,7 @@ class UTXOXOFullRepository:
         multiprocessing_manager: multiprocessing.Manager,
         shards: typing.Optional[int] = 1000,
         parallelism=4,
-        entries_to_fork=1000
+        entries_to_fork=0
     ):
         self.db = db
         self.db_path = db_path

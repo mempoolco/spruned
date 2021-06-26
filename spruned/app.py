@@ -2,6 +2,10 @@
 # Copyright (C) 2018 - 2021 Guido 'khs9ne' Dassori
 #
 import sys
+
+from spruned.application.shared_memory_fix import remove_shm_from_resource_tracker
+remove_shm_from_resource_tracker()
+
 sys.path.insert(0, './')
 
 import spruned

@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
+from spruned.application.shared_memory_fix import remove_shm_from_resource_tracker
+remove_shm_from_resource_tracker()
 
 import logging
 import time
